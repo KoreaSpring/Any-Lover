@@ -1,0 +1,19 @@
+{
+  "name": "ai-bot-pet-workspace",
+  "version": "0.1.0",
+  "description": "桌宠版 AI 伴侣工作区：apps/desktop（Electron 外壳+Pet 模式）、apps/settings-ui（React 设置面板）、build/scripts（后端组装与冻结）。",
+  "author": "ai-bot",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "prepare-runtime": "node build/scripts/prepare-runtime.js",
+    "build:backend": "node build/scripts/build-backend.js",
+    "install:all": "npm --prefix apps/settings-ui install && npm --prefix apps/desktop install",
+    "desktop:dev": "npm --prefix apps/desktop run dev",
+    "desktop:build": "npm --prefix apps/desktop run build",
+    "pack": "node build/scripts/pack.js",
+    "pack:full": "node build/scripts/pack.js --with-ollama",
+    "dist": "npm run prepare-runtime && npm run build:backend && npm run pack",
+    "dist:full": "npm run prepare-runtime && npm run build:backend && npm run pack:full"
+  }
+}

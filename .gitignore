@@ -1,0 +1,30 @@
+node_modules/
+apps/desktop/node_modules/
+apps/settings-ui/node_modules/
+
+# electron-vite / builder 产物
+apps/desktop/out/
+apps/desktop/dist/
+apps/desktop/release/
+apps/desktop/resources/settings/
+
+# 后端组装与冻结（可复现，不入库）
+build/pyinstaller/
+dist-runtime/
+
+# 内置 Ollama 与模型（体积大，本地拷贝，不入库）
+vendor/
+
+# 自包含的后端源码（从上游拷贝，可再生）
+backend/models/
+
+# 临时脚本
+build/scripts/_*.ps1
+
+# 历史遗留（已废弃，待手动清理）
+runtime/
+release/
+
+# 运行期生成
+*.log
+verdor/
