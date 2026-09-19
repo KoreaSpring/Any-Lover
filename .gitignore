@@ -22,8 +22,10 @@ backend/models/
 build/scripts/_*.ps1
 
 # 历史遗留（已废弃，待手动清理）
-runtime/
-release/
+# 必须用 / 前缀锚定到仓库根：不加锚定会匹配任意层级的同名目录，
+# 曾误伤 Live2D 模型的 backend/live2d-models/*/runtime/，导致模型未入库。
+/runtime/
+/release/
 
 # 运行期生成
 *.log

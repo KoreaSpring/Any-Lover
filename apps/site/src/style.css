@@ -1,0 +1,58 @@
+/* ============ pet-bot · 纯 Live2D 互动页 ============ */
+:root {
+  --bg: #07070f;
+  --ink: #f2f3ff;
+  --muted: #9ba2cc;
+  --muted-dim: #6f76a0;
+
+  --p1: #7c5cff; /* 紫 */
+  --p2: #ff5ea8; /* 粉 */
+  --p3: #38e1ff; /* 青 */
+
+  --line: rgba(255, 255, 255, 0.1);
+  --ease: cubic-bezier(0.22, 0.68, 0.24, 1);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+}
+
+body {
+  font-family: 'Noto Sans SC', 'Sora', system-ui, -apple-system, sans-serif;
+  color: var(--ink);
+  line-height: 1.6;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+
+  /* 极光氛围背景 */
+  background: radial-gradient(1200px 820px at 72% -12%, #1a1740 0%, transparent 60%),
+    radial-gradient(900px 700px at 8% 18%, #1f1536 0%, transparent 56%), var(--bg);
+}
+
+::selection {
+  background: rgba(124, 92, 255, 0.4);
+}
+
+:focus-visible {
+  outline: 2px solid var(--p3);
+  outline-offset: 3px;
+  border-radius: 6px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}

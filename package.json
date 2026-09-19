@@ -8,9 +8,11 @@
   "scripts": {
     "prepare-runtime": "node build/scripts/prepare-runtime.js",
     "build:backend": "node build/scripts/build-backend.js",
-    "install:all": "npm --prefix apps/settings-ui install && npm --prefix apps/desktop install",
+    "install:all": "npm --prefix apps/settings-ui install && npm --prefix apps/desktop install && npm --prefix apps/site install",
     "desktop:dev": "npm --prefix apps/desktop run dev",
     "desktop:build": "npm --prefix apps/desktop run build",
+    "site:dev": "npm --prefix apps/site run sync:live2d && npm --prefix apps/site run dev",
+    "site:build": "npm --prefix apps/site run sync:live2d && npm --prefix apps/site run build",
     "pack": "node build/scripts/pack.js",
     "pack:full": "node build/scripts/pack.js --with-ollama",
     "dist": "npm run prepare-runtime && npm run build:backend && npm run pack",

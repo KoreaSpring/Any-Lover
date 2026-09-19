@@ -1,0 +1,26 @@
+{
+  "name": "pet-bot-site",
+  "version": "0.1.0",
+  "private": true,
+  "description": "pet-bot 产品官网（Vue 3 + Vite + 真实 Live2D 渲染）",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc --noEmit && vite build",
+    "build:only": "vite build",
+    "preview": "vite preview --port 4173",
+    "sync:live2d": "node scripts/sync-live2d.js"
+  },
+  "dependencies": {
+    "pixi-live2d-display": "0.4.0",
+    "pixi.js": "6.5.10",
+    "vue": "3.5.13"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "@vitejs/plugin-vue": "5.2.1",
+    "typescript": "5.6.3",
+    "vite": "5.4.11",
+    "vue-tsc": "2.1.10"
+  }
+}

@@ -55,9 +55,11 @@ pet-bot/
 ├─ apps/
 │  ├─ desktop/          # Electron 桌面外壳（含 Pet/Window 模式、托盘、菜单）
 │  │  └─ src/main/      #   融合入口 bootstrap.ts + 后端 sidecar / 设置 / Ollama 管理
-│  └─ settings-ui/      # React + Vite 独立设置面板
+│  ├─ settings-ui/      # React + Vite 独立设置面板
+│  └─ site/             # Vue 3 + Vite 官网（全屏 Live2D 互动与粒子话术）
 ├─ backend/             # 上游 Open-LLM-VTuber 后端（作为黑盒整体引入）
 ├─ build/scripts/       # prepare-runtime（组装）/ build-backend（PyInstaller 冻结）/ pack（打包）
+├─ .github/workflows/   # GitHub Pages 自动构建与部署
 ├─ dist-runtime/        # 组装出的可分发运行时（含冻结后端），构建产物
 └─ vendor/ollama/       # 可选：内置 Ollama 程序 + 模型（整合版打包用）
 ```
@@ -85,6 +87,8 @@ npm run dist:full     # 整合版（内置 Ollama + qwen2.5:3b）
 ```
 
 开发调试：`npm run desktop:dev`。仅出免安装目录（不压缩，快速测试）：`node build/scripts/pack.js --with-ollama --dir`。
+
+官网开发：`npm run site:dev`；生产构建：`npm run site:build`。推送 `main` 后，`.github/workflows/deploy-site.yml` 会自动同步项目内的 Shizuku Live2D 资源、构建 Vue 页面并部署到 GitHub Pages。
 
 ## 许可
 

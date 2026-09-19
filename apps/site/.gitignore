@@ -1,0 +1,8 @@
+node_modules
+dist
+*.local
+
+# Live2D 资源由 npm run sync:live2d 从仓库内的 backend/live2d-models 同步生成，
+# 不重复纳入版本控制（源文件已在仓库中）。
+public/libs/live2dcubismcore.min.js
+public/live2d/
