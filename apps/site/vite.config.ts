@@ -1,9 +1,9 @@
 import { defineConfig } from 'vite';
 import vue from '@vitejs/plugin-vue';
 
-// GitHub Pages 部署在 https://<user>.github.io/pet-bot/ 下，需要子路径 base。
+// GitHub Pages 部署在 https://<user>.github.io/Any-Lover/ 下，需要子路径 base。
 // 可用 SITE_BASE 覆盖（例如自定义域名时设为 "/"）。
-const base = process.env.SITE_BASE ?? '/pet-bot/';
+const base = process.env.SITE_BASE ?? '/Any-Lover/';
 
 export default defineConfig({
   base,

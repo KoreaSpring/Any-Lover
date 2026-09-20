@@ -1,0 +1,72 @@
+project_name: "Desktop-Pet-Agent"
+version: "1.0.0"
+target_architecture: "Electron + Decoupled Agent Service Process"
+description: "跨平台桌面陪伴AI助手，具备多模态视觉感知、长期记忆、全双工语音/视频交互以及操作系统级Agent自动化任务能力。"
+
+architecture_overview:
+  frontend:
+    framework: "Electron + React"
+    rendering: "Pixi.js / Live2D SDK"
+    window_properties:
+      transparent: true
+      frameless: true
+      always_on_top: true
+      click_through_toggleable: true
+  backend_engine:
+    runtime: "Node.js (Child Process) / Python Subprocess"
+    communication_protocol: "WebSocket / Local IPC (Inter-Process Communication)"
+
+system_modules:
+  - module_id: "mod_perception"
+    name: "Perception Layer (感官层)"
+    features:
+      - id: "feat_screen_capture"
+        description: "基于 Electron desktopCapturer 实时截屏，向视觉多模态模型发送图片分析画面"
+        inputs: ["Screen Frame / Video Stream"]
+        outputs: ["Image Base64", "Visual Understanding Context"]
+      - id: "feat_audio_duplex"
+        description: "全双工实时语音捕捉（VAD 语音活动检测）与 流式 TTS 播放"
+        tech_stack: ["WebRTC", "Whisper ASR", "Edge-TTS / OpenAI TTS"]
+
+  - module_id: "mod_memory"
+    name: "Memory & Personality Layer (记忆与情感引擎)"
+    features:
+      - id: "feat_long_term_memory"
+        description: "提取对话实体与偏好，向量化存入数据库，实现跨对话周期的连续记忆"
+        integration: "Mem0 / Zep Vector Store"
+      - id: "feat_persona_evolution"
+        description: "维护 SOUL.md 人格设定配置文件，根据交互频次动态调整情绪与亲密度属性"
+
+  - module_id: "mod_agent_execution"
+    name: "Agent & Automation Layer (执行与系统控制层)"
+    features:
+      - id: "feat_mcp_client"
+        description: "集成 Model Context Protocol (MCP) 协议，对接外部工具链"
+        integration: "MCP SDK (Model Context Protocol)"
+      - id: "feat_system_automation"
+        description: "操作本地文件、调用浏览器代理、自动化运行 GitHub/DevOps 工作流"
+        integration: "OpenClaw / Node OS Library"
+      - id: "feat_multi_model_routing"
+        description: "多模型统一调度，灵活切换云端大模型与本地 Ollama 轻量模型"
+        integration: "Cherry Studio Local Core API"
+
+ipc_communication_schema:
+  event_flow:
+    - name: "USER_VOICE_INPUT"
+      direction: "Frontend -> Backend"
+      payload: "{ audio_blob: Blob, timestamp: Number }"
+    - name: "AGENT_RESPONSE_STREAM"
+      direction: "Backend -> Frontend"
+      payload: "{ text_chunk: String, emotion: 'happy'|'sad'|'thinking', action_trigger: String }"
+    - name: "SYSTEM_TOOL_CALL"
+      direction: "Backend -> System"
+      payload: "{ tool_name: String, parameters: Object }"
+
+prompt_structure:
+  system_prompt_template: |
+    Role: You are a desktop companion (friend/lover).
+    Personality Traits: [Loaded from SOUL.md]
+    Retrieved Long-term Memories: [Injected from Mem0 Search Results]
+    Current Desktop Context: [Injected from mod_perception]
+    Output Format Rules: You must reply strictly in JSON format:
+    {"text": "your spoken line", "emotion": "happy|shy|neutral", "action": "wave|nod|dance"}

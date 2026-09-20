@@ -290,7 +290,7 @@ onBeforeUnmount(() => {
         ref="canvas"
         class="live2d-canvas"
         role="img"
-        aria-label="pet-bot 的 Live2D 角色，点击页面任意位置与她互动"
+        aria-label="Any-Lover（Charis）的 Live2D 角色，点击页面任意位置与她互动"
       ></canvas>
 
       <div v-if="status === 'loading'" class="overlay">

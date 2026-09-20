@@ -1,8 +1,22 @@
 import base64
+import os
 from pydub import AudioSegment
 from pydub.utils import make_chunks
 from ..agent.output_types import Actions
 from ..agent.output_types import DisplayText
+
+# 显式指向随包 ffmpeg（由 Electron 通过 AIBOT_FFMPEG_DIR 注入）。
+# edge_tts 输出 mp3，pydub 解码 mp3 依赖 ffmpeg；打包环境里 PATH 未必可靠，
+# 因此在此显式设置 converter/ffprobe，确保用户机器无需自行安装 ffmpeg。
+_ffmpeg_dir = os.environ.get("AIBOT_FFMPEG_DIR", "").strip()
+if _ffmpeg_dir and os.path.isdir(_ffmpeg_dir):
+    _ffmpeg_exe = os.path.join(_ffmpeg_dir, "ffmpeg.exe")
+    _ffprobe_exe = os.path.join(_ffmpeg_dir, "ffprobe.exe")
+    if os.path.isfile(_ffmpeg_exe):
+        AudioSegment.converter = _ffmpeg_exe
+        AudioSegment.ffmpeg = _ffmpeg_exe
+    if os.path.isfile(_ffprobe_exe):
+        AudioSegment.ffprobe = _ffprobe_exe
 
 
 def _get_volume_by_chunks(audio: AudioSegment, chunk_length_ms: int) -> list:

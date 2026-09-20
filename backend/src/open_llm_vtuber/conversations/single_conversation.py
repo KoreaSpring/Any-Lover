@@ -15,6 +15,7 @@ from .conversation_utils import (
 )
 from .types import WebSocketSend
 from .tts_manager import TTSTaskManager
+from .stream_hooks import set_partial_text_emitter, reset_partial_text_emitter
 from ..chat_history_manager import store_message
 from ..service_context import ServiceContext
 
@@ -85,6 +86,22 @@ async def process_single_conversation(
         if images:
             logger.info(f"With {len(images)} images")
 
+        # 注册 token 旁路回调：agent 逐 token 产出时，额外发送 partial-text 消息，
+        # 让前端字幕流式显示。该通道独立于句子/音频通道，不影响 TTS 与最终字幕。
+        loop = asyncio.get_running_loop()
+
+        def _emit_partial(text: str) -> None:
+            def _send() -> None:
+                try:
+                    asyncio.ensure_future(
+                        websocket_send(json.dumps({"type": "partial-text", "text": text}))
+                    )
+                except Exception:
+                    pass
+
+            loop.call_soon_threadsafe(_send)
+
+        emitter_token = set_partial_text_emitter(_emit_partial)
         try:
             # agent.chat yields Union[SentenceOutput, Dict[str, Any]]
             agent_output_stream = context.agent_engine.chat(batch_input)
@@ -135,11 +152,16 @@ async def process_single_conversation(
                 )
             )
             # full_response will contain partial response before error
+        finally:
+            # token 流结束后注销旁路回调，避免影响后续会话
+            reset_partial_text_emitter(emitter_token)
         # --- End processing agent response ---
 
-        # Wait for any pending TTS tasks
+        # Wait for any pending TTS tasks.
+        # return_exceptions=True：个别 TTS/转码失败（如缺 ffmpeg）不冒泡为整段
+        # 对话异常，避免误弹 "Conversation error"；这些失败已在 _process_tts 内退化为静音。
         if tts_manager.task_list:
-            await asyncio.gather(*tts_manager.task_list)
+            await asyncio.gather(*tts_manager.task_list, return_exceptions=True)
             await websocket_send(json.dumps({"type": "backend-synth-complete"}))
 
         await finalize_conversation_turn(

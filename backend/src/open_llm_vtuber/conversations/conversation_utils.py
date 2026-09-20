@@ -167,7 +167,8 @@ async def finalize_conversation_turn(
 ) -> None:
     """Finalize a conversation turn"""
     if tts_manager.task_list:
-        await asyncio.gather(*tts_manager.task_list)
+        # return_exceptions=True：单句 TTS 失败不冒泡为整段异常
+        await asyncio.gather(*tts_manager.task_list, return_exceptions=True)
         await websocket_send(json.dumps({"type": "backend-synth-complete"}))
 
         response = await message_handler.wait_for_response(

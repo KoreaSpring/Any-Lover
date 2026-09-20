@@ -226,6 +226,10 @@ export const useLive2DModel = ({
     const isHitOnModel = model.isHitOnModel(modelX, modelY);
     // --- End Check ---
 
+    console.log(
+      `[Live2D][mousedown] client=(${e.clientX},${e.clientY}) canvasLocal=(${x.toFixed(1)},${y.toFixed(1)}) scale=${scale.toFixed(3)} model=(${modelX.toFixed(3)},${modelY.toFixed(3)}) hitAreaName=${hitAreaName} isHitOnModel=${isHitOnModel} canvasSize=${canvas.width}x${canvas.height} clientSize=${canvas.clientWidth}x${canvas.clientHeight}`,
+    );
+
     if (hitAreaName !== null || isHitOnModel) {
       // Record potential tap/drag start
       mouseDownTimeRef.current = Date.now();
@@ -233,11 +237,15 @@ export const useLive2DModel = ({
       isPotentialTapRef.current = true;
       setIsDragging(false); // Ensure dragging is false initially
 
+      console.log('[Live2D][mousedown] HIT -> isPotentialTapRef=true, waiting for mouseup to decide tap/drag');
+
       // Store initial model position IF drag starts later
       if (model._modelMatrix) {
         const matrix = model._modelMatrix.getArray();
         modelStartPos.current = { x: matrix[12], y: matrix[13] };
       }
+    } else {
+      console.log('[Live2D][mousedown] MISS -> click will NOT be tracked as tap/drag (isPotentialTapRef stays false)');
     }
   }, [canvasRef, modelInfo]);
 
@@ -255,6 +263,7 @@ export const useLive2DModel = ({
 
       // Check if it's a drag (moved enough distance OR held long enough while moving slightly)
       if (distanceMoved > DRAG_DISTANCE_THRESHOLD_PX || (timeElapsed > TAP_DURATION_THRESHOLD_MS && distanceMoved > 1)) {
+        console.log(`[Live2D][mousemove] tap escalated to DRAG: distanceMoved=${distanceMoved.toFixed(1)}px timeElapsed=${timeElapsed}ms`);
         isPotentialTapRef.current = false; // It's a drag, not a tap
         setIsDragging(true);
 
@@ -326,6 +335,7 @@ export const useLive2DModel = ({
       const currentHitState = model.anyhitTest(modelX, modelY) !== null || model.isHitOnModel(modelX, modelY);
 
       if (currentHitState !== isHoveringModelRef.current) {
+        console.log(`[Live2D][hover] state change: ${isHoveringModelRef.current} -> ${currentHitState} at model=(${modelX.toFixed(3)},${modelY.toFixed(3)}), notifying main process via update-component-hover`);
         isHoveringModelRef.current = currentHitState;
         electronApi.ipcRenderer.send('update-component-hover', 'live2d-model', currentHitState);
       }
@@ -359,7 +369,10 @@ export const useLive2DModel = ({
       const distanceMoved = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
 
       // Check if it qualifies as a tap (short duration, minimal movement)
-      if (timeElapsed < TAP_DURATION_THRESHOLD_MS && distanceMoved < DRAG_DISTANCE_THRESHOLD_PX) {
+      const qualifiesAsTap = timeElapsed < TAP_DURATION_THRESHOLD_MS && distanceMoved < DRAG_DISTANCE_THRESHOLD_PX;
+      console.log(`[Live2D][mouseup] potential tap resolved: timeElapsed=${timeElapsed}ms distanceMoved=${distanceMoved.toFixed(1)}px qualifiesAsTap=${qualifiesAsTap}`);
+
+      if (qualifiesAsTap) {
         const allowTapMotion = modelInfo?.pointerInteractive !== false;
 
         if (allowTapMotion && modelInfo?.tapMotions) {
@@ -373,11 +386,17 @@ export const useLive2DModel = ({
           const modelY = view._deviceToScreen.transformY(downY);
 
           const hitAreaName = model.anyhitTest(modelX, modelY);
+          console.log(`[Live2D][mouseup] re-hitTest at mousedown pos -> hitAreaName=${hitAreaName}, calling startTapMotion(tapMotions keys=${JSON.stringify(Object.keys(modelInfo.tapMotions || {}))})`);
           // Trigger tap motion using the specific hit area name or null for general body tap
-          model.startTapMotion(hitAreaName, modelInfo.tapMotions);
+          const motionResult = model.startTapMotion(hitAreaName, modelInfo.tapMotions);
+          console.log('[Live2D][mouseup] startTapMotion result:', motionResult);
+        } else {
+          console.log(`[Live2D][mouseup] tap qualifies but motion NOT triggered: allowTapMotion=${allowTapMotion} hasTapMotions=${!!modelInfo?.tapMotions}`);
         }
       }
       // --- End Tap Motion Logic ---
+    } else {
+      console.log(`[Live2D][mouseup] no-op: isDragging=${isDragging} isPotentialTapRef=${isPotentialTapRef.current} adapter=${!!adapter} model=${!!model} view=${!!view}`);
     }
 
     // Reset potential tap flag regardless of outcome
@@ -395,14 +414,22 @@ export const useLive2DModel = ({
     }
     // --- Pet Hover Logic (Unchanged) ---
     if (isPet && electronApi && isHoveringModelRef.current) {
+      console.log('[Live2D][mouseleave] clearing hover state, notifying main process');
       isHoveringModelRef.current = false;
       electronApi.ipcRenderer.send('update-component-hover', 'live2d-model', false);
     }
   }, [isPet, isDragging, electronApi, handleMouseUp]);
 
+  // 模式切换时同步复位 hover 状态。之前这里只在 isPet 变为 false 时把本地
+  // ref 置空，但没有通知主进程，导致主进程 hoveringComponents 可能残留旧状态，
+  // 与渲染进程实际鼠标位置不一致，直到下一次 mousemove 才会纠正——这正是
+  // "有时点击不生效"的根因之一。现在无论切到哪个模式都显式上报一次 false，
+  // 保证两侧状态在模式切换瞬间就对齐。
   useEffect(() => {
-    if (!isPet && electronApi && isHoveringModelRef.current) {
-      isHoveringModelRef.current = false;
+    console.log(`[Live2D][mode-effect] mode switched, isPet=${isPet}, resetting isHoveringModelRef (was=${isHoveringModelRef.current}) and notifying main process`);
+    isHoveringModelRef.current = false;
+    if (isPet && electronApi) {
+      electronApi.ipcRenderer.send('update-component-hover', 'live2d-model', false);
     }
   }, [isPet, electronApi]);
 

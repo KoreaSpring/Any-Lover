@@ -1,18 +1,20 @@
 <div align="center">
 
-<img src="https://docs.llmvtuber.com/img/open_llm_vtuber.png" width="150" alt="pet-bot" />
+<img src="https://docs.llmvtuber.com/img/open_llm_vtuber.png" width="150" alt="Any-Lover" />
 
-# pet-bot · 桌面 AI 陪伴伙伴
+# Any-Lover · 桌面 AI 陪伴伙伴
 
 **一只住在你桌面上的 Live2D AI 伙伴 —— 会听、会说、能看屏幕，下载即用。**
+
+角色名 **Charis（卡里斯）**：源自古希腊神话中的美惠女神（Charites 三女神之一），代表优雅与魅力，寓意她能被所有人喜爱，为人们带来快乐、幸福与爱。
 
 基于 [Open-LLM-VTuber](https://docs.llmvtuber.com) 二次封装，融合前后端为单个开箱即用的 Windows 应用。
 
 <br />
 
-[![下载 Windows 版](https://img.shields.io/badge/⬇_下载-Windows_版-2ea043?style=for-the-badge)](https://github.com/iceKorea/pet-bot/releases)
+[![下载 Windows 版](https://img.shields.io/badge/⬇_下载-Windows_版-2ea043?style=for-the-badge)](https://github.com/iceKorea/Any-Lover/releases)
 &nbsp;
-[![在线体验](https://img.shields.io/badge/🌐_在线-体验官网-7c5cff?style=for-the-badge)](https://icekorea.github.io/pet-bot/)
+[![在线体验](https://img.shields.io/badge/🌐_在线-体验官网-7c5cff?style=for-the-badge)](https://icekorea.github.io/Any-Lover/)
 
 <sub>Windows 10/11 · 本地优先 · 开源可控 · MIT License</sub>
 
@@ -29,9 +31,19 @@
 
 ---
 
+## 🔮 未来的她
+
+<div align="center">
+<img src="./docs/watermarked_img_14528010499084826743.jpg" alt="未来的她：长期记忆与情感、多模态视觉感知、全双工语音交流、自动化任务执行、人拟化情绪表达、Agent 规划决策" width="700" />
+</div>
+
+> 以上是规划中的能力方向，尚未全部实现，欢迎关注后续版本更新。详细的技术路线设计见 [`docs/roadmap/`](./docs/roadmap/README.md)。
+
+---
+
 ## 🚀 三步开始（普通用户）
 
-1. **下载安装** — 从 [Releases](https://github.com/iceKorea/pet-bot/releases) 下载安装包并安装。内置后端运行时，无需装 Python。
+1. **下载安装** — 从 [Releases](https://github.com/iceKorea/Any-Lover/releases) 下载安装包并安装。内置后端运行时，无需装 Python。
 2. **配置一次** — 首次启动填写大模型 API/Key，或选择本机 Ollama。**整合版**内置模型，完全免配置。
 3. **开始陪伴** — 桌宠启动。托盘右键或菜单可在 **窗口模式 / 桌宠模式** 间切换。
 
@@ -119,7 +131,8 @@ npm run pack -- --dir         # 轻量版免安装目录
 | 打包成功但后端不是最新 | `pack:full` 封装了旧冻结后端 | 改用 `npm run dist:full` 重新冻结 |
 | `Error calling the chat endpoint`（含图片） | 纯文本模型收到屏幕/摄像头图片 | 换支持视觉的模型，或关闭摄像头/屏幕；新版会自动忽略图片重试 |
 | 端口冲突 | `12393` / `11434` 被占用 | 停止占用程序后重启 |
-| 后端资源没更新 | `%APPDATA%\ai-bot-pet\runtime` 缓存了旧文件 | 关闭应用后清理该目录再启动（先备份需要的数据） |
+| 后端资源没更新 | `%APPDATA%\any-lover\runtime` 缓存了旧文件 | 关闭应用后清理该目录再启动（先备份需要的数据） |
+| 旧版（`ai-bot-pet` / `pet-bot`）升级后聊天记录/设置"消失" | 应用改名为 `Any-Lover` 后，用户数据目录从 `%APPDATA%\ai-bot-pet` 迁移为 `%APPDATA%\any-lover`，角色标识也从 `aibot_pet_001` 改为 `charis_001` | 数据并未丢失，仍在旧目录里；如需继续使用旧聊天记录，手动把 `%APPDATA%\ai-bot-pet\chat_history\aibot_pet_001` 下的文件拷贝到 `%APPDATA%\any-lover\chat_history\charis_001` |
 
 </details>
 
@@ -153,7 +166,7 @@ npm run pack -- --dir         # 轻量版免安装目录
 <br />
 
 ```
-pet-bot/
+Any-Lover/
 ├─ apps/
 │  ├─ desktop/          # Electron 桌面外壳（Pet/Window 模式、托盘、菜单）
 │  │  └─ src/main/      #   融合入口 bootstrap.ts + 后端 sidecar / 设置 / Ollama 管理
@@ -179,7 +192,7 @@ pet-bot/
 
 <br />
 
-本项目**继承并二次封装自 [Open-LLM-VTuber](https://docs.llmvtuber.com/docs/quick-start)**（后端）与 Open-LLM-VTuber-Web（前端外壳）。语音识别、大模型对话、语音合成、Live2D 渲染与 Pet/Window 模式均来自上游，pet-bot 在其之上做了：
+本项目**继承并二次封装自 [Open-LLM-VTuber](https://docs.llmvtuber.com/docs/quick-start)**（后端）与 Open-LLM-VTuber-Web（前端外壳）。语音识别、大模型对话、语音合成、Live2D 渲染与 Pet/Window 模式均来自上游，Any-Lover 在其之上做了：
 
 - **一体化融合**：分离的 Python 后端与 Electron 前端合并成单一桌面应用；
 - **开箱即用打包**：内置冻结后端运行时（无需装 Python），可选内置 Ollama + qwen2.5:3b；

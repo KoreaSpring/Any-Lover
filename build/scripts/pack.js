@@ -102,9 +102,20 @@ function buildDesktop() {
   if (res.status !== 0) throw new Error('desktop 构建失败');
 }
 
+const VENDOR_FFMPEG = path.join(ROOT, 'vendor', 'ffmpeg');
+
 function runBuilder() {
   // 基础 extraResources：dist-runtime -> runtime（相对 apps/desktop）
   const extra = [{ from: '../../dist-runtime', to: 'runtime', filter: ['**/*'] }];
+
+  // 随包提供 ffmpeg：edge_tts 输出 mp3，后端用 pydub 转 wav 需要 ffmpeg 解码。
+  // 打进产物后，用户机器无需自行安装 ffmpeg 即可听到语音（轻量版/整合版都带）。
+  if (fs.existsSync(path.join(VENDOR_FFMPEG, 'bin', 'ffmpeg.exe'))) {
+    extra.push({ from: '../../vendor/ffmpeg', to: 'ffmpeg', filter: ['**/*'] });
+    log('打入 vendor/ffmpeg（用于 TTS 音频转码）');
+  } else {
+    log('提示：未找到 vendor/ffmpeg/bin/ffmpeg.exe，产物将不含 ffmpeg，缺 ffmpeg 的机器语音会静音');
+  }
 
   if (withOllama) {
     if (!fs.existsSync(path.join(VENDOR_OLLAMA, 'bin', 'ollama.exe'))) {

@@ -108,7 +108,7 @@ function assembleSource() {
 function writePetConfigTemplate() {
   log('写入桌宠配置模板 config_templates/conf.pet.yaml ...');
   const modelDir = `./models/${SENSE_VOICE.dirName}`;
-  const yaml = `# 桌宠专用配置（由 ai-bot 生成）。占位符会在启动时由 Electron 主进程替换。
+  const yaml = `# 桌宠专用配置（由 Any-Lover 生成）。占位符会在启动时由 Electron 主进程替换。
 system_config:
   conf_version: 'v1.2.0'
   host: '127.0.0.1'
@@ -118,10 +118,10 @@ system_config:
     live2d_expression_prompt: 'live2d_expression_prompt'
 
 character_config:
-  conf_name: 'aibot-pet'
-  conf_uid: 'aibot_pet_001'
+  conf_name: 'charis'
+  conf_uid: 'charis_001'
   live2d_model_name: 'mao_pro'
-  character_name: 'AI 桌宠'
+  character_name: 'Charis'
   avatar: 'mao.png'
   human_name: 'Human'
   persona_prompt: |

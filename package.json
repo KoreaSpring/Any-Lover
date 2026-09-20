@@ -1,7 +1,7 @@
 {
-  "name": "ai-bot-pet-workspace",
+  "name": "any-lover-workspace",
   "version": "0.1.0",
-  "description": "桌宠版 AI 伴侣工作区：apps/desktop（Electron 外壳+Pet 模式）、apps/settings-ui（React 设置面板）、build/scripts（后端组装与冻结）。",
+  "description": "Any-Lover（角色 Charis）桌宠版 AI 伴侣工作区：apps/desktop（Electron 外壳+Pet 模式）、apps/settings-ui（React 设置面板）、build/scripts（后端组装与冻结）。",
   "author": "ai-bot",
   "license": "MIT",
   "private": true,

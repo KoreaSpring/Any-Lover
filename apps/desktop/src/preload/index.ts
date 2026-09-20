@@ -2,7 +2,12 @@
 import electron from 'electron';
 const { contextBridge, ipcRenderer, desktopCapturer } = electron;
 import { electronAPI } from '@electron-toolkit/preload';
+import 'electron-log/preload';
 import { ConfigFile } from '../main/menu-manager';
+
+// electron-log/preload 会在 window 上桥接一个 IPC 通道，配合渲染进程里
+// `electron-log/renderer` 的 initialize()，让 renderer 侧的 console.* / log.*
+// 调用统一转发到主进程落盘，与主进程日志汇总到同一份文件，方便按时间线排查问题。
 
 declare global {
   interface Window {

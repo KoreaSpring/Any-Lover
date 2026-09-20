@@ -47,6 +47,17 @@ export class BackendManager {
     return path.join(app.getPath('userData'), 'runtime');
   }
 
+  // 随包 ffmpeg 的 bin 目录：打包态 resources/ffmpeg/bin；开发态 vendor/ffmpeg/bin
+  private ffmpegDir(): string | null {
+    const candidates = app.isPackaged
+      ? [path.join(process.resourcesPath, 'ffmpeg', 'bin')]
+      : [path.join(app.getAppPath(), '..', '..', 'vendor', 'ffmpeg', 'bin')];
+    for (const dir of candidates) {
+      if (fs.existsSync(path.join(dir, 'ffmpeg.exe'))) return dir;
+    }
+    return null;
+  }
+
   private pythonExe(): { exe: string; useScript: boolean } {
     const root = this.dataRoot();
     const frozen = path.join(root, 'python', 'aibot-backend.exe');
@@ -132,6 +143,17 @@ export class BackendManager {
       env.OLVT_LLM_API_KEY = llm.apiKey && llm.apiKey.length ? llm.apiKey : 'not-needed';
       env.HF_HOME = path.join(root, 'models');
       env.MODELSCOPE_CACHE = path.join(root, 'models');
+
+      // 将随包 ffmpeg 目录加到后端进程 PATH 前缀，使 pydub 能找到它，
+      // 无需用户机器自行安装 ffmpeg（否则 edge_tts 的 mp3 无法转 wav，语音静音）。
+      const ffdir = this.ffmpegDir();
+      if (ffdir) {
+        env.PATH = `${ffdir}${path.delimiter}${env.PATH || ''}`;
+        env.AIBOT_FFMPEG_DIR = ffdir;
+        this.log(`[backend] ffmpeg dir on PATH: ${ffdir}`);
+      } else {
+        this.log('[backend] 未找到随包 ffmpeg，若系统无 ffmpeg 则语音会静音');
+      }
 
       this.log(`[backend] spawn: ${exe} ${args.join(' ')} (cwd=${root})`);
       this.child = spawn(exe, args, { cwd: root, env, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });

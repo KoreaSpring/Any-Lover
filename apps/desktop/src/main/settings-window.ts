@@ -29,7 +29,7 @@ export function openSettingsWindow(): BrowserWindow {
     width: 560,
     height: 680,
     resizable: false,
-    title: 'AI 桌宠设置',
+    title: 'Charis 设置',
     autoHideMenuBar: true,
     webPreferences: {
       preload: resolveSettingsPreload(),

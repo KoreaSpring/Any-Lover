@@ -7,8 +7,7 @@
 // 让其原有的 Window/Pet 模式、托盘、菜单等逻辑保持完全不变。
 
 import { app, globalShortcut } from 'electron';
-import fs from 'fs';
-import path from 'path';
+import log from 'electron-log/main';
 import { BackendManager } from './backend-manager';
 import './gpu-fix';
 import { OllamaManager, resolveBundledOllama } from './ollama-manager';
@@ -16,18 +15,33 @@ import { registerAibotIpc } from './aibot-ipc';
 import { openSettingsWindow, getSettingsWindow } from './settings-window';
 import { readSettings, writeSettings, hasApiKey } from './settings-store';
 
-let logStream: fs.WriteStream | null = null;
+// 单例锁：防止用户重复启动多个应用实例（会导致端口 12393/11434 冲突、
+// 多个后端/Ollama 进程互相抢占）。拿不到锁说明已有实例在运行，直接退出，
+// 让已运行的实例把窗口聚焦到前台。
+const gotSingleInstanceLock = app.requestSingleInstanceLock();
+if (!gotSingleInstanceLock) {
+  app.quit();
+}
+
+// 统一日志管理：electron-log 负责主进程 + 渲染进程（经 preload 桥接）的全部日志，
+// 落盘位置默认是 `%APPDATA%\any-lover\logs\main.log`（Windows），自带按天/大小滚动、
+// 分级（error/warn/info/debug/verbose/silly）、控制台+文件双输出。
+// initialize() 会：
+//   1. 接管全局 console.* 调用（此前散落在各处的 console.log 调试语句现在会自动落盘）
+//   2. 建立与渲染进程的 IPC 桥接，配合 preload 里的 electron-log/preload 使用
+log.initialize();
+log.transports.file.level = 'info';
+log.transports.console.level = app.isPackaged ? 'info' : 'debug';
+// 单文件最大 5MB，超出后自动轮转为 main.old.log，避免日志无限增长
+log.transports.file.maxSize = 5 * 1024 * 1024;
+log.transports.file.format = '[{y}-{m}-{d} {h}:{i}:{s}.{ms}] [{level}] {text}';
+
+log.info(`[startup] electron-log initialized, log file: ${log.transports.file.getFile().path}`);
+
+// 兼容旧签名：历史代码里到处传递 logToFile(line) 这种“字符串行”回调，
+// 这里保留同样的调用方式，内部转发给 electron-log，避免大范围改动调用点。
 function logToFile(line: string): void {
-  try {
-    if (!logStream) {
-      const dir = app.getPath('userData');
-      fs.mkdirSync(dir, { recursive: true });
-      logStream = fs.createWriteStream(path.join(dir, 'ai-bot-pet.log'), { flags: 'a' });
-    }
-    logStream.write(`${new Date().toISOString()} ${line}\n`);
-  } catch {
-    /* ignore */
-  }
+  log.info(line);
 }
 
 const backend = new BackendManager(logToFile);
