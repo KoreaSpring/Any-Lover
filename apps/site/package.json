@@ -1,8 +1,8 @@
 {
-  "name": "pet-bot-site",
+  "name": "any-lover-site",
   "version": "0.1.0",
   "private": true,
-  "description": "pet-bot 产品官网（Vue 3 + Vite + 真实 Live2D 渲染）",
+  "description": "Any-Lover（角色 Charis）产品官网（Vue 3 + Vite + 真实 Live2D 渲染）",
   "type": "module",
   "scripts": {
     "dev": "vite",

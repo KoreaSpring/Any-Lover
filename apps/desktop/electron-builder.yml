@@ -1,5 +1,5 @@
-appId: com.aibot.pet
-productName: AI-Bot-Pet
+appId: com.anylover.charis
+productName: Any-Lover
 directories:
   buildResources: resources
   output: release/${version}
@@ -22,7 +22,7 @@ extraResources:
 asarUnpack:
   - resources/**
 win:
-  executableName: ai-bot-pet
+  executableName: any-lover
   icon: resources/icon.ico
 nsis:
   artifactName: ${name}-${version}-setup.${ext}
