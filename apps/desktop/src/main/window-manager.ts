@@ -25,12 +25,15 @@ export class WindowManager {
 
   constructor() {
     ipcMain.on('renderer-ready-for-mode-change', (_event, newMode) => {
+      console.log(`[WindowManager] renderer-ready-for-mode-change received, newMode=${newMode}, hoveringComponents(before)=${JSON.stringify(Array.from(this.hoveringComponents))}`);
       if (newMode === 'pet') {
         setTimeout(() => {
+          console.log('[WindowManager] 500ms delay elapsed, calling continueSetWindowModePet()');
           this.continueSetWindowModePet();
         }, 500);
       } else {
         setTimeout(() => {
+          console.log('[WindowManager] 500ms delay elapsed, calling continueSetWindowModeWindow()');
           this.continueSetWindowModeWindow();
         }, 500);
       }
@@ -49,6 +52,7 @@ export class WindowManager {
 
     // Handle toggle force ignore mouse events from renderer
     ipcMain.on('toggle-force-ignore-mouse', () => {
+      console.log(`[WindowManager] toggle-force-ignore-mouse received, current forceIgnoreMouse=${this.forceIgnoreMouse}`);
       this.toggleForceIgnoreMouse();
     });
   }
@@ -139,6 +143,12 @@ export class WindowManager {
   setWindowMode(mode: 'window' | 'pet'): void {
     if (!this.window) return;
 
+    console.log(`[WindowManager] setWindowMode: ${this.currentMode} -> ${mode}, clearing hoveringComponents(was=${JSON.stringify(Array.from(this.hoveringComponents))}), forceIgnoreMouse=${this.forceIgnoreMouse}`);
+    // 模式切换时必须清空 hover 状态，否则残留的 hoveringComponents 会导致
+    // 下一次进入 pet 模式后，鼠标穿透状态与渲染进程实际 hover 状态不同步
+    // （渲染进程侧的 isHoveringModelRef 也会在对应 effect 里被复位）
+    this.hoveringComponents.clear();
+
     this.currentMode = mode;
     this.window.setOpacity(0);
 
@@ -180,6 +190,7 @@ export class WindowManager {
     }
 
     this.window?.setIgnoreMouseEvents(false, { forward: true });
+    console.log('[WindowManager] continueSetWindowModeWindow: setIgnoreMouseEvents(false), mode-changed -> window');
 
     this.window.webContents.send('mode-changed', 'window');
   }
@@ -236,6 +247,7 @@ export class WindowManager {
     } else {
       this.window.setIgnoreMouseEvents(true, { forward: true });
     }
+    console.log(`[WindowManager] continueSetWindowModePet: bounds set to ${JSON.stringify({ x: minX, y: minY, width: combinedWidth, height: combinedHeight })}, setIgnoreMouseEvents(true) applied, mode-changed -> pet`);
 
     this.window.webContents.send('mode-changed', 'pet');
   }
@@ -282,10 +294,16 @@ export class WindowManager {
   }
 
   updateComponentHover(componentId: string, isHovering: boolean): void {
-    if (this.currentMode === 'window') return;
+    if (this.currentMode === 'window') {
+      console.log(`[WindowManager] updateComponentHover(${componentId}, ${isHovering}) ignored: currentMode=window`);
+      return;
+    }
 
     // If force ignore is enabled, don't change the mouse ignore state
-    if (this.forceIgnoreMouse) return;
+    if (this.forceIgnoreMouse) {
+      console.log(`[WindowManager] updateComponentHover(${componentId}, ${isHovering}) ignored: forceIgnoreMouse=true (this hover event is DROPPED and will NOT be re-applied when forceIgnoreMouse turns off)`);
+      return;
+    }
 
     if (isHovering) {
       this.hoveringComponents.add(componentId);
@@ -295,6 +313,7 @@ export class WindowManager {
 
     if (this.window) {
       const shouldIgnore = this.hoveringComponents.size === 0;
+      console.log(`[WindowManager] updateComponentHover(${componentId}, ${isHovering}) -> hoveringComponents=${JSON.stringify(Array.from(this.hoveringComponents))}, setIgnoreMouseEvents(${shouldIgnore})`);
       if (isMac) {
         this.window.setIgnoreMouseEvents(shouldIgnore);
       } else {
@@ -309,6 +328,7 @@ export class WindowManager {
   // Toggle force ignore mouse events
   toggleForceIgnoreMouse(): void {
     this.forceIgnoreMouse = !this.forceIgnoreMouse;
+    console.log(`[WindowManager] toggleForceIgnoreMouse -> ${this.forceIgnoreMouse}, hoveringComponents(snapshot)=${JSON.stringify(Array.from(this.hoveringComponents))}`);
 
     // Apply the new setting immediately
     if (this.forceIgnoreMouse) {
@@ -318,8 +338,14 @@ export class WindowManager {
         this.window?.setIgnoreMouseEvents(true, { forward: true });
       }
     } else {
-      // Reapply normal behavior based on hovering components
+      // Reapply normal behavior based on hovering components.
+      // NOTE: hoveringComponents 只在 forceIgnoreMouse=false 期间被更新（见 updateComponentHover
+      // 顶部的短路 return），所以这里用到的 hoveringComponents 很可能是"强制穿透开启前"的旧值，
+      // 而不是当前鼠标实际所在位置的命中状态。如果强制穿透期间鼠标移动到了模型上，这里依然会
+      // 判定为 shouldIgnore=true，导致解除强制穿透后第一次点击仍然穿透过去，必须等渲染进程再
+      // 产生一次 mousemove 才能纠正。这是"有时候点击不生效"的关键可疑点之一。
       const shouldIgnore = this.hoveringComponents.size === 0;
+      console.log(`[WindowManager] toggleForceIgnoreMouse(off): reapplying based on STALE hoveringComponents -> setIgnoreMouseEvents(${shouldIgnore})`);
       if (isMac) {
         this.window?.setIgnoreMouseEvents(shouldIgnore);
       } else {

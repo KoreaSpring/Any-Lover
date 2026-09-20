@@ -30,6 +30,8 @@ onnxruntime==1.23.2
 
 # TTS
 edge-tts==7.2.7
+# pydub：把 edge_tts 的 mp3 转成前端所需 wav（解 mp3 需 ffmpeg，整合版随包提供）
+pydub==0.25.1
 
 # 大模型（OpenAI 兼容）
 openai==2.15.0

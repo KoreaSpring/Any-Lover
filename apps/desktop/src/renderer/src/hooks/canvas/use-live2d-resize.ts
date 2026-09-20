@@ -198,15 +198,26 @@ export const useLive2DResize = ({
       canvas.style.width = `${width}px`;
       canvas.style.height = `${height}px`;
 
+      console.log(`[Live2D][resize] applying: cssSize=${width.toFixed(1)}x${height.toFixed(1)} dpr=${dpr} canvasPixelSize=${canvas.width}x${canvas.height} isPet=${isPet} sidebarChanged=${sidebarChanged}`);
+
       const delegate = LAppDelegate.getInstance();
       if (delegate) {
+        // 注意：delegate.onResize() 内部会重新计算 view._deviceToScreen 矩阵，
+        // 这是 hit-test 坐标转换依赖的核心矩阵。如果用户在 canvas.width/height
+        // 已经更新、但 onResize() 尚未执行完成之间的这一小段时间内点击/移动鼠标，
+        // handleMouseDown/handleMouseMove 里用的 scale = canvas.width / canvas.clientWidth
+        // 会是新值，但 _deviceToScreen 仍是旧值，两者不匹配会导致 hit-test 坐标偏移，
+        // 该次点击可能命中判定为 MISS。这是"缩放/切换模式后第一次点击有时不生效"的可疑点。
+        console.log('[Live2D][resize] calling delegate.onResize() to recompute _deviceToScreen matrix');
         delegate.onResize();
+        console.log('[Live2D][resize] delegate.onResize() completed');
       } else {
         console.warn('[Resize] LAppDelegate instance not found.');
       }
 
       isResizingRef.current = false;
     } catch (error) {
+      console.error('[Live2D][resize] handleResize threw an error, isResizingRef force-reset:', error);
       isResizingRef.current = false;
     }
   }, [isPet, containerRef, modelInfo?.kScale, modelInfo?.initialXshift, modelInfo?.initialYshift, showSidebar, beforeResize, canvasRef]);
