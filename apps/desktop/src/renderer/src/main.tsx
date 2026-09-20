@@ -1,8 +1,16 @@
 import { createRoot } from 'react-dom/client';
+import log from 'electron-log/renderer';
 import './index.css';
 import App from './App';
 import { LAppAdapter } from '../WebSDK/src/lappadapter';
 import './i18n';
+
+// 统一日志管理：electron-log/renderer 会把渲染进程的 console.log/warn/error
+// 转发给主进程（经 preload 里的 electron-log/preload 桥接），与主进程日志
+// 一起落盘到同一份日志文件（%APPDATA%\any-lover\logs\main.log），
+// 这样之前散落在 use-live2d-model.ts / use-live2d-resize.ts 等文件里的调试
+// console.log 不再需要打开 DevTools 才能看到，且带时间戳、可长期保留复盘。
+log.initialize();
 
 const originalConsoleWarn = console.warn;
 console.warn = (...args) => {

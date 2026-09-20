@@ -1,7 +1,8 @@
 {
-  "name": "ai-bot-pet",
+  "name": "any-lover",
+  "productName": "Any-Lover",
   "version": "0.1.0",
-  "description": "桌宠版 AI 伴侣：Live2D 桌宠 + 语音/文字对话，内置后端，仅需配置大模型 API。基于 Open-LLM-VTuber 改造。",
+  "description": "Any-Lover（角色 Charis）桌宠版 AI 伴侣：Live2D 桌宠 + 语音/文字对话，内置后端，仅需配置大模型 API。基于 Open-LLM-VTuber 改造。",
   "main": "./out/main/bootstrap.js",
   "author": "ai-bot",
   "homepage": "https://electron-vite.org",
@@ -33,6 +34,7 @@
     "@ricky0123/vad-web": "^0.0.24",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
+    "electron-log": "5.4.4",
     "electron-updater": "^6.1.7",
     "eslint": "^8.57.1",
     "framer-motion": "^11.14.4",
