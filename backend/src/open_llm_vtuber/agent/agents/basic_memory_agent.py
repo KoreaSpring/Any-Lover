@@ -28,6 +28,7 @@ from ...mcpp.tool_manager import ToolManager
 from ...mcpp.json_detector import StreamJSONDetector
 from ...mcpp.types import ToolCallObject
 from ...mcpp.tool_executor import ToolExecutor
+from ...conversations.stream_hooks import emit_partial_text
 
 
 class BasicMemoryAgent(AgentInterface):
@@ -307,6 +308,7 @@ class BasicMemoryAgent(AgentInterface):
                 if event["type"] == "text_delta":
                     text = event["text"]
                     current_turn_text += text
+                    emit_partial_text(text)  # 旁路推送 token，实现前端流式文本
                     yield text
                     if (
                         not current_assistant_message_content
@@ -456,10 +458,12 @@ class BasicMemoryAgent(AgentInterface):
                                     yield f"[Error parsing tool JSON: {e}]"
                                     goto_next_while_iteration = True
                                     break
+                        emit_partial_text(event)  # 旁路推送 token（prompt 模式）
                         yield event
                 else:
                     if isinstance(event, str):
                         current_turn_text += event
+                        emit_partial_text(event)  # 旁路推送 token（OpenAI 工具模式）
                         yield event
                     elif isinstance(event, list) and all(
                         isinstance(tc, ToolCallObject) for tc in event
@@ -654,6 +658,7 @@ class BasicMemoryAgent(AgentInterface):
                     else:
                         continue
                     if text_chunk:
+                        emit_partial_text(text_chunk)  # 旁路推送 token，实现前端流式文本
                         yield text_chunk
                         complete_response += text_chunk
                 if complete_response:

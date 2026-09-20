@@ -268,7 +268,8 @@ async def handle_group_member_turn(
     )
 
     if tts_manager.task_list:
-        await asyncio.gather(*tts_manager.task_list)
+        # return_exceptions=True：单句 TTS 失败不冒泡为整段异常
+        await asyncio.gather(*tts_manager.task_list, return_exceptions=True)
         await current_ws_send(json.dumps({"type": "backend-synth-complete"}))
 
         broadcast_ctx = BroadcastContext(
