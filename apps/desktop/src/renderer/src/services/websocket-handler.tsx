@@ -40,6 +40,8 @@ function WebSocketHandler({ children }: { children: React.ReactNode }) {
   const autoStartMicOnConvEndRef = useRef(autoStartMicOnConvEnd);
   const { interrupt } = useInterrupt();
   const { setBrowserViewData } = useBrowser();
+  // 累积当前一轮对话的流式 token 文本，用于 partial-text 增量显示字幕
+  const partialTextRef = useRef('');
 
   useEffect(() => {
     autoStartMicOnConvEndRef.current = autoStartMicOnConvEnd;
@@ -70,6 +72,7 @@ function WebSocketHandler({ children }: { children: React.ReactNode }) {
         setAiState('thinking-speaking');
         audioTaskQueue.clearQueue();
         clearResponse();
+        partialTextRef.current = ''; // 新一轮对话开始，清空流式文本累积
         break;
       case 'conversation-chain-end':
         audioTaskQueue.addTask(() => new Promise<void>((resolve) => {
@@ -125,6 +128,14 @@ function WebSocketHandler({ children }: { children: React.ReactNode }) {
       case 'full-text':
         if (message.text) {
           setSubtitleText(message.text);
+        }
+        break;
+      case 'partial-text':
+        // token 级流式文本：增量累积并实时刷新字幕，实现逐字显示效果。
+        // 后续该句对应的 audio 消息会用整句 display_text 覆盖字幕，自然收敛。
+        if (message.text) {
+          partialTextRef.current += message.text;
+          setSubtitleText(partialTextRef.current);
         }
         break;
       case 'config-files':
