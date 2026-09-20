@@ -153,4 +153,44 @@ export class OllamaManager {
       setTimeout(finish, 3000);
     });
   }
+
+  /**
+   * 彻底清理 Ollama 相关进程（含派生的 llama-server 及子进程树）。
+   *
+   * `ollama serve` 会派生独立的 `llama-server.exe` 推理进程；仅对 serve 主进程
+   * 发送 kill 无法连带清理它们。此外，当 ensureServe 复用了已在运行的服务时，
+   * this.child 为 null，stop() 无从下手。因此退出时统一按“进程树 + 镜像名”强杀，
+   * 保证不留后台残留进程占用端口 11434 与显存。
+   */
+  killAll(): void {
+    // 1) 先结束本进程派生的 serve（含其子进程树）
+    const child = this.child;
+    if (child && child.pid) {
+      try {
+        if (process.platform === 'win32') {
+          spawnSync('taskkill', ['/F', '/T', '/PID', String(child.pid)], { stdio: 'ignore' });
+        } else {
+          child.kill('SIGKILL');
+        }
+      } catch {}
+      this.child = null;
+    }
+
+    // 2) 兜底：按镜像名清理所有 Ollama / 推理相关进程（含复用的旧实例）
+    if (process.platform === 'win32') {
+      const images = ['ollama app.exe', 'ollama.exe', 'llama-server.exe'];
+      for (const image of images) {
+        try {
+          spawnSync('taskkill', ['/F', '/T', '/IM', image], { stdio: 'ignore' });
+        } catch {}
+      }
+    } else {
+      for (const name of ['ollama', 'llama-server']) {
+        try {
+          spawnSync('pkill', ['-9', '-f', name], { stdio: 'ignore' });
+        } catch {}
+      }
+    }
+    this.log('[ollama] killAll: cleaned ollama/llama-server processes');
+  }
 }

@@ -164,11 +164,24 @@ async def process_single_conversation(
     except asyncio.CancelledError:
         logger.info(f"🤡👍 Conversation {session_emoji} cancelled because interrupted.")
         raise
+    except (AssertionError, ConnectionError, RuntimeError) as e:
+        # 打断（interrupt）会让底层 WebSocket 进入关闭流程，此时向其发送剩余消息会
+        # 触发 websockets 库的 AssertionError（_drain_helper）。这类异常源于连接状态，
+        # 对话内容通常已成功生成，不应再向前端弹出 "Conversation error"（且消息体为空），
+        # 也不应尝试再次发送（会二次抛错）。仅记录日志后正常结束。
+        logger.warning(
+            f"Conversation {session_emoji} ended while connection was closing: {type(e).__name__}"
+        )
+        return full_response
     except Exception as e:
         logger.error(f"Error in conversation chain: {e}")
-        await websocket_send(
-            json.dumps({"type": "error", "message": f"Conversation error: {str(e)}"})
-        )
+        try:
+            await websocket_send(
+                json.dumps({"type": "error", "message": f"Conversation error: {str(e)}"})
+            )
+        except Exception as send_err:
+            # 连接可能已关闭，发送失败不应掩盖原始错误
+            logger.debug(f"Failed to send conversation error to client: {send_err}")
         raise
     finally:
         cleanup_conversation(tts_manager, session_emoji)

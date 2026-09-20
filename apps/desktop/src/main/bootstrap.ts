@@ -106,14 +106,56 @@ app.whenReady().then(() => {
   }
 });
 
-app.on('before-quit', async () => {
+// 统一的彻底清理：优先优雅停止，最后按进程树 + 镜像名强杀，确保退出后不留
+// 后端 / Ollama / llama-server 等任何残留进程与服务。可被多处退出钩子重复调用。
+let cleanedUp = false;
+function cleanupAll(): void {
+  if (cleanedUp) return;
+  cleanedUp = true;
   try {
-    if (backend.isRunning()) await backend.stop();
-    if (ollama.isServing()) await ollama.stop();
+    backend.killAll();
+  } catch (e) {
+    logToFile(`[shutdown] backend.killAll 异常：${String((e as any)?.message || e)}`);
+  }
+  try {
+    ollama.killAll();
+  } catch (e) {
+    logToFile(`[shutdown] ollama.killAll 异常：${String((e as any)?.message || e)}`);
+  }
+  try {
+    globalShortcut.unregisterAll();
   } catch {
     /* ignore */
   }
-  globalShortcut.unregisterAll();
+  logToFile('[shutdown] cleanup done');
+}
+
+// before-quit：尝试优雅停止（异步，尽力而为）
+app.on('before-quit', () => {
+  try {
+    if (backend.isRunning()) void backend.stop();
+    if (ollama.isServing()) void ollama.stop();
+  } catch {
+    /* ignore */
+  }
+});
+
+// will-quit：进程真正退出前的同步兜底，强杀所有相关进程树。
+// 注意：不改变“何时退出”的原有逻辑（Pet/Window 模式、托盘退出由原版前端决定），
+// 这里只负责“退出时清理干净”。
+app.on('will-quit', () => {
+  cleanupAll();
+});
+
+// 主进程异常/被系统信号终止时也尽量清理，避免留下孤儿进程
+process.on('exit', cleanupAll);
+process.on('SIGINT', () => {
+  cleanupAll();
+  process.exit(0);
+});
+process.on('SIGTERM', () => {
+  cleanupAll();
+  process.exit(0);
 });
 
 // 最后加载原版前端外壳（保持其 Window/Pet 模式、托盘、菜单逻辑完全不变）

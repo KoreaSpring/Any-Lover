@@ -16,6 +16,25 @@ from .types import GroupConversationState
 from prompts import prompt_loader
 
 
+def _make_safe_websocket_send(websocket: WebSocket) -> Callable:
+    """包装 websocket.send_text，使其在连接关闭/并发写时不抛出异常。
+
+    打断（interrupt）会让底层 websockets 连接进入关闭流程，此时对话协程仍可能
+    尝试发送剩余消息，导致 websockets 库在 _drain_helper 抛 AssertionError，
+    进而炸穿对话链并向前端显示 "Conversation error"。这里统一吞掉这类由连接
+    状态引起的发送异常，只记录日志，不影响其余业务逻辑。
+    """
+
+    async def safe_send(text: str) -> None:
+        try:
+            await websocket.send_text(text)
+        except (AssertionError, RuntimeError, ConnectionError) as e:
+            # 连接已关闭或正在关闭时的发送失败属于预期情况，静默跳过
+            logger.debug(f"Skipped websocket send on closing connection: {e}")
+
+    return safe_send
+
+
 async def handle_conversation_trigger(
     msg_type: str,
     data: dict,
@@ -99,7 +118,7 @@ async def handle_conversation_trigger(
         current_conversation_tasks[client_uid] = asyncio.create_task(
             process_single_conversation(
                 context=context,
-                websocket_send=websocket.send_text,
+                websocket_send=_make_safe_websocket_send(websocket),
                 client_uid=client_uid,
                 user_input=user_input,
                 images=images,

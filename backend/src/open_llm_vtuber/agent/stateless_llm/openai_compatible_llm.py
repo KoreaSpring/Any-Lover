@@ -21,6 +21,55 @@ from .stateless_llm_interface import StatelessLLMInterface
 from ...mcpp.types import ToolCallObject
 
 
+# 提示模型不支持图片/多模态输入的错误特征（不同后端措辞不一，做小写子串匹配）
+_VISION_UNSUPPORTED_HINTS = (
+    "does not support multimodal",
+    "does not support image",
+    "multimodal data provided",
+    "image input is not supported",
+    "no image support",
+    "vision is not supported",
+)
+
+
+def _looks_like_vision_unsupported(error: Exception) -> bool:
+    """判断错误是否为“模型不支持图片输入”。"""
+    text = str(error).lower()
+    return any(hint in text for hint in _VISION_UNSUPPORTED_HINTS)
+
+
+def _strip_images_from_messages(
+    messages: List[Dict[str, Any]],
+) -> tuple[List[Dict[str, Any]], bool]:
+    """把消息中的多模态 content 降级为纯文本，丢弃 image_url。
+
+    返回 (新消息列表, 是否发生过剥离)。用于在纯文本模型上回退，
+    避免因附带屏幕/摄像头图片被后端拒绝（HTTP 400）。
+    """
+    stripped = False
+    new_messages: List[Dict[str, Any]] = []
+
+    for message in messages:
+        content = message.get("content")
+        if not isinstance(content, list):
+            new_messages.append(message)
+            continue
+
+        text_parts = []
+        for item in content:
+            if not isinstance(item, dict):
+                continue
+            if item.get("type") == "text":
+                text_parts.append(item.get("text", ""))
+            elif item.get("type") == "image_url":
+                stripped = True
+
+        # 仅保留文本；即使没有文本也放空串，保持角色结构完整
+        new_messages.append({**message, "content": "\n".join(text_parts).strip()})
+
+    return new_messages, stripped
+
+
 class AsyncLLM(StatelessLLMInterface):
     def __init__(
         self,
@@ -52,6 +101,9 @@ class AsyncLLM(StatelessLLMInterface):
             api_key=llm_api_key,
         )
         self.support_tools = True
+        # 记忆本模型是否支持图片输入。一旦被后端拒绝一次，后续直接发纯文本，
+        # 避免每轮都白发一次大图并触发 400。
+        self.support_vision = True
 
         logger.info(
             f"Initialized AsyncLLM with the parameters: {self.base_url}, {self.model}"
@@ -93,19 +145,46 @@ class AsyncLLM(StatelessLLMInterface):
                     {"role": "system", "content": system},
                     *messages,
                 ]
+            # 若已知该模型不支持图片，提前剥离，省去必然失败的一次请求
+            if not self.support_vision:
+                messages_with_system, _ = _strip_images_from_messages(
+                    messages_with_system
+                )
+
             logger.debug(f"Messages: {messages_with_system}")
 
             available_tools = tools if self.support_tools else NOT_GIVEN
 
-            stream: AsyncStream[
-                ChatCompletionChunk
-            ] = await self.client.chat.completions.create(
-                messages=messages_with_system,
-                model=self.model,
-                stream=True,
-                temperature=self.temperature,
-                tools=available_tools,
-            )
+            try:
+                stream = await self.client.chat.completions.create(
+                    messages=messages_with_system,
+                    model=self.model,
+                    stream=True,
+                    temperature=self.temperature,
+                    tools=available_tools,
+                )
+            except APIError as e:
+                # 纯文本模型收到图片会返回 400；剥离图片后仅重试一次
+                if self.support_vision and _looks_like_vision_unsupported(e):
+                    self.support_vision = False
+                    logger.warning(
+                        f"{self.model} does not support image input. "
+                        "Retrying without images."
+                    )
+                    messages_with_system, stripped = _strip_images_from_messages(
+                        messages_with_system
+                    )
+                    if not stripped:
+                        raise
+                    stream = await self.client.chat.completions.create(
+                        messages=messages_with_system,
+                        model=self.model,
+                        stream=True,
+                        temperature=self.temperature,
+                        tools=available_tools,
+                    )
+                else:
+                    raise
             logger.debug(
                 f"Tool Support: {self.support_tools}, Available tools: {available_tools}"
             )

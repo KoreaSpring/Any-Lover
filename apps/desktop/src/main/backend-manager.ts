@@ -5,7 +5,7 @@
 import fs from 'fs';
 import path from 'path';
 import http from 'http';
-import { spawn, ChildProcess } from 'child_process';
+import { spawn, spawnSync, ChildProcess } from 'child_process';
 import { app } from 'electron';
 import { readSettings, loadApiKey } from './settings-store';
 
@@ -194,5 +194,35 @@ export class BackendManager {
       }
       setTimeout(finish, 4000);
     });
+  }
+
+  /**
+   * 彻底清理后端进程（含子进程树）。
+   * 冻结后端 aibot-backend.exe 可能派生子进程（如 uvicorn worker）；退出时
+   * 按“进程树 + 镜像名”强杀，避免 12393 端口被残留进程占用。
+   */
+  killAll(): void {
+    const child = this.child;
+    if (child && child.pid) {
+      try {
+        if (process.platform === 'win32') {
+          spawnSync('taskkill', ['/F', '/T', '/PID', String(child.pid)], { stdio: 'ignore' });
+        } else {
+          child.kill('SIGKILL');
+        }
+      } catch {}
+      this.child = null;
+    }
+
+    if (process.platform === 'win32') {
+      try {
+        spawnSync('taskkill', ['/F', '/T', '/IM', 'aibot-backend.exe'], { stdio: 'ignore' });
+      } catch {}
+    } else {
+      try {
+        spawnSync('pkill', ['-9', '-f', 'aibot-backend'], { stdio: 'ignore' });
+      } catch {}
+    }
+    this.log('[backend] killAll: cleaned backend processes');
   }
 }
