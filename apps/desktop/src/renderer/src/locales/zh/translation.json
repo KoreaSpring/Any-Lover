@@ -111,6 +111,7 @@
     "failedStartBackgroundCamera": "启动背景摄像头失败",
     "failedStartScreenCapture": "启动屏幕捕获失败",
     "failedStartVAD": "启动语音活动检测失败",
+    "noMicrophoneAvailable": "未检测到可用麦克风，已保持静音",
     "llmCantHear": "AI无法听到您的声音",
     "audioPlayback": "音频播放错误",
     "enterValidUuid": "请输入有效的UUID",

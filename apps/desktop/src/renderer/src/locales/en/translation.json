@@ -114,6 +114,7 @@
     "failedStartBackgroundCamera": "Failed to start background camera",
     "failedStartScreenCapture": "Failed to start screen capture",
     "failedStartVAD": "Failed to start VAD",
+    "noMicrophoneAvailable": "No microphone detected. Microphone remains muted.",
     "llmCantHear": "The LLM can't hear you.",
     "audioPlayback": "Audio playback error",
     "enterValidUuid": "Please enter a valid UUID",

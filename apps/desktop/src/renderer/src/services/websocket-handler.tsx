@@ -24,7 +24,7 @@ import { useBrowser } from '@/context/browser-context';
 
 function WebSocketHandler({ children }: { children: React.ReactNode }) {
   const { t } = useTranslation();
-  const [wsState, setWsState] = useState<string>('CLOSED');
+  const [wsState, setWsState] = useState<string>('CONNECTING');
   const [wsUrl, setWsUrl] = useLocalStorage<string>('wsUrl', defaultWsUrl);
   const [baseUrl, setBaseUrl] = useLocalStorage<string>('baseUrl', defaultBaseUrl);
   const { aiState, setAiState, backendSynthComplete, setBackendSynthComplete } = useAiState();
@@ -291,10 +291,7 @@ function WebSocketHandler({ children }: { children: React.ReactNode }) {
     }
   }, [aiState, addAudioTask, appendHumanMessage, baseUrl, bgUrlContext, setAiState, setConfName, setConfUid, setConfigFiles, setCurrentHistoryUid, setHistoryList, setMessages, setModelInfo, setSubtitleText, startMic, stopMic, setSelfUid, setGroupMembers, setIsOwner, backendSynthComplete, setBackendSynthComplete, clearResponse, handleControlMessage, appendOrUpdateToolCallMessage, interrupt, setBrowserViewData, t]);
 
-  useEffect(() => {
-    wsService.connect(wsUrl);
-  }, [wsUrl]);
-
+  // 先订阅状态，再启动连接，避免 Subject 的同步 CONNECTING 事件在首次挂载时丢失。
   useEffect(() => {
     const stateSubscription = wsService.onStateChange(setWsState);
     const messageSubscription = wsService.onMessage(handleWebSocketMessage);
@@ -302,7 +299,13 @@ function WebSocketHandler({ children }: { children: React.ReactNode }) {
       stateSubscription.unsubscribe();
       messageSubscription.unsubscribe();
     };
-  }, [wsUrl, handleWebSocketMessage]);
+  }, [handleWebSocketMessage]);
+
+  useEffect(() => {
+    wsService.connect(wsUrl);
+    // URL 变化或组件卸载时取消当前连接轮次及待执行的重试 timer。
+    return () => wsService.disconnect();
+  }, [wsUrl]);
 
   const webSocketContextValue = useMemo(() => ({
     sendMessage: wsService.sendMessage.bind(wsService),

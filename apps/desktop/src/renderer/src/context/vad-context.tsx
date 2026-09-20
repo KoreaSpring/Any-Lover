@@ -91,6 +91,19 @@ const DEFAULT_VAD_STATE = {
   autoStartMicOnConvEnd: false,
 };
 
+const MICROPHONE_NOT_FOUND_ERRORS = new Set([
+  'NotFoundError',
+  'DevicesNotFoundError',
+]);
+
+function getErrorName(error: unknown): string {
+  if (typeof error === 'object' && error !== null && 'name' in error) {
+    const { name } = error as { name?: unknown };
+    return typeof name === 'string' ? name : '';
+  }
+  return '';
+}
+
 /**
  * Create the VAD context
  */
@@ -149,6 +162,8 @@ export function VADProvider({ children }: { children: React.ReactNode }) {
   const setAiStateRef = useRef(setAiState);
 
   const isProcessingRef = useRef(false);
+  const isStartingRef = useRef(false);
+  const microphoneUnavailableNotifiedRef = useRef(false);
 
   // Update refs when dependencies change
   useEffect(() => {
@@ -299,6 +314,11 @@ export function VADProvider({ children }: { children: React.ReactNode }) {
    * Start microphone and VAD processing
    */
   const startMic = useCallback(async () => {
+    // WebSocket 控制消息、会话结束和用户点击可能在初始化完成前同时触发；
+    // 合并并发启动，避免创建多个 MicVAD/getUserMedia 请求。
+    if (isStartingRef.current) return;
+    isStartingRef.current = true;
+
     try {
       if (!vadRef.current) {
         console.log('Initializing VAD');
@@ -307,14 +327,37 @@ export function VADProvider({ children }: { children: React.ReactNode }) {
         console.log('Starting VAD');
         vadRef.current.start();
       }
+      microphoneUnavailableNotifiedRef.current = false;
       setMicOn(true);
     } catch (error) {
+      // 无论失败原因是什么，UI 都必须与真实硬件状态一致，不能保留上次的 micOn=true。
+      setMicOn(false);
+      isProcessingRef.current = false;
+
+      const errorName = getErrorName(error);
+      if (MICROPHONE_NOT_FOUND_ERRORS.has(errorName)) {
+        console.info('No microphone is available; keeping VAD muted.');
+        // WebSocket 重连可能再次收到 start-mic，只提示一次，避免反复刷屏。
+        if (!microphoneUnavailableNotifiedRef.current) {
+          microphoneUnavailableNotifiedRef.current = true;
+          toaster.create({
+            title: t('error.noMicrophoneAvailable'),
+            type: 'info',
+            duration: 3500,
+          });
+        }
+        return;
+      }
+
+      // 权限拒绝、设备占用、模型加载失败等仍属于需要用户处理的真实错误。
       console.error('Failed to start VAD:', error);
       toaster.create({
         title: `${t('error.failedStartVAD')}: ${error}`,
         type: 'error',
         duration: 2000,
       });
+    } finally {
+      isStartingRef.current = false;
     }
   }, [t]);
 

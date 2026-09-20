@@ -8,7 +8,12 @@
   "scripts": {
     "prepare-runtime": "node build/scripts/prepare-runtime.js",
     "build:backend": "node build/scripts/build-backend.js",
-    "install:all": "npm --prefix apps/settings-ui install && npm --prefix apps/desktop install && npm --prefix apps/site install",
+    "install:app": "npm --prefix apps/settings-ui install && npm --prefix apps/desktop install",
+    "install:all": "npm run install:app && npm --prefix apps/site install",
+    "python:deps": "python -m pip install -r requirements-pet.txt",
+    "settings:build": "npm --prefix apps/desktop run settings:build",
+    "dev:setup": "npm run install:app && npm run prepare-runtime && npm run settings:build",
+    "dev": "npm run prepare-runtime && npm run settings:build && npm run desktop:dev",
     "desktop:dev": "npm --prefix apps/desktop run dev",
     "desktop:build": "npm --prefix apps/desktop run build",
     "site:dev": "npm --prefix apps/site run sync:live2d && npm --prefix apps/site run dev",

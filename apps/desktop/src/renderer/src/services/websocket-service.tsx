@@ -105,16 +105,28 @@ const getTranslation = () => {
   }
 };
 
+type WebSocketState = 'CONNECTING' | 'OPEN' | 'CLOSING' | 'CLOSED';
+
+const MAX_CONNECT_ATTEMPTS = 3;
+// Electron renderer 与 Python sidecar 并行启动；给后端冷启动留足时间。
+// 尝试时间约为启动后 0s、1.5s、4.5s。
+const RETRY_DELAYS_MS = [1500, 3000];
+
 class WebSocketService {
   private static instance: WebSocketService;
 
   private ws: WebSocket | null = null;
 
+  private retryTimer: ReturnType<typeof setTimeout> | null = null;
+
+  /** 每次显式 connect/disconnect 都递增，令旧 socket 与旧 timer 的回调失效。 */
+  private connectionGeneration = 0;
+
   private messageSubject = new Subject<MessageEvent>();
 
-  private stateSubject = new Subject<'CONNECTING' | 'OPEN' | 'CLOSING' | 'CLOSED'>();
+  private stateSubject = new Subject<WebSocketState>();
 
-  private currentState: 'CONNECTING' | 'OPEN' | 'CLOSING' | 'CLOSED' = 'CLOSED';
+  private currentState: WebSocketState = 'CLOSED';
 
   static getInstance() {
     if (!WebSocketService.instance) {
@@ -138,48 +150,138 @@ class WebSocketService {
     });
   }
 
+  /**
+   * 开始一轮连接：首次尝试 + 最多两次自动重试。
+   * 自动重试期间状态始终保持 CONNECTING，三次全部失败才发布 CLOSED，
+   * 此时 UI 才展示手动“重新连接”。用户手动点击会调用本方法并开始新一轮。
+   */
   connect(url: string) {
-    if (this.ws?.readyState === WebSocket.CONNECTING ||
-        this.ws?.readyState === WebSocket.OPEN) {
-      this.disconnect();
+    const generation = this.connectionGeneration + 1;
+    this.cancelCurrentConnection(false);
+    this.connectionGeneration = generation;
+    this.attemptConnect(url, generation, 1);
+  }
+
+  private attemptConnect(url: string, generation: number, attempt: number) {
+    if (generation !== this.connectionGeneration) return;
+
+    this.currentState = 'CONNECTING';
+    this.stateSubject.next('CONNECTING');
+    console.log(`WebSocket connection attempt ${attempt}/${MAX_CONNECT_ATTEMPTS}`);
+
+    let socket: WebSocket;
+    try {
+      socket = new WebSocket(url);
+      this.ws = socket;
+    } catch (error) {
+      console.error('Failed to create WebSocket:', error);
+      this.handleAttemptFailure(url, generation, attempt);
+      return;
     }
 
-    try {
-      this.ws = new WebSocket(url);
-      this.currentState = 'CONNECTING';
-      this.stateSubject.next('CONNECTING');
+    let attemptSettled = false;
+    let opened = false;
 
-      this.ws.onopen = () => {
-        this.currentState = 'OPEN';
-        this.stateSubject.next('OPEN');
-        this.initializeConnection();
-      };
+    const isCurrent = () => (
+      generation === this.connectionGeneration && this.ws === socket
+    );
 
-      this.ws.onmessage = (event) => {
-        try {
-          const message = JSON.parse(event.data);
-          this.messageSubject.next(message);
-        } catch (error) {
-          console.error('Failed to parse WebSocket message:', error);
-          toaster.create({
-            title: `${getTranslation()('error.failedParseWebSocket')}: ${error}`,
-            type: "error",
-            duration: 2000,
-          });
-        }
-      };
+    const failAttempt = () => {
+      if (attemptSettled || !isCurrent()) return;
+      attemptSettled = true;
+      this.detachAndClose(socket);
+      if (this.ws === socket) this.ws = null;
+      this.handleAttemptFailure(url, generation, attempt);
+    };
 
-      this.ws.onclose = () => {
-        this.currentState = 'CLOSED';
-        this.stateSubject.next('CLOSED');
-      };
+    socket.onopen = () => {
+      if (!isCurrent()) return;
+      attemptSettled = true;
+      opened = true;
+      this.clearRetryTimer();
+      this.currentState = 'OPEN';
+      this.stateSubject.next('OPEN');
+      this.initializeConnection();
+    };
 
-      this.ws.onerror = () => {
-        this.currentState = 'CLOSED';
-        this.stateSubject.next('CLOSED');
-      };
-    } catch (error) {
-      console.error('Failed to connect to WebSocket:', error);
+    socket.onmessage = (event) => {
+      if (!isCurrent()) return;
+      try {
+        const message = JSON.parse(event.data);
+        this.messageSubject.next(message);
+      } catch (error) {
+        console.error('Failed to parse WebSocket message:', error);
+        toaster.create({
+          title: `${getTranslation()('error.failedParseWebSocket')}: ${error}`,
+          type: 'error',
+          duration: 2000,
+        });
+      }
+    };
+
+    socket.onerror = () => {
+      // Chromium 通常会紧接着触发 close；由 attemptSettled 保证只结算一次。
+      if (!opened) failAttempt();
+    };
+
+    socket.onclose = () => {
+      if (!isCurrent()) return;
+      if (!opened) {
+        failAttempt();
+        return;
+      }
+
+      // 已成功连接后的意外掉线不属于“启动三次重试”，直接交给用户手动恢复。
+      this.ws = null;
+      this.currentState = 'CLOSED';
+      this.stateSubject.next('CLOSED');
+    };
+  }
+
+  private handleAttemptFailure(url: string, generation: number, attempt: number) {
+    if (generation !== this.connectionGeneration) return;
+
+    if (attempt < MAX_CONNECT_ATTEMPTS) {
+      const delay = RETRY_DELAYS_MS[attempt - 1]
+        ?? RETRY_DELAYS_MS[RETRY_DELAYS_MS.length - 1]
+        ?? 1000;
+      // 不发布 CLOSED：自动尝试期间 UI 继续显示“连接中”。
+      this.retryTimer = setTimeout(() => {
+        this.retryTimer = null;
+        this.attemptConnect(url, generation, attempt + 1);
+      }, delay);
+      return;
+    }
+
+    this.currentState = 'CLOSED';
+    this.stateSubject.next('CLOSED');
+  }
+
+  private clearRetryTimer() {
+    if (this.retryTimer !== null) {
+      clearTimeout(this.retryTimer);
+      this.retryTimer = null;
+    }
+  }
+
+  private detachAndClose(socket: WebSocket) {
+    socket.onopen = null;
+    socket.onmessage = null;
+    socket.onerror = null;
+    socket.onclose = null;
+    if (socket.readyState === WebSocket.CONNECTING || socket.readyState === WebSocket.OPEN) {
+      socket.close();
+    }
+  }
+
+  private cancelCurrentConnection(publishClosed: boolean) {
+    this.clearRetryTimer();
+    this.connectionGeneration += 1;
+    if (this.ws) {
+      this.detachAndClose(this.ws);
+      this.ws = null;
+    }
+    if (publishClosed) {
       this.currentState = 'CLOSED';
       this.stateSubject.next('CLOSED');
     }
@@ -202,13 +304,12 @@ class WebSocketService {
     return this.messageSubject.subscribe(callback);
   }
 
-  onStateChange(callback: (state: 'CONNECTING' | 'OPEN' | 'CLOSING' | 'CLOSED') => void) {
+  onStateChange(callback: (state: WebSocketState) => void) {
     return this.stateSubject.subscribe(callback);
   }
 
   disconnect() {
-    this.ws?.close();
-    this.ws = null;
+    this.cancelCurrentConnection(true);
   }
 
   getCurrentState() {
