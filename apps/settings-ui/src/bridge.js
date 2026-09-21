@@ -23,7 +23,7 @@ const mock = {
     return { ok: true, message: '（mock）连接成功' };
   },
   async detectOllama() {
-    return { ok: true, message: '（mock）发现 2 个模型', models: ['qwen2.5:3b', 'llama3.1:8b'] };
+    return { ok: true, message: '（mock）发现 2 个模型', models: ['minicpm-v:8b', 'llama3.1:8b'] };
   },
   async browseOllama() {
     return { path: 'C:\\mock\\ollama.exe' };

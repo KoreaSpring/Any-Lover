@@ -36,5 +36,18 @@ pydub==0.25.1
 # 大模型（OpenAI 兼容）
 openai==2.15.0
 
+# 以下 4 个包并非桌宠功能所需，但上游后端在启动链路上「无条件」顶层导入了它们，
+# 缺任何一个都会让冻结后的 aibot-backend.exe 直接崩在 import 阶段：
+#   service_context.py -> mcpp/mcp_client.py            -> mcp
+#   agent_factory.py   -> agents/letta_agent.py         -> letta_client
+#   agent_factory.py   -> stateless_llm_factory.py
+#                         -> stateless_llm_with_template -> jinja2
+#                         -> claude_llm                  -> anthropic
+# 版本与上游 backend/uv.lock 锁定结果保持一致。
+mcp==1.26.0
+anthropic==0.76.0
+jinja2==3.1.6
+letta-client==1.7.6
+
 # 打包
 pyinstaller==6.11.1

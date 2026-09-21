@@ -79,11 +79,81 @@ export class BackendManager {
     }
   }
 
+  // 递归覆盖复制（用于后端/代码等需要“跟随新版本”的目录）：
+  // 与 copyIfMissing 不同，dest 已存在也会被源覆盖，保证版本升级后运行时目录同步更新。
+  private copyOverwrite(src: string, dest: string): void {
+    if (!fs.existsSync(src)) return;
+    const stat = fs.statSync(src);
+    if (stat.isDirectory()) {
+      fs.mkdirSync(dest, { recursive: true });
+      for (const entry of fs.readdirSync(src)) {
+        this.copyOverwrite(path.join(src, entry), path.join(dest, entry));
+      }
+    } else {
+      fs.mkdirSync(path.dirname(dest), { recursive: true });
+      fs.copyFileSync(src, dest);
+    }
+  }
+
+  // 运行时版本指纹：用只读资源目录里冻结后端 exe（或 run_server.py）的
+  // 大小 + mtime 生成，用来判断 %APPDATA% 下的运行时副本是否过期。
+  private runtimeFingerprint(rootDir: string): string {
+    const probes = [
+      path.join(rootDir, 'python', 'aibot-backend.exe'),
+      path.join(rootDir, 'run_server.py'),
+      path.join(rootDir, 'config_templates', 'conf.pet.yaml'),
+    ];
+    const parts: string[] = [];
+    for (const p of probes) {
+      try {
+        const st = fs.statSync(p);
+        parts.push(`${path.basename(p)}:${st.size}:${Math.floor(st.mtimeMs)}`);
+      } catch {
+        parts.push(`${path.basename(p)}:missing`);
+      }
+    }
+    return parts.join('|');
+  }
+
   private ensureDataDir(): void {
     const root = this.dataRoot();
     fs.mkdirSync(root, { recursive: true });
     const res = this.resourceRoot();
-    if (fs.existsSync(res)) this.copyIfMissing(res, root);
+
+    if (fs.existsSync(res)) {
+      // 版本感知：只要源运行时（冻结后端/入口/配置模板）指纹变化，就把「代码类」
+      // 内容覆盖复制到 %APPDATA%。否则老用户升级后永远读到旧的缓存后端，
+      // 出现「明明重新打包了，后端还是旧的、还报已修复的错误」这类问题。
+      const stampFile = path.join(root, '.runtime-version');
+      const current = this.runtimeFingerprint(res);
+      let cached = '';
+      try {
+        cached = fs.readFileSync(stampFile, 'utf-8').trim();
+      } catch {
+        cached = '';
+      }
+
+      if (cached !== current) {
+        this.log(`[backend] 运行时版本变化，刷新副本（旧=${cached || '无'} 新=${current}）`);
+        // 覆盖复制会随版本更新的“代码/资源类”目录与文件。
+        // 用户数据类目录（logs/cache/chat_history/models）不在此列，保持不动。
+        for (const entry of fs.readdirSync(res)) {
+          if (['logs', 'cache', 'chat_history', 'models'].includes(entry)) {
+            // 这些是用户数据/大模型缓存，只在缺失时补齐，绝不覆盖用户内容
+            this.copyIfMissing(path.join(res, entry), path.join(root, entry));
+          } else {
+            this.copyOverwrite(path.join(res, entry), path.join(root, entry));
+          }
+        }
+        try {
+          fs.writeFileSync(stampFile, current, 'utf-8');
+        } catch {}
+      } else {
+        // 版本一致时仍补齐缺失文件（例如用户误删）
+        this.copyIfMissing(res, root);
+      }
+    }
+
     for (const d of ['logs', 'cache', 'chat_history', 'models']) {
       fs.mkdirSync(path.join(root, d), { recursive: true });
     }

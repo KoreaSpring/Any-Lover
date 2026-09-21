@@ -28,7 +28,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   temperature: 1.0,
   ollamaPath: '',
   ollamaHost: '',
-  ollamaModel: 'qwen2.5:3b',
+  ollamaModel: 'minicpm-v:8b',
   clickThrough: true,
   configured: false,
 };

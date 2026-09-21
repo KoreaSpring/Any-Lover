@@ -19,18 +19,40 @@ function resolveSettingsPreload(): string {
   return path.join(app.getAppPath(), 'out', 'preload', 'settings-preload.js');
 }
 
+// 解析窗口图标。不传 icon 时 Electron 会用默认的 Electron 徽标，
+// 设置窗口此前就是这个原因显示成了默认图标。
+// 打包态优先用 asarUnpack 出来的 resources/，回退到 app.asar 内与开发态路径。
+function resolveWindowIcon(): string | undefined {
+  const file = process.platform === 'win32' ? 'icon.ico' : 'icon.png';
+  const candidates = [
+    path.join(process.resourcesPath || '', file),
+    path.join(app.getAppPath(), '..', 'app.asar.unpacked', 'resources', file),
+    path.join(app.getAppPath(), 'resources', file),
+  ];
+  for (const p of candidates) {
+    try {
+      if (p && fs.existsSync(p)) return p;
+    } catch {
+      /* ignore */
+    }
+  }
+  return undefined;
+}
+
 export function openSettingsWindow(): BrowserWindow {
   if (settingsWindow && !settingsWindow.isDestroyed()) {
     settingsWindow.show();
     settingsWindow.focus();
     return settingsWindow;
   }
+  const icon = resolveWindowIcon();
   settingsWindow = new BrowserWindow({
     width: 560,
     height: 680,
     resizable: false,
     title: 'Charis 设置',
     autoHideMenuBar: true,
+    ...(icon ? { icon } : {}),
     webPreferences: {
       preload: resolveSettingsPreload(),
       contextIsolation: true,

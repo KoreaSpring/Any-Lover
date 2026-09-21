@@ -1,10 +1,32 @@
 import {
-  BrowserWindow, screen, shell, ipcMain,
+  BrowserWindow, screen, shell, ipcMain, app,
 } from 'electron';
 import { join } from 'path';
+import fs from 'fs';
 import { is } from '@electron-toolkit/utils';
 
 const isMac = process.platform === 'darwin';
+
+// 解析窗口图标。打包后 resources/ 被 asarUnpack 解包，__dirname 相对路径在
+// asar 内不一定可用，这里按“打包资源目录 -> asar.unpacked -> 开发态”依次探测，
+// 找不到时返回 undefined（交给 Electron 用默认图标，而不是传一个坏路径）。
+function resolveWindowIcon(): string | undefined {
+  const file = process.platform === 'win32' ? 'icon.ico' : 'icon.png';
+  const candidates = [
+    join(process.resourcesPath || '', file),
+    join(app.getAppPath(), '..', 'app.asar.unpacked', 'resources', file),
+    join(app.getAppPath(), 'resources', file),
+    join(__dirname, '../../resources', file),
+  ];
+  for (const p of candidates) {
+    try {
+      if (p && fs.existsSync(p)) return p;
+    } catch {
+      /* ignore */
+    }
+  }
+  return undefined;
+}
 
 export class WindowManager {
   private window: BrowserWindow | null = null;
@@ -58,6 +80,8 @@ export class WindowManager {
   }
 
   createWindow(options: Electron.BrowserWindowConstructorOptions): BrowserWindow {
+    const icon = resolveWindowIcon();
+    console.log(`[WindowManager] window icon resolved: ${icon || '(未找到，使用 Electron 默认图标)'}`);
     this.window = new BrowserWindow({
       width: 900,
       height: 670,
@@ -66,9 +90,7 @@ export class WindowManager {
       backgroundColor: '#ffffff',
       autoHideMenuBar: true,
       frame: false,
-      icon: process.platform === 'win32'
-        ? join(__dirname, '../../resources/icon.ico')
-        : join(__dirname, '../../resources/icon.png'),
+      ...(icon ? { icon } : {}),
       ...(isMac ? { titleBarStyle: 'hiddenInset' } : {}),
       webPreferences: {
         preload: join(__dirname, '../preload/index.js'),

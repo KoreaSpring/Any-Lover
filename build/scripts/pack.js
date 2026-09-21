@@ -3,7 +3,7 @@
 /*
  * 打包编排：支持两种产物
  *   - 轻量版（默认）：不含 Ollama/模型。安装包最小，用户自备 Ollama 或用云端 API。
- *   - 整合版（--with-ollama）：把 ai-bot/vendor/ollama（程序+qwen2.5:3b 模型）一并打入，
+ *   - 整合版（--with-ollama）：把 ai-bot/vendor/ollama（程序+minicpm-v:8b 多模态模型）一并打入，
  *     安装后开箱即用、无需任何配置。
  *
  * 用法（在 ai-bot/ 下）：
@@ -122,7 +122,7 @@ function runBuilder() {
       throw new Error(`未找到内置 Ollama：${VENDOR_OLLAMA}\\bin\\ollama.exe`);
     }
     extra.push({ from: '../../vendor/ollama', to: 'ollama', filter: ['**/*'] });
-    log('整合版：将打入 vendor/ollama（程序 + qwen2.5:3b 模型）');
+    log('整合版：将打入 vendor/ollama（程序 + minicpm-v:8b 多模态模型）');
   } else {
     log('轻量版：不含 Ollama/模型');
   }
