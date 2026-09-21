@@ -53,21 +53,27 @@ function llmConfigured(): boolean {
   return !!(s.baseUrl && s.model && hasApiKey());
 }
 
-// 整合版：若随包内置了 Ollama 且用户尚未配置，默认采用内置 Ollama + 内置模型，
-// 实现“开箱即用、无需任何配置”。
-function maybeAdoptBundledOllama(): void {
+// 首次启动自动采用默认配置，实现“开箱即用、无需任何配置”：
+//   - 随包内置了 Ollama（整合版）时，直接指向内置的可执行文件与模型目录；
+//   - 未内置（轻量版/源码运行）时，仍写入一份可用默认值，让应用直接按
+//     本机 127.0.0.1:11434 上的 Ollama 启动，而不是弹设置窗口拦住用户。
+// 用户随时可用 Ctrl+Alt+S 打开设置窗口修改。
+function adoptDefaultConfigIfNeeded(): void {
   const s = readSettings();
   if (s.configured) return;
   const bundled = resolveBundledOllama();
-  if (!bundled) return;
   writeSettings({
     provider: 'ollama',
-    ollamaPath: bundled.exe,
+    ollamaPath: bundled ? bundled.exe : '',
     ollamaHost: 'http://127.0.0.1:11434',
-    ollamaModel: 'qwen2.5:3b',
+    ollamaModel: 'minicpm-v:8b',
     configured: true,
   });
-  logToFile(`[startup] 采用随包内置 Ollama：${bundled.exe}`);
+  logToFile(
+    bundled
+      ? `[startup] 采用随包内置 Ollama：${bundled.exe}`
+      : '[startup] 未随包内置 Ollama，采用默认配置（本机 127.0.0.1:11434 + minicpm-v:8b）',
+  );
 }
 
 // 启动后端（前端窗口的 WebSocket 会自动连到 127.0.0.1:12393，无需改前端）
@@ -106,16 +112,22 @@ app.whenReady().then(() => {
   // 快捷键随时打开设置：Ctrl+Alt+S
   globalShortcut.register('CommandOrControl+Alt+S', () => openSettingsWindow());
 
-  // 整合版：首次运行自动采用随包内置的 Ollama + 模型
-  maybeAdoptBundledOllama();
+  // 首次运行自动写入默认配置（整合版用内置 Ollama，其余用本机默认地址）
+  adoptDefaultConfigIfNeeded();
 
-  // 已配置则后台启动后端；未配置则弹设置窗口引导填写
+  // 正常路径：始终直接启动，不再用设置窗口拦住用户。
+  // 后端启动失败属于运行时故障（例如冻结产物缺依赖、端口被占），弹“大模型设置”
+  // 窗口对用户没有帮助——改配置并不能修复这类问题，只会让人误以为是配置错了。
+  // 因此这里只记录日志，把诊断信息留在 logs/main.log 里；
+  // 用户若确实需要改模型，仍可用 Ctrl+Alt+S 或托盘菜单打开设置。
   if (llmConfigured()) {
     startBackend().catch((err) => {
       logToFile(`[startup] 启动后端失败：${String((err && err.message) || err)}`);
-      openSettingsWindow();
     });
   } else {
+    // 理论上 adoptDefaultConfigIfNeeded() 之后不会走到这里；
+    // 万一设置文件被外部改坏（例如 ollamaModel 被清空），才引导用户补全。
+    logToFile('[startup] 配置不完整，打开设置窗口引导填写');
     openSettingsWindow();
   }
 });
