@@ -16,7 +16,7 @@
 | `mod_agent_execution.feat_mcp_client`（MCP 协议对接工具链） | 尚未实现。当前没有 MCP client 集成 |
 | `mod_agent_execution.feat_system_automation`（文件操作/浏览器代理/DevOps 自动化） | 尚未实现 |
 | `mod_agent_execution.feat_multi_model_routing`（云端/本地模型统一调度） | 部分已具备基础：可配置 OpenAI 兼容 API 或本地 Ollama（`settings-store.ts`），但没有"多模型同时路由/按任务切换"的调度层 |
-| `mod_perception.feat_screen_capture`（`desktopCapturer` 截屏喂视觉模型） | **已实现**：前端已用 `desktopCapturer` 截屏并作为图片输入传给多模态模型（需用户手动选择支持视觉的模型，如 `qwen2.5vl`/`llava`，见 README 提示） |
+| `mod_perception.feat_screen_capture`（`desktopCapturer` 截屏喂视觉模型） | **已实现**：前端已用 `desktopCapturer` 截屏并作为图片输入传给多模态模型；内置默认模型已换成 `minicpm-v:8b`（原生支持视觉），开箱即用；若换成不支持视觉的模型，图片输入会被自动忽略，见 README 提示 |
 | `mod_perception.feat_audio_duplex`（VAD + 流式 ASR/TTS） | **部分已实现**：已有语音输入（VAD 麦克风检测）、流式 TTS 播放；ASR/TTS 具体技术栈以后端 `backend/` 现有实现为准，不严格等同于 spec 里列出的 Whisper/Edge-TTS 组合，需要按后端实际配置核对 |
 | `ipc_communication_schema` 三个事件（`USER_VOICE_INPUT`/`AGENT_RESPONSE_STREAM`/`SYSTEM_TOOL_CALL`） | 当前前后端通信协议是既有的 WebSocket 消息格式（见 `websocket-handler.tsx` 里的 `case` 分支，如 `partial-text`、`audio` 等），字段设计与本 spec 不同，尚未按此 schema 改造 |
 | `prompt_structure.system_prompt_template`（强制 JSON 输出 `text/emotion/action`） | 尚未实现。当前 agent 输出是纯文本 + 独立的 Live2D tap motion 触发，不是结构化 JSON 情绪/动作协议 |

@@ -47,7 +47,7 @@
 2. **配置一次** — 首次启动填写大模型 API/Key，或选择本机 Ollama。**整合版**内置模型，完全免配置。
 3. **开始陪伴** — 桌宠启动。托盘右键或菜单可在 **窗口模式 / 桌宠模式** 间切换。
 
-> 💡 想「看屏幕 / 摄像头」真正可用，需要在设置里选**支持视觉的模型**（如 `qwen2.5vl`、`llava`）。内置的 `qwen2.5:3b` 是纯文本模型，图片输入会被自动忽略、只按文字回答。
+> 💡 内置的 `minicpm-v:8b` 原生支持图片输入，「看屏幕 / 摄像头」开箱即用。如果换成其他模型，需确保该模型**支持视觉**（如 `qwen2.5vl`、`llava`），否则图片输入会被自动忽略、只按文字回答。
 
 ---
 
@@ -74,7 +74,7 @@ Electron 会自动拉起并管理 Python 后端（`127.0.0.1:12393`）和 Ollama
 打包分两种产物：
 
 - **轻量版** `npm run dist` — 不含 Ollama / 模型，用户自备云端 API 或本地 Ollama，安装包最小。
-- **整合版** `npm run dist:full` — 内置 Ollama + qwen2.5:3b，安装后开箱即用。
+- **整合版** `npm run dist:full` — 内置 Ollama + minicpm-v:8b（多模态），安装后开箱即用，支持看屏幕/摄像头。
 
 产物输出到 `apps/desktop/release/`。
 
@@ -129,7 +129,7 @@ npm run pack -- --dir         # 轻量版免安装目录
 | `未找到入口 ... run_server.py` | 尚未组装后端运行时 | `npm run prepare-runtime`，或直接 `npm run dist:full` |
 | `未找到内置 Ollama` | `vendor/ollama` 不完整 | 补齐 Ollama 程序与模型，或改打轻量版 `npm run dist` |
 | 打包成功但后端不是最新 | `pack:full` 封装了旧冻结后端 | 改用 `npm run dist:full` 重新冻结 |
-| `Error calling the chat endpoint`（含图片） | 纯文本模型收到屏幕/摄像头图片 | 换支持视觉的模型，或关闭摄像头/屏幕；新版会自动忽略图片重试 |
+| `Error calling the chat endpoint`（含图片） | 换成了不支持视觉的纯文本模型后收到屏幕/摄像头图片 | 换回 `minicpm-v:8b` 或其他支持视觉的模型，或关闭摄像头/屏幕；新版会自动忽略图片重试 |
 | 端口冲突 | `12393` / `11434` 被占用 | 停止占用程序后重启 |
 | 后端资源没更新 | `%APPDATA%\any-lover\runtime` 缓存了旧文件 | 关闭应用后清理该目录再启动（先备份需要的数据） |
 | 旧版（`ai-bot-pet` / `pet-bot`）升级后聊天记录/设置"消失" | 应用改名为 `Any-Lover` 后，用户数据目录从 `%APPDATA%\ai-bot-pet` 迁移为 `%APPDATA%\any-lover`，角色标识也从 `aibot_pet_001` 改为 `charis_001` | 数据并未丢失，仍在旧目录里；如需继续使用旧聊天记录，手动把 `%APPDATA%\ai-bot-pet\chat_history\aibot_pet_001` 下的文件拷贝到 `%APPDATA%\any-lover\chat_history\charis_001` |
@@ -195,7 +195,7 @@ Any-Lover/
 本项目**继承并二次封装自 [Open-LLM-VTuber](https://docs.llmvtuber.com/docs/quick-start)**（后端）与 Open-LLM-VTuber-Web（前端外壳）。语音识别、大模型对话、语音合成、Live2D 渲染与 Pet/Window 模式均来自上游，Any-Lover 在其之上做了：
 
 - **一体化融合**：分离的 Python 后端与 Electron 前端合并成单一桌面应用；
-- **开箱即用打包**：内置冻结后端运行时（无需装 Python），可选内置 Ollama + qwen2.5:3b；
+- **开箱即用打包**：内置冻结后端运行时（无需装 Python），可选内置 Ollama + minicpm-v:8b（多模态，支持看屏幕/摄像头）；
 - **极简配置**：独立设置面板，只需填 API/Key 或一键用本地 Ollama；
 - **架构分层**：`apps/` / `backend/` / `build/` 清晰隔离。
 
