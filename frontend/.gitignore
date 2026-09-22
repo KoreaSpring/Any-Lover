@@ -59,3 +59,9 @@ out
 
 # Cursor files
 .cursorrules
+
+# pack.js 运行时生成的临时 electron-builder 配置（用完即删）
+electron-builder.pack.json
+
+# 废弃：设置面板旧的独立构建产物目录（settings 已并入 electron-vite 第二 renderer 入口）
+resources/settings

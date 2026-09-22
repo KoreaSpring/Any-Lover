@@ -76,7 +76,7 @@ Electron 会自动拉起并管理 Python 后端（`127.0.0.1:12393`）和 Ollama
 - **轻量版** `npm run dist` — 不含 Ollama / 模型，用户自备云端 API 或本地 Ollama，安装包最小。
 - **整合版** `npm run dist:full` — 内置 Ollama + minicpm-v:8b（多模态），安装后开箱即用，支持看屏幕/摄像头。
 
-产物输出到 `apps/desktop/release/`。
+产物输出到 `frontend/release/`。
 
 ### 完整重建整合版（推荐）
 
@@ -145,12 +145,12 @@ npm run pack -- --dir         # 轻量版免安装目录
 
 | 命令 | 作用 |
 | --- | --- |
-| `npm run dev:setup` | 首次准备：装桌面端依赖 + 组装 `dist-runtime` + 构建设置面板 |
+| `npm run dev:setup` | 首次准备：装前端依赖 + 组装 `dist-runtime` |
 | `npm run dev` | 日常启动：准备运行时并启动 Electron（自动托管后端 / Ollama） |
-| `npm run desktop:dev` | 仅启动 `electron-vite dev`（依赖与运行时已就绪时更快） |
-| `npm run desktop:build` | 生产构建 Electron（含设置面板），不打安装包 |
-| `npm run install:app` | 安装 `apps/settings-ui` + `apps/desktop` 依赖 |
-| `npm run install:all` | 在 `install:app` 基础上再装 `apps/site` 依赖 |
+| `npm run frontend:dev` | 仅启动 `electron-vite dev`（依赖与运行时已就绪时更快） |
+| `npm run frontend:build` | 生产构建 Electron（含主窗口与设置窗口两个 renderer 入口），不打安装包 |
+| `npm run install:app` | 安装 `frontend` 依赖（含设置窗口，已并入前端） |
+| `npm run install:all` | 在 `install:app` 基础上再装 `site` 依赖 |
 | `npm run python:deps` | 用当前 Python 安装 `requirements-pet.txt`（建议在 3.10–3.12 venv 中） |
 | `npm run prepare-runtime` | 从 `backend/` 组装可分发运行时到 `dist-runtime`（首次含 ~300MB ASR 模型） |
 | `npm run build:backend` | PyInstaller 冻结后端到 `dist-runtime/python`（需 `prepare-runtime` + `AIBOT_PYTHON`） |
@@ -167,12 +167,13 @@ npm run pack -- --dir         # 轻量版免安装目录
 
 ```
 Any-Lover/
-├─ apps/
-│  ├─ desktop/          # Electron 桌面外壳（Pet/Window 模式、托盘、菜单）
-│  │  └─ src/main/      #   融合入口 bootstrap.ts + 后端 sidecar / 设置 / Ollama 管理
-│  ├─ settings-ui/      # React + Vite 独立设置面板
-│  └─ site/             # Vue 3 + Vite 官网（全屏 Live2D 互动）
+├─ frontend/            # Electron App：主进程 + Live2D 主窗口渲染 + 设置窗口渲染
+│  └─ src/
+│     ├─ main/          #   主进程：bootstrap 入口 + 进程/窗口/配置/IPC 管理
+│     ├─ preload/       #   preload：主窗口 window.api + 设置窗口 window.aibot
+│     └─ renderer/      #   前端渲染：主窗口(React+Live2D) + settings/（设置窗口第二入口）
 ├─ backend/             # 上游 Open-LLM-VTuber 后端（作为黑盒整体引入）
+├─ site/                # Vue 3 + Vite 官网（全屏 Live2D 互动，GitHub Pages 独立部署）
 ├─ build/scripts/       # prepare-runtime / build-backend / pack
 ├─ .github/workflows/   # GitHub Pages 自动构建与部署
 ├─ dist-runtime/        # 组装出的可分发运行时（含冻结后端），构建产物

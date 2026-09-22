@@ -15,7 +15,7 @@ const DEFAULT_HOST = 'http://127.0.0.1:11434';
 export function resolveBundledOllama(): { exe: string; modelsDir: string } | null {
   const roots = app.isPackaged
     ? [path.join(process.resourcesPath, 'ollama')]
-    : [path.join(app.getAppPath(), '..', '..', 'vendor', 'ollama')];
+    : [path.join(app.getAppPath(), '..', 'vendor', 'ollama')];
   for (const root of roots) {
     const exe = path.join(root, 'bin', 'ollama.exe');
     const modelsDir = path.join(root, 'models');

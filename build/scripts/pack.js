@@ -11,7 +11,7 @@
  *   node build/scripts/pack.js --with-ollama   # 整合版（NSIS 安装包）
  *   追加 --dir                                 # 只产出免安装目录（不压缩、不打 NSIS，最快，供测试）
  *
- * 实现：electron-builder 从 apps/desktop/electron-builder.yml 读取基础配置；
+ * 实现：electron-builder 从 frontend/electron-builder.yml 读取基础配置；
  * 本脚本通过 --config.extraResources 追加/覆盖，避免维护两份 yml。
  */
 
@@ -21,7 +21,7 @@ const os = require('os');
 const { spawnSync } = require('child_process');
 
 const ROOT = path.join(__dirname, '..', '..');
-const DESKTOP = path.join(ROOT, 'apps', 'desktop');
+const DESKTOP = path.join(ROOT, 'frontend');
 const VENDOR_OLLAMA = path.join(ROOT, 'vendor', 'ollama');
 
 const withOllama = process.argv.includes('--with-ollama');
@@ -72,7 +72,7 @@ function preparePackaging() {
 }
 
 /**
- * 决定本次打包的输出目录（相对 apps/desktop）。
+ * 决定本次打包的输出目录（相对 frontend）。
  * 正常情况下 preparePackaging 已清空 release/，这里使用固定目录 release/dist；
  * 若该目录仍存在且无法清空（被占用），回退到带时间戳的新目录，保证打包不中断。
  */
@@ -105,13 +105,13 @@ function buildDesktop() {
 const VENDOR_FFMPEG = path.join(ROOT, 'vendor', 'ffmpeg');
 
 function runBuilder() {
-  // 基础 extraResources：dist-runtime -> runtime（相对 apps/desktop）
-  const extra = [{ from: '../../dist-runtime', to: 'runtime', filter: ['**/*'] }];
+  // 基础 extraResources：dist-runtime -> runtime（相对 frontend/ 即 projectDir）
+  const extra = [{ from: '../dist-runtime', to: 'runtime', filter: ['**/*'] }];
 
   // 随包提供 ffmpeg：edge_tts 输出 mp3，后端用 pydub 转 wav 需要 ffmpeg 解码。
   // 打进产物后，用户机器无需自行安装 ffmpeg 即可听到语音（轻量版/整合版都带）。
   if (fs.existsSync(path.join(VENDOR_FFMPEG, 'bin', 'ffmpeg.exe'))) {
-    extra.push({ from: '../../vendor/ffmpeg', to: 'ffmpeg', filter: ['**/*'] });
+    extra.push({ from: '../vendor/ffmpeg', to: 'ffmpeg', filter: ['**/*'] });
     log('打入 vendor/ffmpeg（用于 TTS 音频转码）');
   } else {
     log('提示：未找到 vendor/ffmpeg/bin/ffmpeg.exe，产物将不含 ffmpeg，缺 ffmpeg 的机器语音会静音');
@@ -121,7 +121,7 @@ function runBuilder() {
     if (!fs.existsSync(path.join(VENDOR_OLLAMA, 'bin', 'ollama.exe'))) {
       throw new Error(`未找到内置 Ollama：${VENDOR_OLLAMA}\\bin\\ollama.exe`);
     }
-    extra.push({ from: '../../vendor/ollama', to: 'ollama', filter: ['**/*'] });
+    extra.push({ from: '../vendor/ollama', to: 'ollama', filter: ['**/*'] });
     log('整合版：将打入 vendor/ollama（程序 + minicpm-v:8b 多模态模型）');
   } else {
     log('轻量版：不含 Ollama/模型');
