@@ -1,7 +1,9 @@
 import { createRoot } from 'react-dom/client';
+import { Provider } from 'react-redux';
 import log from 'electron-log/renderer';
 import './index.css';
 import App from './App';
+import { store } from './store';
 import { LAppAdapter } from '../WebSDK/src/lappadapter';
 import './i18n';
 
@@ -58,7 +60,9 @@ if (typeof window !== 'undefined') {
   loadLive2DCore()
     .then(() => {
       createRoot(document.getElementById('root')!).render(
-        <App />,
+        <Provider store={store}>
+          <App />
+        </Provider>,
       );
     })
     .catch((error) => {

@@ -2,10 +2,10 @@
  * 把项目内的真实 Live2D 资源同步到官网 public/ 目录。
  *
  * 官网直接复用桌宠应用使用的同一套资源：
- *  - Cubism Core 运行时：apps/desktop/src/renderer/public/libs/live2dcubismcore.min.js
+ *  - Cubism Core 运行时：frontend/src/renderer/public/libs/live2dcubismcore.min.js
  *  - Live2D 模型：backend/live2d-models/<model>
  *
- * 资源不纳入 git（见 apps/site/.gitignore），由本脚本在本地开发与 CI 构建前生成，
+ * 资源不纳入 git（见 site/.gitignore），由本脚本在本地开发与 CI 构建前生成，
  * 保证官网与应用使用完全一致的模型，不产生重复副本。
  */
 import fs from 'node:fs';
@@ -15,15 +15,16 @@ import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const siteRoot = path.resolve(__dirname, '..');
-const repoRoot = path.resolve(siteRoot, '..', '..');
+// site/ 现为仓库根的直接子目录（重构前是 apps/site，需回退两级）
+const repoRoot = path.resolve(siteRoot, '..');
 
 /** 要同步到官网的模型（体积小、动作齐全，适合网页首屏） */
 const MODELS = ['shizuku'];
 
 /** Cubism Core 候选位置，按优先级查找 */
 const CORE_CANDIDATES = [
-  'apps/desktop/src/renderer/public/libs/live2dcubismcore.min.js',
-  'apps/desktop/src/renderer/WebSDK/Core/live2dcubismcore.min.js',
+  'frontend/src/renderer/public/libs/live2dcubismcore.min.js',
+  'frontend/src/renderer/WebSDK/Core/live2dcubismcore.min.js',
 ];
 
 function log(msg) {

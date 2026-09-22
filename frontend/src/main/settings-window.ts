@@ -1,18 +1,12 @@
-// 独立设置窗口：加载 React 设置面板（apps/settings-ui 构建到 resources/settings）。
+// 独立设置窗口：加载 React 设置面板。
+// 设置面板已并入主前端，作为 electron-vite 的第二个 renderer 入口（settings.html），
+// 与主窗口共享同一套构建；不再是独立的 apps/settings-ui 项目。
 import path from 'path';
 import fs from 'fs';
 import { BrowserWindow, app } from 'electron';
+import { is } from '@electron-toolkit/utils';
 
 let settingsWindow: BrowserWindow | null = null;
-
-function resolveSettingsHtml(): string {
-  // 打包态：resources/settings/index.html（asarUnpack 到 resources）
-  const packaged = path.join(process.resourcesPath, 'settings', 'index.html');
-  if (fs.existsSync(packaged)) return packaged;
-  // 开发态：apps/desktop/resources/settings/index.html
-  const dev = path.join(app.getAppPath(), 'resources', 'settings', 'index.html');
-  return dev;
-}
 
 function resolveSettingsPreload(): string {
   // 由 electron-vite 构建到 out/preload/settings-preload.js
@@ -61,7 +55,12 @@ export function openSettingsWindow(): BrowserWindow {
     },
   });
   settingsWindow.setMenuBarVisibility(false);
-  settingsWindow.loadFile(resolveSettingsHtml());
+  // 开发态加载 vite dev server 的 settings 入口；打包态加载 electron-vite 产物。
+  if (is.dev && process.env.ELECTRON_RENDERER_URL) {
+    settingsWindow.loadURL(`${process.env.ELECTRON_RENDERER_URL}/settings.html`);
+  } else {
+    settingsWindow.loadFile(path.join(app.getAppPath(), 'out', 'renderer', 'settings.html'));
+  }
   settingsWindow.on('closed', () => {
     settingsWindow = null;
   });

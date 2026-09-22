@@ -69,6 +69,13 @@ export default defineConfig({
     ],
     build: {
       rollupOptions: {
+        // 多渲染入口：主窗口 index.html + 独立设置窗口 settings.html。
+        // 两个入口共享同一 renderer root（src/renderer）、别名与依赖，
+        // 构建产物分别为 out/renderer/index.html 与 out/renderer/settings.html。
+        input: {
+          index: resolve(__dirname, 'src/renderer/index.html'),
+          settings: resolve(__dirname, 'src/renderer/settings.html'),
+        },
         onwarn(warning, warn) {
           if (warning.message.includes('onnxruntime')) {
             return;

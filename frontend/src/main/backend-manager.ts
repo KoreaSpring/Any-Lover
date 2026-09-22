@@ -39,8 +39,8 @@ export class BackendManager {
     if (app.isPackaged) {
       return path.join(process.resourcesPath, 'runtime');
     }
-    // apps/desktop/src/main -> 仓库根需回退到 ai-bot/
-    return path.join(app.getAppPath(), '..', '..', 'dist-runtime');
+    // 开发态：app 路径为 frontend/，回退一级到仓库根，再取 dist-runtime
+    return path.join(app.getAppPath(), '..', 'dist-runtime');
   }
 
   private dataRoot(): string {
@@ -51,7 +51,7 @@ export class BackendManager {
   private ffmpegDir(): string | null {
     const candidates = app.isPackaged
       ? [path.join(process.resourcesPath, 'ffmpeg', 'bin')]
-      : [path.join(app.getAppPath(), '..', '..', 'vendor', 'ffmpeg', 'bin')];
+      : [path.join(app.getAppPath(), '..', 'vendor', 'ffmpeg', 'bin')];
     for (const dir of candidates) {
       if (fs.existsSync(path.join(dir, 'ffmpeg.exe'))) return dir;
     }

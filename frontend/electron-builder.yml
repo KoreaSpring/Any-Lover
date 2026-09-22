@@ -14,8 +14,10 @@ files:
   - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
 extraResources:
-  # 冻结的 Python 后端 + 前端静态资源 + 模型（组装在 ai-bot/dist-runtime）
-  - from: '../../dist-runtime'
+  # 冻结的 Python 后端 + 前端静态资源 + 模型（组装在 <root>/dist-runtime）。
+  # 路径相对 frontend/（projectDir）。注意：pack.js 会用 --config 覆盖 extraResources，
+  # 此处保留一份等价配置，供直接用 electron-builder 构建时也正确。
+  - from: '../dist-runtime'
     to: 'runtime'
     filter:
       - '**/*'
