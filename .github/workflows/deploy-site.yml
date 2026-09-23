@@ -5,8 +5,6 @@ on:
     branches: [main]
     paths:
       - 'site/**'
-      - 'backend/live2d-models/**'
-      - 'frontend/src/renderer/public/libs/live2dcubismcore.min.js'
       - '.github/workflows/deploy-site.yml'
   # 允许在 Actions 页面手动触发
   workflow_dispatch:
@@ -39,11 +37,6 @@ jobs:
       - name: Install dependencies
         working-directory: site
         run: npm ci
-
-      # 官网复用仓库内桌宠应用的同一套 Live2D 资源
-      - name: Sync Live2D assets
-        working-directory: site
-        run: npm run sync:live2d
 
       - name: Build
         working-directory: site
