@@ -23,9 +23,11 @@ export const LOGO_URL = asset('images/logo.png');
  * 均为 AI 生成的示意图，正式发布前建议替换为 Charis 官方立绘与真实应用截图。
  */
 export const IMG = {
-  heroBg: asset('images/hero-bg.png'),
   charis: asset('images/charis.png'),
-  concept: asset('images/concept.png'),
+  // Philosophy(story) 三个章节的配图
+  story1: asset('images/story-01.png'),
+  story2: asset('images/story-02.png'),
+  story3: asset('images/story-03.png'),
   sceneWork: asset('images/scene-work.png'),
   sceneRest: asset('images/scene-rest.png'),
   sceneCustom: asset('images/scene-custom.png'),

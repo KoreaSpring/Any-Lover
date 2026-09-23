@@ -31,34 +31,9 @@ export default {
         heading: ['"Noto Serif SC"', 'serif'],
         body: ['"Noto Sans SC"', 'system-ui', 'sans-serif'],
       },
-      keyframes: {
-        // 角色卡整体呼吸：缓慢缩放 + 明暗（对齐 Readdy）
-        breathe: {
-          '0%, 100%': { transform: 'scale(1)', opacity: '0.9' },
-          '50%': { transform: 'scale(1.04)', opacity: '1' },
-        },
-        // 底部声波条上下跳动
-        wave: {
-          '0%, 100%': { transform: 'scaleY(0.6)', opacity: '0.6' },
-          '50%': { transform: 'scaleY(1.15)', opacity: '1' },
-        },
-        // 浮动标签（对齐 Readdy 的 floatY）
-        float: {
-          '0%, 100%': { transform: 'translateY(0)' },
-          '50%': { transform: 'translateY(-12px)' },
-        },
-        // 主 CTA 光晕脉冲（对齐 Readdy 的 glowPulse）
-        glow: {
-          '0%, 100%': { boxShadow: '0 0 20px oklch(var(--primary-500) / 0.35)' },
-          '50%': { boxShadow: '0 0 40px oklch(var(--primary-500) / 0.6)' },
-        },
-      },
-      animation: {
-        breathe: 'breathe 5s ease-in-out infinite',
-        wave: 'wave 1.2s ease-in-out infinite',
-        float: 'float 6s ease-in-out infinite',
-        glow: 'glow 3s ease-in-out infinite',
-      },
+      // 装饰动画（breathe / wave / float / float-slow / drift / pulse-soft /
+      // scroll-hint）统一在 src/index.css 中以 .animate-* 类与 @keyframes 定义，
+      // 这里不再重复声明，避免同名类冲突。
     },
   },
   plugins: [],

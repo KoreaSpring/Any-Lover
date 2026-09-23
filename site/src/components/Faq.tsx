@@ -31,11 +31,17 @@ export default function Faq() {
   const [open, setOpen] = useState<number | null>(0);
 
   return (
-    <section id="faq" className="relative py-20 md:py-28 bg-background-900">
+    <section id="faq" className="snap-section relative py-20 md:py-28 bg-background-100">
       <div className="w-full max-w-[900px] mx-auto px-4 md:px-8">
         <div className="text-center mb-12">
-          <p className="text-xs tracking-[0.3em] text-primary-300 mb-4">FAQ</p>
-          <h2 className="font-heading text-3xl md:text-5xl text-foreground-50">常见问题</h2>
+          <p className="text-xs tracking-[0.3em] text-primary-600 mb-4">FAQ</p>
+          <span
+            data-reveal="line"
+            className="mx-auto block h-[3px] w-14 rounded-full bg-gradient-to-r from-primary-500 to-accent-500 mb-6"
+          />
+          <h2 data-reveal="up" className="font-heading text-3xl md:text-5xl text-foreground-950">
+            常见问题
+          </h2>
         </div>
 
         <div className="space-y-3">
@@ -44,18 +50,20 @@ export default function Faq() {
             return (
               <div
                 key={item.q}
-                className="rounded-2xl border border-background-700/70 bg-background-800/60 overflow-hidden"
+                data-reveal="up"
+                className="rounded-2xl border border-background-200 bg-background-50 overflow-hidden"
+                style={{ transitionDelay: `${i * 80}ms` }}
               >
                 <button
                   className="w-full flex items-center justify-between gap-4 p-5 md:p-6 text-left cursor-pointer"
                   aria-expanded={isOpen}
                   onClick={() => setOpen(isOpen ? null : i)}
                 >
-                  <span className="font-heading text-foreground-50 text-base md:text-lg">
+                  <span className="font-heading text-foreground-950 text-base md:text-lg">
                     {item.q}
                   </span>
                   <i
-                    className={`ri-arrow-down-s-line text-2xl text-primary-300 transition-transform ${
+                    className={`ri-arrow-down-s-line text-2xl text-primary-500 transition-transform ${
                       isOpen ? 'rotate-180' : ''
                     }`}
                   />
@@ -66,7 +74,7 @@ export default function Faq() {
                   }`}
                 >
                   <div className="overflow-hidden">
-                    <p className="px-5 md:px-6 pb-5 md:pb-6 text-foreground-300 text-sm md:text-base leading-relaxed">
+                    <p className="px-5 md:px-6 pb-5 md:pb-6 text-foreground-600 text-sm md:text-base leading-relaxed">
                       {item.a}
                     </p>
                   </div>

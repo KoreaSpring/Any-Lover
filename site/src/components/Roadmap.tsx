@@ -1,5 +1,3 @@
-import { useReveal } from '../useReveal';
-
 type Column = {
   icon: string;
   status: string;
@@ -57,56 +55,82 @@ const COLUMNS: Column[] = [
 
 const TONE = {
   primary: {
-    glow: 'bg-primary-500/20',
-    chipIcon: 'bg-primary-500/20 text-primary-200',
-    badge: 'bg-primary-500/15 text-primary-200 border-primary-500/40',
-    dot: 'bg-primary-400 shadow-[0_0_12px_oklch(var(--primary-500))]',
+    glow: 'bg-primary-100/70',
+    chipIcon: 'bg-primary-50 text-primary-600',
+    badge: 'bg-primary-50 text-primary-700 border-primary-200',
+    border: 'border-primary-200',
+    dot: 'bg-primary-500 shadow-[0_0_12px_rgba(233,138,106,0.55)]',
   },
   accent: {
-    glow: 'bg-accent-500/20',
-    chipIcon: 'bg-accent-500/20 text-accent-200',
-    badge: 'bg-accent-500/15 text-accent-200 border-accent-500/40',
-    dot: 'bg-accent-400 shadow-[0_0_12px_oklch(var(--accent-500))]',
+    glow: 'bg-accent-100/70',
+    chipIcon: 'bg-accent-50 text-accent-700',
+    badge: 'bg-accent-50 text-accent-700 border-accent-200',
+    border: 'border-accent-200',
+    dot: 'bg-accent-500 shadow-[0_0_12px_rgba(120,178,158,0.55)]',
   },
   secondary: {
-    glow: 'bg-secondary-500/20',
-    chipIcon: 'bg-secondary-500/20 text-secondary-200',
-    badge: 'bg-secondary-500/15 text-secondary-200 border-secondary-500/40',
-    dot: 'bg-secondary-400 shadow-[0_0_12px_oklch(var(--secondary-500))]',
+    glow: 'bg-secondary-100/70',
+    chipIcon: 'bg-secondary-50 text-secondary-700',
+    badge: 'bg-secondary-50 text-secondary-700 border-secondary-200',
+    border: 'border-secondary-200',
+    dot: 'bg-secondary-500 shadow-[0_0_12px_rgba(214,170,96,0.55)]',
   },
 } as const;
 
 export default function Roadmap() {
-  const ref = useReveal<HTMLDivElement>();
   return (
-    <section id="roadmap" className="relative py-20 md:py-28 overflow-hidden bg-background-900">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,oklch(var(--primary-500)/0.15),transparent_60%)]" />
+    <section
+      id="roadmap"
+      className="snap-section relative py-20 md:py-28 overflow-hidden bg-background-100"
+    >
+      <div
+        className="pointer-events-none absolute -top-24 left-1/2 -translate-x-1/2 w-[760px] h-[420px] rounded-full bg-primary-100/60 blur-[130px]"
+        aria-hidden="true"
+      />
       <div className="relative w-full max-w-[1280px] mx-auto px-4 md:px-8">
         <div className="max-w-3xl mb-14">
-          <p className="text-xs tracking-[0.3em] text-primary-300 mb-4">GROWTH · ROADMAP</p>
-          <h2 className="font-heading text-3xl md:text-5xl text-foreground-50 leading-tight">
+          <p className="text-xs tracking-[0.3em] text-primary-600 mb-4">GROWTH · ROADMAP</p>
+          <span
+            data-reveal="line"
+            className="block h-[3px] w-14 rounded-full bg-gradient-to-r from-primary-500 to-accent-500 mb-6"
+          />
+          <h2
+            data-reveal="up"
+            className="font-heading text-3xl md:text-5xl text-foreground-950 leading-tight"
+          >
             今天是桌面伙伴，
             <br className="md:hidden" />
             明天是与你共同成长的数字生命。
           </h2>
-          <p className="mt-5 text-foreground-300 text-base md:text-lg leading-relaxed">
+          <p
+            data-reveal="up"
+            className="mt-5 text-foreground-600 text-base md:text-lg leading-relaxed"
+            style={{ transitionDelay: '120ms' }}
+          >
             AnyLover
             的终点不是一个功能更多的聊天机器人，而是一位能够记住共同经历、理解你的习惯，并在合适时刻出现的长期伙伴。
           </p>
         </div>
 
-        <div ref={ref} className="reveal grid grid-cols-1 md:grid-cols-3 gap-5 md:gap-6">
-          {COLUMNS.map((col) => {
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5 md:gap-6">
+          {COLUMNS.map((col, ci) => {
             const tone = TONE[col.tone];
             return (
               <div
                 key={col.title}
-                className="rounded-3xl p-6 md:p-7 bg-background-800/70 border border-background-700/60 relative overflow-hidden"
+                data-reveal="up"
+                className="rounded-2xl p-6 md:p-7 bg-background-50 border border-background-200 relative overflow-hidden"
+                style={{ transitionDelay: `${ci * 130}ms` }}
               >
-                <div className={`absolute -top-20 -right-20 w-60 h-60 rounded-full blur-3xl ${tone.glow}`} />
+                <div
+                  className={`absolute -top-20 -right-20 w-60 h-60 rounded-full blur-3xl ${tone.glow}`}
+                  aria-hidden="true"
+                />
                 <div className="relative">
                   <div className="flex items-center justify-between mb-5">
-                    <div className={`w-11 h-11 flex items-center justify-center rounded-xl ${tone.chipIcon}`}>
+                    <div
+                      className={`w-11 h-11 flex items-center justify-center rounded-xl ${tone.chipIcon}`}
+                    >
                       <i className={`${col.icon} text-xl`} />
                     </div>
                     <span
@@ -115,14 +139,24 @@ export default function Roadmap() {
                       {col.status}
                     </span>
                   </div>
-                  <h3 className="font-heading text-2xl text-foreground-50 mb-6">{col.title}</h3>
-                  <ul className="relative border-l border-background-600/60 pl-5 space-y-4">
-                    {col.items.map((item) => (
-                      <li key={item} className="relative">
+                  <h3 className="font-heading text-2xl text-foreground-950 mb-6">{col.title}</h3>
+                  <ul className={`relative border-l ${tone.border} pl-5 space-y-4`}>
+                    {col.items.map((item, ii) => (
+                      <li
+                        key={item}
+                        data-reveal="up"
+                        className="road-item relative"
+                        style={
+                          {
+                            transitionDelay: `${260 + ii * 130}ms`,
+                            '--d': `${260 + ii * 130}ms`,
+                          } as React.CSSProperties
+                        }
+                      >
                         <span
-                          className={`absolute -left-[26px] top-1.5 w-3 h-3 rounded-full ${tone.dot}`}
+                          className={`road-dot absolute -left-[26px] top-1.5 w-3 h-3 rounded-full ${tone.dot}`}
                         />
-                        <p className="text-sm md:text-base text-foreground-200">{item}</p>
+                        <p className="text-sm md:text-base text-foreground-700">{item}</p>
                       </li>
                     ))}
                   </ul>
@@ -132,7 +166,7 @@ export default function Roadmap() {
           })}
         </div>
 
-        <p className="mt-8 text-xs text-foreground-400 text-center">
+        <p data-reveal="up" className="mt-8 text-xs text-foreground-500 text-center">
           「规划中」与「探索方向」表示 AnyLover
           正在设计和探索的能力方向，不代表已经上线，也不承诺具体时间。
         </p>
