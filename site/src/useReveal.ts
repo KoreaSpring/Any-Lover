@@ -1,19 +1,21 @@
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 
 /**
- * useReveal —— 元素进入视口时添加 `.in`，触发一次性淡入上滑动画。
- * 在需要动画的元素上加 className="reveal" 并挂 ref={useReveal()}。
+ * useRevealObserver —— 在 App 顶层调用一次。
+ * 扫描页面上所有 `[data-reveal]` 元素，进入视口时添加 `.in`，
+ * 触发一次性的淡入 / 位移 / 划线动画（样式见 index.css）。
+ *
+ * 相比旧的「每个组件挂 ref」写法，这里统一观察，组件只需写
+ * `data-reveal="up"`（可选 style 里加 transition-delay 做交错）。
  */
-export function useReveal<T extends HTMLElement = HTMLDivElement>() {
-  const ref = useRef<T | null>(null);
-
+export function useRevealObserver() {
   useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
+    const nodes = Array.from(document.querySelectorAll<HTMLElement>('[data-reveal]'));
+    if (nodes.length === 0) return;
 
     const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
     if (reduce || typeof IntersectionObserver === 'undefined') {
-      el.classList.add('in');
+      nodes.forEach((n) => n.classList.add('in'));
       return;
     }
 
@@ -29,9 +31,7 @@ export function useReveal<T extends HTMLElement = HTMLDivElement>() {
       { threshold: 0.12, rootMargin: '0px 0px -8% 0px' },
     );
 
-    observer.observe(el);
+    nodes.forEach((n) => observer.observe(n));
     return () => observer.disconnect();
   }, []);
-
-  return ref;
 }
