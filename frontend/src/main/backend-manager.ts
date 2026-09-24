@@ -52,17 +52,28 @@ export class BackendManager {
     const candidates = app.isPackaged
       ? [path.join(process.resourcesPath, 'ffmpeg', 'bin')]
       : [path.join(app.getAppPath(), '..', 'vendor', 'ffmpeg', 'bin')];
+    const exeName = process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg';
     for (const dir of candidates) {
-      if (fs.existsSync(path.join(dir, 'ffmpeg.exe'))) return dir;
+      if (fs.existsSync(path.join(dir, exeName))) return dir;
     }
     return null;
   }
 
   private pythonExe(): { exe: string; useScript: boolean } {
     const root = this.dataRoot();
-    const frozen = path.join(root, 'python', 'aibot-backend.exe');
+    const frozen = path.join(
+      root,
+      'python',
+      process.platform === 'win32' ? 'aibot-backend.exe' : 'aibot-backend',
+    );
     if (fs.existsSync(frozen)) return { exe: frozen, useScript: false };
-    return { exe: 'python', useScript: true };
+    // 源码模式（mac/linux 或未冻结时）：优先用环境变量指定的解释器
+    // （setup-dev.js 建的 .venv-setup），否则回退系统 python3/python。
+    const envPy = process.env.AIBOT_PYTHON;
+    if (envPy && fs.existsSync(envPy)) return { exe: envPy, useScript: true };
+    // Windows 习惯 python，其它平台优先 python3。
+    const fallback = process.platform === 'win32' ? 'python' : 'python3';
+    return { exe: fallback, useScript: true };
   }
 
   private copyIfMissing(src: string, dest: string): void {

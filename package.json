@@ -6,8 +6,10 @@
   "license": "MIT",
   "private": true,
   "scripts": {
+    "setup": "node build/scripts/setup-dev.js",
     "prepare-runtime": "node build/scripts/prepare-runtime.js",
     "build:backend": "node build/scripts/build-backend.js",
+    "build:nextchat": "node build/scripts/build-nextchat.js",
     "install:app": "npm --prefix frontend install",
     "install:all": "npm run install:app && npm --prefix site install",
     "python:deps": "python -m pip install -r requirements-pet.txt",
