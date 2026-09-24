@@ -393,14 +393,18 @@ export default function OllamaOnboarding(): JSX.Element | null {
             ) : (
               <button
                 onClick={onStartExperience}
-                disabled={busy || !ready}
-                style={ready ? btnPrimary : btnDisabled}
-                title={ready ? '' : '模型下载完成后可开始体验'}
+                disabled={busy}
+                style={btnPrimary}
+                title={ready ? '' : '模型仍在后台下载，可先进入应用'}
               >
-                {busy ? '正在进入…' : ready ? '开始体验' : '模型下载中，请稍候…'}
+                {busy ? '正在进入…' : ready ? '开始体验' : '进入应用（下载后台继续）'}
               </button>
             )}
-            <div style={{ marginTop: 12 }}>
+            {/* 跳过：任何时候都能直接进入应用（浏览器/工作台不依赖模型；桌宠对话可稍后配置）。 */}
+            <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <button onClick={onStartExperience} disabled={busy} style={btnLink}>
+                跳过，直接进入应用
+              </button>
               {!started && (
                 <button onClick={() => setView('manual')} disabled={busy} style={btnLink}>
                   手动设置（使用云端 API）
@@ -505,10 +509,10 @@ const overlay = (fadingOut: boolean): React.CSSProperties => ({
   opacity: fadingOut ? 0 : 1,
   transition: 'opacity 0.6s ease',
   fontFamily: '"Noto Sans SC", system-ui, sans-serif',
-  WebkitAppRegion: 'no-drag' as any,
+  WebkitAppRegion: 'no-drag',
   overflow: 'auto',
   padding: '24px 0',
-});
+} as React.CSSProperties);
 const card: React.CSSProperties = {
   width: 520,
   maxWidth: '90%',
@@ -547,17 +551,6 @@ const btnPrimary: React.CSSProperties = {
   fontSize: 15,
   fontWeight: 600,
   cursor: 'pointer',
-};
-const btnDisabled: React.CSSProperties = {
-  width: '100%',
-  padding: '12px 0',
-  borderRadius: 999,
-  border: 'none',
-  background: '#d8cfc4',
-  color: '#fff',
-  fontSize: 15,
-  fontWeight: 600,
-  cursor: 'not-allowed',
 };
 const btnMini: React.CSSProperties = {
   padding: '0 14px',

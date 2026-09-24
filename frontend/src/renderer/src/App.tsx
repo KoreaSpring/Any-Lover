@@ -31,6 +31,9 @@ import Subtitle from "./components/canvas/subtitle";
 import { ModeProvider, useMode } from "./context/mode-context";
 import OllamaOnboarding from "./components/onboarding/ollama-onboarding";
 import ModelDownloadIndicator from "./components/onboarding/model-download-indicator";
+import ModeSwitcher from "./components/shell/mode-switcher";
+import BrowserBar from "./components/shell/browser-bar";
+import WindowControls from "./components/shell/window-controls";
 
 function AppContent(): JSX.Element {
   const [showSidebar, setShowSidebar] = useState(true);
@@ -38,6 +41,25 @@ function AppContent(): JSX.Element {
   const { mode } = useMode();
   const isElectron = window.api !== undefined;
   const live2dContainerRef = useRef<HTMLDivElement>(null);
+
+  // 三模式外壳状态（browser / workbench / home）。仅 home 时显示 window mode 的
+  // 完整界面（Live2D + 侧栏 + 对话）；browser / workbench 时让位给原生 WebContentsView，
+  // 隐藏 renderer 自身的 window UI，避免顶部叠加混乱。
+  const [shellMode, setShellMode] = useState<string>("home");
+  useEffect(() => {
+    const a = (window as any).api;
+    if (!a) return undefined;
+    try {
+      const m = a.getMode?.();
+      if (m) setShellMode(m);
+    } catch {
+      /* ignore */
+    }
+    const off = a.onModeChanged?.((m: string) => setShellMode(m));
+    return typeof off === "function" ? off : undefined;
+  }, []);
+  // home 模式才渲染 window mode 界面（叠加原有 window/pet 判断）。
+  const showHomeUI = shellMode === "home";
 
   useEffect(() => {
     const handleResize = () => {
@@ -95,19 +117,23 @@ function AppContent(): JSX.Element {
 
   return (
     <>
-      <Box
-        ref={live2dContainerRef}
-        // Apply styles conditionally based on mode
-        // Use the function to get dynamic responsive styles for window mode
-        {...(mode === "window"
-          ? getResponsiveLive2DWindowStyle(showSidebar)
-          : live2dPetStyle)}
-      >
-        <Live2D />
-      </Box>
+      {/* browser / workbench 模式：隐藏整个 renderer 界面（Live2D + window UI），
+          让位给原生 WebContentsView；只保留下方的 fixed 浮层（切换器/窗口控制等）。 */}
+      {showHomeUI && (
+        <Box
+          ref={live2dContainerRef}
+          // Apply styles conditionally based on mode
+          // Use the function to get dynamic responsive styles for window mode
+          {...(mode === "window"
+            ? getResponsiveLive2DWindowStyle(showSidebar)
+            : live2dPetStyle)}
+        >
+          <Live2D />
+        </Box>
+      )}
 
       {/* Conditional Rendering of Window UI */}
-      {mode === "window" && (
+      {showHomeUI && mode === "window" && (
         <>
           {isElectron && <TitleBar />}
           {/* Apply styles by spreading */}
@@ -152,13 +178,23 @@ function AppContent(): JSX.Element {
       )}
 
       {/* Conditional Rendering of Pet Mode UI */}
-      {mode === "pet" && <InputSubtitle />}
+      {showHomeUI && mode === "pet" && <InputSubtitle />}
 
       {/* 首启「设置选项」覆盖层：仅在需要引导时显示，下载并启动后淡出 */}
       <OllamaOnboarding />
 
       {/* 常驻角落下载进度：覆盖层淡出后，模型仍在后台下载时显示于右上角 */}
       <ModelDownloadIndicator />
+
+      {/* 浏览器模式顶栏（Edge 风 + 珊瑚橙）：仅 browser 模式显示 */}
+      <BrowserBar />
+
+      {/* 浏览器 / 工作台模式的窗口控制按钮（最小化 / 最大化 / 关闭） */}
+      <WindowControls />
+
+      {/* 顶部左侧三模式切换（浏览器 / 工作台 / 桌宠）。
+          pet 透明穿透模式下整个窗口壳需消失（仅剩桌宠），故此时不渲染切换栏。 */}
+      {mode !== "pet" && <ModeSwitcher />}
     </>
   );
 }

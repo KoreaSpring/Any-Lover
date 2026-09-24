@@ -3,9 +3,13 @@ import { app, ipcMain, globalShortcut, desktopCapturer } from "electron";
 import { electronApp, optimizer, is } from "@electron-toolkit/utils";
 import { WindowManager } from "./window-manager";
 import { MenuManager } from "./menu-manager";
+import { ModeManager } from "./mode-manager";
+import { NextChatServer } from "./nextchat-server";
 
 let windowManager: WindowManager;
 let menuManager: MenuManager;
+let modeManager: ModeManager;
+let nextchatServer: NextChatServer;
 let isQuitting = false;
 
 function setupIPC(): void {
@@ -100,6 +104,22 @@ app.whenReady().then(() => {
   });
   menuManager.createTray();
 
+  // 三模式外壳：管浏览器/工作台两个 WebContentsView 的显隐，桌宠露出 renderer。
+  // 工作台用本地 NextChat 服务（路线乙：起服务，不改源码，便于跟进上游）。
+  nextchatServer = new NextChatServer((m) => console.log(m));
+  modeManager = new ModeManager(
+    () => windowManager.getWindow(),
+    nextchatServer,
+    (m) => console.log(m),
+    {
+      enterAppShell: () => windowManager.enterAppShellWindow(),
+      enterPetShell: () => windowManager.enterPetShellWindow(),
+    },
+  );
+  modeManager.registerIpc();
+  // 窗口尺寸变化时同步当前可见 view 的 bounds。
+  window.on("resize", () => modeManager.updateBounds());
+
   window.on("close", (event) => {
     if (!isQuitting) {
       event.preventDefault();
@@ -162,4 +182,10 @@ app.on("before-quit", () => {
   isQuitting = true;
   menuManager.destroy();
   globalShortcut.unregisterAll();
+  // 关闭本地 NextChat 服务子进程，避免残留占用端口。
+  try {
+    nextchatServer?.killAll();
+  } catch {
+    /* ignore */
+  }
 });

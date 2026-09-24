@@ -19,30 +19,50 @@ export function useOllamaReady(): { ready: boolean; percent: number; message: st
     if (!r) return undefined;
 
     let mounted = true;
-    (async () => {
+    let poll: ReturnType<typeof setInterval> | null = null;
+
+    const queryStatus = async (): Promise<void> => {
       try {
         const st = await r.invoke('ollama:status');
         if (!mounted) return;
-        // 仅本地 Ollama 需要等待模型；其它情况视为就绪。
+        // status.ready 已在主进程用「模型实际存在」(hasModel) 兜底，可信。
         if (st && typeof st.ready === 'boolean') {
           setReady(st.ready);
+          // 一旦就绪，停止轮询。
+          if (st.ready && poll) {
+            clearInterval(poll);
+            poll = null;
+          }
         }
       } catch {
-        /* 拿不到状态则保持默认放行 */
+        /* 拿不到状态则保持当前值 */
       }
-    })();
+    };
+
+    // 挂载先查一次；未就绪时每 4s 轮询，直到模型实际下好（兜底：进度事件可能因
+    // 下载中断/异常而不再到达 100%，靠轮询 status 修正卡在「下载中」的状态）。
+    void queryStatus();
+    poll = setInterval(() => {
+      void queryStatus();
+    }, 4000);
 
     const handler = (_e: any, p: { stage?: string; percent?: number; message?: string }): void => {
       if (typeof p?.percent === 'number') setPercent(p.percent);
       if (typeof p?.message === 'string') setMessage(p.message);
-      if (p?.stage === 'pull') {
-        setReady(p.percent >= 100);
+      // 只「升级」为就绪（100%），不因中途/失败的进度把已就绪状态打回。
+      if (p?.stage === 'pull' && typeof p.percent === 'number' && p.percent >= 100) {
+        setReady(true);
+        if (poll) {
+          clearInterval(poll);
+          poll = null;
+        }
       }
     };
     r.on('ollama:progress', handler);
 
     return () => {
       mounted = false;
+      if (poll) clearInterval(poll);
       try {
         r.removeListener('ollama:progress', handler);
       } catch {

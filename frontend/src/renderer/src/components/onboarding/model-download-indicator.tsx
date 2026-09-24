@@ -65,8 +65,8 @@ export default function ModelDownloadIndicator(): JSX.Element | null {
         boxShadow: '0 8px 24px rgba(0,0,0,0.14)',
         padding: '10px 12px',
         fontFamily: '"Noto Sans SC", system-ui, sans-serif',
-        WebkitAppRegion: 'no-drag' as any,
-      }}
+        WebkitAppRegion: 'no-drag',
+      } as React.CSSProperties}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
         <span

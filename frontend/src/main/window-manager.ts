@@ -278,6 +278,53 @@ export class WindowManager {
     return this.window;
   }
 
+  // ===== 三模式外壳专用：切换窗口「交互形态」，不改窗口尺寸/位置 =====
+  // 进入「桌面应用」形态（浏览器/工作台）：不透明、可交互、非置顶、不穿透。
+  // 关键：不改变窗口的 bounds/尺寸——WebContentsView 会自动铺满当前窗口内容区。
+  enterAppShellWindow(): void {
+    if (!this.window) return;
+    this.currentMode = 'window';
+    this.hoveringComponents.clear();
+    this.forceIgnoreMouse = false;
+
+    this.window.setAlwaysOnTop(false);
+    this.window.setSkipTaskbar(false);
+    this.window.setResizable(true);
+    this.window.setFocusable(true);
+    this.window.setIgnoreMouseEvents(false);
+    this.window.setBackgroundColor('#ffffff');
+    this.window.setOpacity(1);
+    if (isMac) this.window.setWindowButtonVisibility(true);
+    this.window.focus();
+    console.log('[WindowManager] enterAppShellWindow: 交互形态已切换（不改尺寸）');
+  }
+
+  // 返回桌宠形态：透明、穿透、置顶，露出 Live2D。
+  // 同样不改窗口尺寸——沿用当前窗口大小（桌宠的透明穿透由现有 pet 逻辑维持）。
+  enterPetShellWindow(): void {
+    if (!this.window) return;
+    this.currentMode = 'pet';
+    this.hoveringComponents.clear();
+    this.forceIgnoreMouse = false;
+
+    this.window.setBackgroundColor('#00000000');
+    this.window.setOpacity(1);
+    this.window.setAlwaysOnTop(true, 'screen-saver');
+
+    if (isMac) this.window.setWindowButtonVisibility(false);
+    this.window.setResizable(false);
+    this.window.setSkipTaskbar(true);
+    this.window.setFocusable(false);
+    if (isMac) {
+      this.window.setIgnoreMouseEvents(true);
+    } else {
+      this.window.setIgnoreMouseEvents(true, { forward: true });
+    }
+    // 通知 renderer 切回桌宠布局（Live2D 全屏）。
+    this.window.webContents.send('mode-changed', 'pet');
+    console.log('[WindowManager] enterPetShellWindow applied（不改尺寸）');
+  }
+
   setIgnoreMouseEvents(ignore: boolean): void {
     if (!this.window) return;
 

@@ -33,7 +33,8 @@ const api = {
     console.log('Preload showContextMenu');
     ipcRenderer.send('show-context-menu');
   },
-  onModeChanged: (callback: (mode: string) => void) => {
+  // 旧的 窗口/桌宠 模式变更通知（走 mode-changed）。与三模式外壳的 onModeChanged(mode:changed) 区分。
+  onWindowModeChanged: (callback: (mode: string) => void) => {
     ipcRenderer.on('mode-changed', (_, mode) => callback(mode));
   },
   onMicToggle: (callback: () => void) => {
@@ -64,7 +65,9 @@ const api = {
     ipcRenderer.on('switch-character', handler);
     return () => ipcRenderer.removeListener('switch-character', handler);
   },
-  setMode: (mode: 'window' | 'pet') => {
+  // 旧的 窗口/桌宠 模式切换（走 pre-mode-changed，控制 menu-manager 菜单态）。
+  // 与三模式外壳的 setMode(mode:set) 区分，避免对象字面量重复 key。
+  setWindowMode: (mode: 'window' | 'pet') => {
     ipcRenderer.send('pre-mode-changed', mode);
   },
   getConfigFiles: () => ipcRenderer.invoke('get-config-files'),
@@ -78,6 +81,42 @@ const api = {
     } catch {
       return false;
     }
+  },
+
+  // 三模式外壳：浏览器 / 工作台 / 桌宠
+  getMode: (): string => {
+    try {
+      return ipcRenderer.sendSync('mode:get');
+    } catch {
+      return 'pet';
+    }
+  },
+  setMode: (mode: 'browser' | 'workbench' | 'pet') => ipcRenderer.invoke('mode:set', mode),
+  onModeChanged: (callback: (mode: string) => void) => {
+    const handler = (_e: any, mode: string): void => callback(mode);
+    ipcRenderer.on('mode:changed', handler);
+    return () => ipcRenderer.removeListener('mode:changed', handler);
+  },
+
+  // 浏览器模式（多标签 + 导航 + 收藏）
+  browserNavigate: (url: string) => ipcRenderer.invoke('browser:navigate', url),
+  browserBack: () => ipcRenderer.invoke('browser:back'),
+  browserForward: () => ipcRenderer.invoke('browser:forward'),
+  browserReload: () => ipcRenderer.invoke('browser:reload'),
+  browserNewTab: (url?: string) => ipcRenderer.invoke('browser:newTab', url),
+  browserSwitchTab: (id: number) => ipcRenderer.invoke('browser:switchTab', id),
+  browserCloseTab: (id: number) => ipcRenderer.invoke('browser:closeTab', id),
+  browserGetState: () => ipcRenderer.invoke('browser:getState'),
+  browserAddBookmark: (bm: { title: string; url: string }) => ipcRenderer.invoke('browser:bookmark:add', bm),
+  browserRemoveBookmark: (url: string) => ipcRenderer.invoke('browser:bookmark:remove', url),
+  // Chrome 扩展
+  browserExtList: () => ipcRenderer.invoke('browser:ext:list'),
+  browserExtLoadUnpacked: () => ipcRenderer.invoke('browser:ext:loadUnpacked'),
+  browserExtRemove: (id: string) => ipcRenderer.invoke('browser:ext:remove', id),
+  onBrowserState: (callback: (state: unknown) => void) => {
+    const handler = (_e: any, state: unknown): void => callback(state);
+    ipcRenderer.on('browser:state', handler);
+    return () => ipcRenderer.removeListener('browser:state', handler);
   },
 };
 

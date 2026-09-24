@@ -51,18 +51,14 @@ function TitleBar(): JSX.Element {
   if (isMac) {
     return (
       <Box {...layoutStyles.macTitleBar}>
-        <Box {...layoutStyles.titleBarTitle}>
-          Open LLM VTuber
-        </Box>
+        <Box {...layoutStyles.titleBarTitle} />
       </Box>
     );
   }
 
   return (
     <Box {...layoutStyles.windowsTitleBar}>
-      <Box {...layoutStyles.titleBarTitle}>
-        Open LLM VTuber
-      </Box>
+      <Box {...layoutStyles.titleBarTitle} />
       <Box {...layoutStyles.titleBarButtons}>
         <IconButton
           {...layoutStyles.titleBarButton}

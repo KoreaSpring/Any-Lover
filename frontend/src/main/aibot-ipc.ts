@@ -211,6 +211,16 @@ export function registerAibotIpc(deps: Deps): void {
       const list = await ollama.listModels(s.ollamaHost);
       hasModel = list.ok && list.models.includes(s.ollamaModel || defaultModel);
     }
+    // ready 判定：以「Ollama 里实际存在目标模型」为准，兼容 ollamaReady 标志位。
+    // 若模型实际已下好但标志位因下载中断/异常没写上，这里回写修复，避免每次重弹下载页。
+    const ready = hasModel || !!s.ollamaReady;
+    if (hasModel && !s.ollamaReady) {
+      try {
+        writeSettings({ ollamaReady: true });
+      } catch {
+        /* ignore */
+      }
+    }
     return {
       installed: !!resolved,
       source: resolved?.source || null,
@@ -220,7 +230,7 @@ export function registerAibotIpc(deps: Deps): void {
       mirrors: OLLAMA_MIRRORS,
       model: s.ollamaModel || defaultModel,
       hasModel,
-      ready: !!s.ollamaReady,
+      ready,
       onboarded: !!s.onboarded,
     };
   });

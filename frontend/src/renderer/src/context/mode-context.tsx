@@ -27,8 +27,15 @@ export const ModeProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     // Electron-specific mode change
+    // 注意：这是原应用的 window/pet 窗口模式切换（透明穿透），
+    // 走 setWindowMode(pre-mode-changed 握手)，与三模式外壳的 setMode(mode:set) 区分。
     if (isElectron && window.api) {
-      (window.api as any).setMode(newMode);
+      const w = window.api as any;
+      if (typeof w.setWindowMode === 'function') {
+        w.setWindowMode(newMode);
+      } else {
+        w.setMode(newMode);
+      }
     } else {
       setModeState(newMode);
     }
