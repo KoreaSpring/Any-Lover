@@ -71,6 +71,14 @@ const api = {
   updateConfigFiles: (files: ConfigFile[]) => {
     ipcRenderer.send('update-config-files', files);
   },
+  // 首帧同步获取「是否需要首启引导」，让覆盖层第一帧即可决定是否显示，避免闪桌宠。
+  needOnboardingSync: (): boolean => {
+    try {
+      return ipcRenderer.sendSync('onboarding:need-sync') === true;
+    } catch {
+      return false;
+    }
+  },
 };
 
 if (process.contextIsolated) {

@@ -7,17 +7,24 @@ import path from 'path';
 import http from 'http';
 import { app } from 'electron';
 import { spawn, spawnSync, ChildProcess } from 'child_process';
+import {
+  ollamaExeName,
+  resolveInstalledOllama,
+  findOllamaOnPath,
+  defaultInstallDir,
+} from './ollama-installer';
 
 const DEFAULT_HOST = 'http://127.0.0.1:11434';
 
 // 解析随包内置的 Ollama（整合版打包时存在）。
 // 打包态：resources/ollama/{bin,models}；开发态：仓库根 vendor/ollama/{bin,models}
 export function resolveBundledOllama(): { exe: string; modelsDir: string } | null {
+  const exeName = ollamaExeName();
   const roots = app.isPackaged
     ? [path.join(process.resourcesPath, 'ollama')]
     : [path.join(app.getAppPath(), '..', 'vendor', 'ollama')];
   for (const root of roots) {
-    const exe = path.join(root, 'bin', 'ollama.exe');
+    const exe = path.join(root, 'bin', exeName);
     const modelsDir = path.join(root, 'models');
     if (fs.existsSync(exe)) {
       return { exe, modelsDir: fs.existsSync(modelsDir) ? modelsDir : '' };
@@ -26,13 +33,63 @@ export function resolveBundledOllama(): { exe: string; modelsDir: string } | nul
   return null;
 }
 
+/**
+ * 按优先级解析可用的 Ollama：
+ *   1. 打包内置（整合版）
+ *   2. 用户已下载（安装目录，默认 userData/ollama，或用户自选的 ollamaDir）
+ *   3. 系统 PATH 中的 ollama
+ * 都没有则返回 null，交由首启引导触发下载。
+ * @param userInstallDir 用户在设置里选择的安装目录（可空）
+ */
+export function resolveAnyOllama(
+  userInstallDir?: string,
+): { exe: string; modelsDir: string; source: 'bundled' | 'installed' | 'path' } | null {
+  // 标准版内置的 ollama 二进制在只读的 resources/ollama/bin，其模型必须落到可写目录；
+  // 用户自选目录优先，否则用 userData/ollama/models。
+  const installDir = String(userInstallDir || '').trim() || defaultInstallDir(app.getPath('userData'));
+  const writableModels = path.join(installDir, 'models');
+
+  const bundled = resolveBundledOllama();
+  if (bundled) {
+    // 整合版会带 modelsDir（含预置模型）；标准版只带二进制、无内置模型，
+    // 此时把 modelsDir 指向可写的 userData 目录，供运行时 pull 落盘。
+    const modelsDir = bundled.modelsDir && fs.existsSync(bundled.modelsDir) ? bundled.modelsDir : writableModels;
+    return { exe: bundled.exe, modelsDir, source: 'bundled' };
+  }
+
+  const installed = resolveInstalledOllama(installDir);
+  if (installed) return { ...installed, source: 'installed' };
+
+  const onPath = findOllamaOnPath();
+  if (onPath) return { exe: onPath, modelsDir: writableModels, source: 'path' };
+
+  return null;
+}
+
 export class OllamaManager {
   private log: (msg: string) => void;
 
   private child: ChildProcess | null = null;
 
+  // 正在拉取中的模型集合：避免「安装引导」与「首启静默拉取」重复对同一模型发起 pull。
+  private pulling = new Set<string>();
+
   constructor(logger?: (msg: string) => void) {
     this.log = logger || (() => {});
+  }
+
+  isPulling(model: string): boolean {
+    return this.pulling.has(model);
+  }
+
+  beginPull(model: string): boolean {
+    if (this.pulling.has(model)) return false;
+    this.pulling.add(model);
+    return true;
+  }
+
+  endPull(model: string): void {
+    this.pulling.delete(model);
   }
 
   resolveHost(ollamaHost?: string): string {
@@ -94,6 +151,81 @@ export class OllamaManager {
     });
   }
 
+  /**
+   * 通过 /api/show 探测模型的能力与上下文窗口（对齐 AnythingLLM 的模型管理）。
+   * 返回 { contextLength, capabilities }；失败返回兜底值。
+   */
+  showModel(
+    model: string,
+    ollamaHost?: string,
+  ): Promise<{ ok: boolean; contextLength: number; capabilities: string[]; message: string }> {
+    const host = this.resolveHost(ollamaHost);
+    return new Promise((resolve) => {
+      let url: URL;
+      try {
+        url = new URL(host + '/api/show');
+      } catch {
+        resolve({ ok: false, contextLength: 4096, capabilities: [], message: '服务地址格式不正确' });
+        return;
+      }
+      const payload = JSON.stringify({ model });
+      const req = http.request(
+        url,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload) },
+          timeout: 8000,
+        },
+        (res) => {
+          let data = '';
+          res.on('data', (c) => (data += c));
+          res.on('end', () => {
+            if (res.statusCode !== 200) {
+              resolve({ ok: false, contextLength: 4096, capabilities: [], message: `服务返回 ${res.statusCode}` });
+              return;
+            }
+            try {
+              const parsed = JSON.parse(data);
+              const capabilities: string[] = Array.isArray(parsed.capabilities) ? parsed.capabilities : [];
+              // 从 model_info 里找以 .context_length 结尾的键（对齐 AnythingLLM）
+              let contextLength = 0;
+              const info = parsed.model_info || {};
+              for (const k of Object.keys(info)) {
+                if (k.endsWith('.context_length')) {
+                  const v = Number(info[k]);
+                  if (Number.isFinite(v) && v > 0) contextLength = v;
+                }
+              }
+              if (!contextLength) contextLength = 4096;
+              resolve({ ok: true, contextLength, capabilities, message: 'ok' });
+            } catch {
+              resolve({ ok: false, contextLength: 4096, capabilities: [], message: '解析 /api/show 失败' });
+            }
+          });
+        },
+      );
+      req.on('timeout', () => {
+        req.destroy();
+        resolve({ ok: false, contextLength: 4096, capabilities: [], message: '连接超时' });
+      });
+      req.on('error', (e) => resolve({ ok: false, contextLength: 4096, capabilities: [], message: String(e.message || e) }));
+      req.write(payload);
+      req.end();
+    });
+  }
+
+  /**
+   * 预热：服务就绪后主动 /api/show 一次目标模型，缓存上下文窗口/能力，
+   * 减少首句延迟（对齐 AnythingLLM 的 eagerLoadContextWindows）。
+   */
+  async warmup(model: string, ollamaHost?: string): Promise<void> {
+    if (!model) return;
+    const info = await this.showModel(model, ollamaHost);
+    this.log(
+      `[ollama] warmup ${model}: ctx=${info.contextLength} caps=[${info.capabilities.join(',')}] ${info.ok ? '' : '(' + info.message + ')'}`,
+    );
+  }
+
   isServing(): boolean {
     return !!this.child && this.child.exitCode === null && !this.child.killed;
   }
@@ -111,9 +243,19 @@ export class OllamaManager {
       return { started: false, message: '服务未运行，且未提供可用的 Ollama 路径' };
     }
     const env = { ...process.env } as NodeJS.ProcessEnv;
-    if (modelsDir && fs.existsSync(modelsDir)) {
-      // 让内置 Ollama 使用随包的模型目录
+    if (modelsDir) {
+      // 始终把模型目录指向我们的可写目录并确保存在；
+      // 否则会继承系统里其它软件（如 AnythingLLM）设置的全局 OLLAMA_MODELS，
+      // 导致模型下载/读取落到别处。
+      try {
+        fs.mkdirSync(modelsDir, { recursive: true });
+      } catch {
+        /* ignore */
+      }
       env.OLLAMA_MODELS = modelsDir;
+    } else {
+      // 未指定则清除可能被外部污染的全局值，用 Ollama 自身默认目录。
+      delete env.OLLAMA_MODELS;
     }
     this.log(`[ollama] serve via ${exe}${modelsDir ? ' (models=' + modelsDir + ')' : ''}`);
     this.child = spawn(exe, ['serve'], { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'], env });

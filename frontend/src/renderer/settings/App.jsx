@@ -22,6 +22,18 @@ export default function App() {
   const [status, setStatus] = useState({ msg: '', kind: '' });
   const [busy, setBusy] = useState(false);
 
+  // 首次安装引导（内置 ollama + 硬件推荐 + 静默下载模型）
+  const [ollamaStatus, setOllamaStatus] = useState(null); // null=未加载
+  const [installDir, setInstallDir] = useState('');
+  const [mirror, setMirror] = useState('official');
+  const [mirrors, setMirrors] = useState(['official']);
+  const [installing, setInstalling] = useState(false);
+  const [progress, setProgress] = useState(null); // { stage, percent, message }
+  // 硬件推荐
+  const [hardware, setHardware] = useState(null); // { totalMemGB, hasNvidiaGpu, gpuName }
+  const [recModel, setRecModel] = useState(''); // 当前选中的推荐/型号 id
+  const [modelOptions, setModelOptions] = useState([]); // 可选型号清单
+
   useEffect(() => {
     (async () => {
       const s = await aibot.getSettings();
@@ -35,8 +47,81 @@ export default function App() {
       setTemperature(Number.isFinite(s.temperature) ? s.temperature : 1.0);
       setClickThrough(s.clickThrough !== false);
       if (s.hasApiKey) setApiKeyPlaceholder('已保存（留空则不修改）');
+
+      // 加载 Ollama 下载状态
+      try {
+        const os = await aibot.ollamaStatus();
+        setOllamaStatus(os);
+        setInstallDir(os.installDir || '');
+        setMirror(os.mirror || 'official');
+        setMirrors(os.mirrors || ['official']);
+      } catch {
+        /* ignore */
+      }
+
+      // 加载硬件推荐清单
+      try {
+        if (aibot.recommendModel) {
+          const rec = await aibot.recommendModel();
+          setHardware(rec.hardware || null);
+          setModelOptions(rec.options || []);
+          // 优先用已保存的模型，否则用推荐
+          setRecModel(s.ollamaModel || (rec.recommended && rec.recommended.id) || '');
+        }
+      } catch {
+        /* ignore */
+      }
     })().catch((e) => setStatus({ msg: String(e), kind: 'err' }));
   }, []);
+
+  // 订阅下载/安装/拉取进度
+  useEffect(() => {
+    if (!aibot.onOllamaProgress) return undefined;
+    const off = aibot.onOllamaProgress((p) => setProgress(p));
+    return off;
+  }, []);
+
+  const chooseDir = useCallback(async () => {
+    const res = await aibot.chooseOllamaDir();
+    if (res && res.path) setInstallDir(res.path);
+  }, []);
+
+  // 下载模型（内置 ollama 已就绪，这里 ensureServe + pull），成功后启动桌宠
+  const installAndLaunch = useCallback(async () => {
+    const targetModel = recModel || ollamaModel || 'qwen3-vl:4b-instruct';
+    setInstalling(true);
+    setProgress({ stage: 'pull', percent: 0, message: '准备下载模型…' });
+    try {
+      // installOllama：若无 ollama 会下载，有内置则复用；随后 ensureServe + pull 目标模型
+      const res = await aibot.installOllama({ installDir, mirror, model: targetModel });
+      if (!res.ok) {
+        setStatus({ msg: res.message || '下载失败', kind: 'err' });
+        return;
+      }
+      setStatus({ msg: '已开始下载模型，正在进入桌宠（下载在后台继续）…', kind: 'ok' });
+      const launched = await aibot.applyAndLaunch();
+      setStatus({
+        msg: launched.ok ? '桌宠已启动，模型在后台下载中' : launched.message || '启动失败',
+        kind: launched.ok ? 'ok' : 'err',
+      });
+      // 刷新状态
+      try {
+        setOllamaStatus(await aibot.ollamaStatus());
+      } catch {
+        /* ignore */
+      }
+      // 方案 A：启动成功后关闭推荐界面，进入桌宠（模型后台继续下载）
+      if (launched.ok) {
+        setTimeout(() => {
+          aibot.closeSettings().catch(() => {});
+        }, 800);
+      }
+    } catch (e) {
+      setStatus({ msg: String((e && e.message) || e), kind: 'err' });
+    } finally {
+      setInstalling(false);
+    }
+  }, [installDir, mirror, recModel, ollamaModel]);
 
   const collect = useCallback(
     () => ({
@@ -114,10 +199,85 @@ export default function App() {
     }
   }, [collect, persist]);
 
+  // 需要引导：选了 Ollama，且（Ollama 未就绪 或 推荐模型尚未下载）
+  const needOnboarding =
+    useOllama && ollamaStatus && (!ollamaStatus.installed || !ollamaStatus.hasModel);
+  const selectedOption = modelOptions.find((m) => m.id === recModel) || null;
+  const pct = progress && Number.isFinite(progress.percent) && progress.percent >= 0 ? progress.percent : null;
+
   return (
     <div className="app">
       <h1 className="title">大模型设置</h1>
       <p className="subtitle">默认使用在线 API（OpenAI 兼容）。也可打开 Ollama 开关，使用本机已安装的模型。</p>
+
+      {needOnboarding && (
+        <div className="card" style={{ borderColor: '#78b29e' }}>
+          <h2 className="title" style={{ fontSize: '18px', marginTop: 0 }}>设置选项</h2>
+          <p className="subtitle" style={{ marginTop: '4px' }}>
+            {hardware
+              ? `已根据你的硬件（内存 ${hardware.totalMemGB}GB，${hardware.hasNvidiaGpu ? 'GPU ' + hardware.gpuName : '无独立显卡'}）为你选择了最佳模型。`
+              : '已为你推荐一个本地模型，下载后即可离线使用。'}
+          </p>
+
+          {/* 推荐/型号选择 */}
+          <div className="field">
+            <label className="label">本地模型</label>
+            <select className="select" value={recModel} onChange={(e) => setRecModel(e.target.value)} disabled={installing}>
+              {modelOptions.length === 0 && <option value={recModel}>{recModel || '（推荐加载中）'}</option>}
+              {modelOptions.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {`${m.name} · ${m.sizeGB}GB · ${m.tier === 'best' ? '最佳体验' : m.tier === 'balanced' ? '平衡' : '最快'}${m.multimodal ? ' · 多模态' : ''}`}
+                </option>
+              ))}
+            </select>
+            {selectedOption && <div className="hint">{selectedOption.blurb}</div>}
+          </div>
+
+          {/* 仅当未内置 Ollama（纯轻量版）时才需要选安装位置 */}
+          {!ollamaStatus.installed && (
+            <div className="field">
+              <label className="label">安装位置</label>
+              <div className="row">
+                <input className="input grow" value={installDir} onChange={(e) => setInstallDir(e.target.value)} placeholder="选择一个磁盘空间充足的目录" />
+                <button className="btn mini" onClick={chooseDir} disabled={installing}>选择…</button>
+              </div>
+              <div className="hint">未检测到内置 Ollama，将下载 Ollama（免安装）到此目录。</div>
+            </div>
+          )}
+
+          <div className="field">
+            <label className="label">下载源</label>
+            <select className="select" value={mirror} onChange={(e) => setMirror(e.target.value)} disabled={installing}>
+              {mirrors.map((m) => (
+                <option key={m} value={m}>{m === 'official' ? '官方源（默认）' : m === 'ghproxy' ? '国内镜像加速' : m}</option>
+              ))}
+            </select>
+            <div className="hint">官方源在国内可能较慢，可切换镜像加速。</div>
+          </div>
+
+          {progress && (
+            <div className="field">
+              <div className="hint" style={{ marginBottom: '6px' }}>{progress.message}</div>
+              <div style={{ height: '8px', background: '#eee', borderRadius: '4px', overflow: 'hidden' }}>
+                <div
+                  style={{
+                    height: '100%',
+                    width: pct === null ? '100%' : `${pct}%`,
+                    background: '#78b29e',
+                    opacity: pct === null ? 0.5 : 1,
+                    transition: 'width 0.3s',
+                  }}
+                />
+              </div>
+            </div>
+          )}
+          <div className="actions">
+            <button className="btn primary" onClick={installAndLaunch} disabled={installing || !recModel}>
+              {installing ? '正在下载…' : '下载并启动'}
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="card">
         <div className="switch-row">
