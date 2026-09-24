@@ -1,14 +1,17 @@
 'use strict';
 
 /*
- * 打包编排：支持两种产物
- *   - 轻量版（默认）：不含 Ollama/模型。安装包最小，用户自备 Ollama 或用云端 API。
- *   - 整合版（--with-ollama）：把 ai-bot/vendor/ollama（程序+minicpm-v:8b 多模态模型）一并打入，
- *     安装后开箱即用、无需任何配置。
+ * 打包编排：三种产物形态
+ *   - 标准版（默认）：内置 Ollama「二进制」(vendor/ollama/bin，约数十 MB，不含大模型)。
+ *     首次启动按硬件推荐并静默 `ollama pull` 模型（对齐 AnythingLLM 桌面版）。
+ *   - 纯轻量版（--no-ollama）：连 Ollama 二进制都不打。用户自备 Ollama 或用云端 API。
+ *   - 整合版（--with-model）：把 vendor/ollama 整个（二进制 + minicpm-v:8b 模型）打入，
+ *     安装后完全离线开箱即用、无需任何下载。
  *
  * 用法（在 ai-bot/ 下）：
- *   node build/scripts/pack.js                 # 轻量版（NSIS 安装包）
- *   node build/scripts/pack.js --with-ollama   # 整合版（NSIS 安装包）
+ *   node build/scripts/pack.js                 # 标准版：内置 ollama 二进制，模型运行时下载
+ *   node build/scripts/pack.js --no-ollama     # 纯轻量版：不含 ollama
+ *   node build/scripts/pack.js --with-model    # 整合版：连模型一起打（完全离线）
  *   追加 --dir                                 # 只产出免安装目录（不压缩、不打 NSIS，最快，供测试）
  *
  * 实现：electron-builder 从 frontend/electron-builder.yml 读取基础配置；
@@ -24,7 +27,12 @@ const ROOT = path.join(__dirname, '..', '..');
 const DESKTOP = path.join(ROOT, 'frontend');
 const VENDOR_OLLAMA = path.join(ROOT, 'vendor', 'ollama');
 
-const withOllama = process.argv.includes('--with-ollama');
+// 形态开关：
+//   默认           = 标准版：内置 ollama 二进制（bin，不含模型）
+//   --no-ollama    = 纯轻量版：不打 ollama
+//   --with-model   = 整合版：连模型一起打（vendor/ollama 整个目录）
+const noOllama = process.argv.includes('--no-ollama');
+const withModel = process.argv.includes('--with-model');
 const dirOnly = process.argv.includes('--dir');
 
 function log(msg) {
@@ -117,14 +125,32 @@ function runBuilder() {
     log('提示：未找到 vendor/ffmpeg/bin/ffmpeg.exe，产物将不含 ffmpeg，缺 ffmpeg 的机器语音会静音');
   }
 
-  if (withOllama) {
-    if (!fs.existsSync(path.join(VENDOR_OLLAMA, 'bin', 'ollama.exe'))) {
-      throw new Error(`未找到内置 Ollama：${VENDOR_OLLAMA}\\bin\\ollama.exe`);
-    }
+  // Ollama 打包形态
+  const ollamaBin = path.join(VENDOR_OLLAMA, 'bin');
+  const hasOllamaBin =
+    fs.existsSync(path.join(ollamaBin, 'ollama.exe')) ||
+    fs.existsSync(path.join(ollamaBin, 'ollama app.exe')) ||
+    fs.existsSync(path.join(ollamaBin, 'ollama'));
+
+  if (noOllama) {
+    log('纯轻量版：不含 Ollama（用户自备或用云端 API）');
+  } else if (withModel) {
+    if (!hasOllamaBin) throw new Error(`未找到内置 Ollama 二进制：${ollamaBin}`);
+    // 整合版：二进制 + 模型 全部打入 -> resources/ollama（含 models 子目录）
     extra.push({ from: '../vendor/ollama', to: 'ollama', filter: ['**/*'] });
-    log('整合版：将打入 vendor/ollama（程序 + minicpm-v:8b 多模态模型）');
+    log('整合版：将打入 vendor/ollama（二进制 + 模型，完全离线）');
   } else {
-    log('轻量版：不含 Ollama/模型');
+    // 标准版（默认）：打二进制（bin），排除大模型；模型运行时 `ollama pull`。
+    // 方案 Z1：仅保留 CPU 后端 + CUDA v13，排除 cuda_v12(1.16GB) 与 rocm_v7_1(1GB)，
+    // 把内置 ollama 从 ~2.96GB 降到 ~700MB，使 NSIS 能打出安装包（否则 5.4GB 包会
+    // 触发 NSIS 的 "failed creating mmap" 失败）。
+    if (!hasOllamaBin) throw new Error(`未找到内置 Ollama 二进制：${ollamaBin}`);
+    extra.push({
+      from: '../vendor/ollama/bin',
+      to: 'ollama/bin',
+      filter: ['**/*', '!lib/ollama/cuda_v12/**', '!lib/ollama/rocm_v7_1/**'],
+    });
+    log('标准版：内置 Ollama（CPU + CUDA v13，排除 cuda_v12 与 ROCm；模型首启按硬件推荐并静默下载）');
   }
 
   // 读取基础 yml，合并 extraResources，写入临时 JSON 配置，避免命令行引号问题

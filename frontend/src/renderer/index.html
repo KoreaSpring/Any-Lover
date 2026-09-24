@@ -3,10 +3,38 @@
   <head>
     <meta charset="UTF-8" />
     <title>Open-LLM-Vtuber</title>
+    <style>
+      /* 首启启动遮罩：在 React 覆盖层挂载前，先用纯 CSS 盖住整窗，
+         避免「先渲染出桌宠、再弹覆盖层」的闪烁。仅首启（需引导）时显示。 */
+      #al-boot-mask {
+        position: fixed;
+        inset: 0;
+        z-index: 10000;
+        background: #faf8f3;
+        display: none;
+      }
+    </style>
   </head>
 
   <body>
+    <div id="al-boot-mask"></div>
     <div id="root"></div>
+    <script>
+      // 同步判断是否首启需引导（preload 已在页面脚本前注入 window.api）。
+      // 需要时立刻显示遮罩，React 的 OllamaOnboarding 覆盖层挂载后会移除它。
+      try {
+        var api = window.api;
+        if (api && typeof api.needOnboardingSync === 'function' && api.needOnboardingSync()) {
+          var m = document.getElementById('al-boot-mask');
+          if (m) m.style.display = 'block';
+          // 兜底：即使覆盖层因异常未挂载，也在若干秒后移除遮罩，避免卡住白屏。
+          setTimeout(function () {
+            var mm = document.getElementById('al-boot-mask');
+            if (mm) mm.remove();
+          }, 8000);
+        }
+      } catch (e) {}
+    </script>
     <script type="module" src="./src/main.tsx"></script>
   </body>
 </html>

@@ -19,6 +19,11 @@ export interface AppSettings {
   ollamaModel: string;
   clickThrough: boolean;
   configured: boolean;
+  // 运行时下载相关：
+  ollamaDir: string; // 用户选择的 Ollama 安装目录（免安装解压落点，空=用默认 userData/ollama）
+  ollamaMirror: string; // 下载镜像键（official/ghproxy），空=official
+  ollamaReady: boolean; // 模型已实际下载完成（用于角落进度/状态展示）
+  onboarded: boolean; // 用户已在首启「模型推荐」界面确认过（决定是否再拦截首启，可先于模型下完置 true）
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -28,9 +33,14 @@ const DEFAULT_SETTINGS: AppSettings = {
   temperature: 1.0,
   ollamaPath: '',
   ollamaHost: '',
-  ollamaModel: 'minicpm-v:8b',
+  // 兜底默认；首启会被 model-recommender 按硬件覆写为推荐档位
+  ollamaModel: 'qwen3-vl:4b-instruct',
   clickThrough: true,
   configured: false,
+  ollamaDir: '',
+  ollamaMirror: 'official',
+  ollamaReady: false,
+  onboarded: false,
 };
 
 function configDir(): string {

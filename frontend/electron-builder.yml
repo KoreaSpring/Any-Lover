@@ -31,7 +31,17 @@ nsis:
   shortcutName: ${productName}
   uninstallDisplayName: ${productName}
   createDesktopShortcut: always
+  createStartMenuShortcut: true
   differentialPackage: false
+  # 使用向导式安装器（非一键），让用户可以选择安装位置。
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  # 允许在当前用户 / 全机器之间选择安装范围。
+  perMachine: false
+  allowElevation: true
+  runAfterFinish: true
+  # 卸载时删除用户数据目录（方案乙）：见 build/installer.nsh 的 customUnInstall。
+  include: build/installer.nsh
 mac:
   icon: resources/icon.icns
   target:

@@ -213,6 +213,10 @@ export class BackendManager {
       env.OLVT_LLM_API_KEY = llm.apiKey && llm.apiKey.length ? llm.apiKey : 'not-needed';
       env.HF_HOME = path.join(root, 'models');
       env.MODELSCOPE_CACHE = path.join(root, 'models');
+      // 让 Python 后端用 UTF-8 输出，否则中文日志在 Windows 上按 GBK 输出，
+      // 经 UTF-8 解码转发后会变成乱码（锟斤拷）。
+      env.PYTHONIOENCODING = 'utf-8';
+      env.PYTHONUTF8 = '1';
 
       // 将随包 ffmpeg 目录加到后端进程 PATH 前缀，使 pydub 能找到它，
       // 无需用户机器自行安装 ffmpeg（否则 edge_tts 的 mp3 无法转 wav，语音静音）。

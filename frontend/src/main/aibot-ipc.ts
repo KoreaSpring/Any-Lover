@@ -1,11 +1,21 @@
 /* eslint-disable no-empty */
-// 汇总桌宠设置相关的 IPC：设置读写、LLM 连接测试、Ollama 检测、启动桌宠等。
+// 汇总桌宠设置相关的 IPC：设置读写、LLM 连接测试、Ollama 检测/下载、启动桌宠等。
+import fs from 'fs';
+import path from 'path';
 import http from 'http';
 import https from 'https';
 import { ipcMain, dialog, BrowserWindow, app } from 'electron';
 import { readSettings, writeSettings, saveApiKey, loadApiKey, hasApiKey } from './settings-store';
-import { OllamaManager } from './ollama-manager';
+import { OllamaManager, resolveAnyOllama } from './ollama-manager';
 import { BackendManager } from './backend-manager';
+import {
+  installOllama,
+  pullModel,
+  defaultInstallDir,
+  OllamaProgress,
+  OLLAMA_MIRRORS,
+} from './ollama-installer';
+import { recommendModel, MODEL_OPTIONS } from './model-recommender';
 
 interface Deps {
   backend: BackendManager;
@@ -90,6 +100,8 @@ export function registerAibotIpc(deps: Deps): void {
       ollamaHost: String(payload.ollamaHost || '').trim(),
       ollamaModel: String(payload.ollamaModel || '').trim(),
       configured: true,
+      // 用户在设置里手动保存（含选云端 API）也视为已完成引导，避免下次启动再拦。
+      onboarded: true,
     });
     if (typeof payload.apiKey === 'string' && payload.apiKey.length > 0) {
       const res = saveApiKey(payload.apiKey);
@@ -166,5 +178,177 @@ export function registerAibotIpc(deps: Deps): void {
   ipcMain.handle('app:quit', () => {
     app.quit();
     return { ok: true };
+  });
+
+  // ============ 运行时下载 Ollama + 模型 ============
+
+  // 把进度事件推送给所有窗口（主窗覆盖层 + 独立设置窗都监听 'ollama:progress'）。
+  const sendProgress = (p: OllamaProgress): void => {
+    for (const w of BrowserWindow.getAllWindows()) {
+      if (!w.isDestroyed()) w.webContents.send('ollama:progress', p);
+    }
+  };
+
+  // 选择 Ollama 安装目录（免安装解压落点）。
+  ipcMain.handle('ollama:chooseDir', async () => {
+    const win = getSettingsWindow() || BrowserWindow.getFocusedWindow() || undefined;
+    const result = await dialog.showOpenDialog(win as BrowserWindow, {
+      title: '选择 Ollama 安装位置',
+      properties: ['openDirectory', 'createDirectory'],
+    });
+    if (result.canceled || !result.filePaths.length) return { path: '' };
+    return { path: result.filePaths[0] };
+  });
+
+  // 返回下载/安装状态：是否已就绪、可选镜像、目标模型等。
+  ipcMain.handle('ollama:status', async () => {
+    const s = readSettings();
+    const resolved = resolveAnyOllama(s.ollamaDir);
+    const installDir = String(s.ollamaDir || '').trim() || defaultInstallDir(app.getPath('userData'));
+    let hasModel = false;
+    const defaultModel = recommendModel().recommended.id;
+    if (resolved) {
+      const list = await ollama.listModels(s.ollamaHost);
+      hasModel = list.ok && list.models.includes(s.ollamaModel || defaultModel);
+    }
+    return {
+      installed: !!resolved,
+      source: resolved?.source || null,
+      exe: resolved?.exe || '',
+      installDir,
+      mirror: s.ollamaMirror || 'official',
+      mirrors: OLLAMA_MIRRORS,
+      model: s.ollamaModel || defaultModel,
+      hasModel,
+      ready: !!s.ollamaReady,
+      onboarded: !!s.onboarded,
+    };
+  });
+
+  // 下载并安装 Ollama（免安装解压到用户选择目录），随后确保 serve，再拉取目标模型。
+  ipcMain.handle('ollama:install', async (_evt, payload: any) => {
+    const s = readSettings();
+    const chosenDir = String((payload && payload.installDir) || s.ollamaDir || '').trim();
+    const installDir = chosenDir || defaultInstallDir(app.getPath('userData'));
+    const mirror = String((payload && payload.mirror) || s.ollamaMirror || 'official').trim();
+    const model = String((payload && payload.model) || s.ollamaModel || '').trim() || recommendModel().recommended.id;
+    const host = s.ollamaHost || 'http://127.0.0.1:11434';
+    const tmpDir = app.getPath('temp');
+
+    try {
+      // 1) 若已存在可用 Ollama（内置/已装/PATH），跳过下载，直接用它。
+      let resolved = resolveAnyOllama(installDir);
+      let exe = resolved?.exe || '';
+      const modelsDir = resolved?.modelsDir || path.join(installDir, 'models');
+
+      if (!resolved) {
+        log('[ollama] 未发现可用 Ollama，开始下载安装…');
+        const r = await installOllama(installDir, mirror, sendProgress, tmpDir);
+        exe = r.exe;
+        writeSettings({ ollamaDir: installDir, ollamaMirror: mirror });
+      } else {
+        log(`[ollama] 复用已有 Ollama（${resolved.source}）：${exe}`);
+      }
+
+      // 2) 确保 serve 起来（用安装目录下的 models）
+      sendProgress({ stage: 'pull', percent: -1, message: '正在启动 Ollama 服务…' });
+      await ollama.ensureServe(exe, host, modelsDir);
+
+      // 3) 记录用户已确认（onboarded=true），并写入配置。
+      //    方案 A：不 await 模型下完——立即返回让前端进桌宠，模型在后台继续 pull。
+      writeSettings({
+        provider: 'ollama',
+        ollamaPath: exe,
+        ollamaDir: installDir,
+        ollamaHost: host,
+        ollamaModel: model,
+        ollamaMirror: mirror,
+        onboarded: true,
+        configured: true,
+      });
+
+      // 4) 后台拉取模型（不阻塞返回）。已存在则秒回并置 ready；正在拉取则不重复发起。
+      if (ollama.beginPull(model)) {
+        void (async () => {
+          try {
+            const list = await ollama.listModels(host);
+            if (list.ok && list.models.includes(model)) {
+              sendProgress({ stage: 'pull', percent: 100, message: `模型 ${model} 已就绪` });
+              writeSettings({ ollamaReady: true });
+              return;
+            }
+            await pullModel(host, model, sendProgress);
+            writeSettings({ ollamaReady: true });
+            log(`[ollama] 后台模型拉取完成：${model}`);
+          } catch (e: any) {
+            const m = String((e && e.message) || e);
+            log(`[ollama] 后台拉取模型失败：${m}`);
+            sendProgress({ stage: 'pull', percent: -1, message: `模型下载失败：${m}` });
+          } finally {
+            ollama.endPull(model);
+          }
+        })();
+      }
+
+      log('[ollama] serve 就绪，已开始后台拉取模型（立即返回以进入桌宠）');
+      return { ok: true };
+    } catch (err: any) {
+      const msg = String((err && err.message) || err);
+      log(`[ollama] install 失败：${msg}`);
+      sendProgress({ stage: 'download', percent: -1, message: `失败：${msg}` });
+      return { ok: false, message: msg };
+    }
+  });
+
+  // 仅拉取模型（Ollama 已就绪时用）。
+  ipcMain.handle('ollama:pull', async (_evt, payload: any) => {
+    const s = readSettings();
+    const host = s.ollamaHost || 'http://127.0.0.1:11434';
+    const model = String((payload && payload.model) || s.ollamaModel || '').trim() || recommendModel().recommended.id;
+    try {
+      await pullModel(host, model, sendProgress);
+      writeSettings({ ollamaModel: model });
+      return { ok: true };
+    } catch (err: any) {
+      const msg = String((err && err.message) || err);
+      log(`[ollama] pull 失败：${msg}`);
+      return { ok: false, message: msg };
+    }
+  });
+
+  // 硬件检测 + 推荐模型清单（对齐 AnythingLLM「设置选项/最佳匹配」）。
+  ipcMain.handle('ollama:recommend', () => {
+    const r = recommendModel();
+    return {
+      hardware: r.hardware,
+      recommended: r.recommended,
+      options: MODEL_OPTIONS,
+    };
+  });
+
+  // 确保目标模型就绪：已存在则跳过；否则静默 pull（进度经 ollama:progress 推送）。
+  // 供首启进入主界面后的后台静默下载使用。
+  ipcMain.handle('ollama:ensureModel', async (_evt, payload: any) => {
+    const s = readSettings();
+    const host = s.ollamaHost || 'http://127.0.0.1:11434';
+    const model = String((payload && payload.model) || s.ollamaModel || '').trim() || recommendModel().recommended.id;
+    try {
+      const resolved = resolveAnyOllama(s.ollamaDir);
+      if (!resolved) return { ok: false, message: '未找到可用的 Ollama' };
+      // 确保 serve 起来
+      await ollama.ensureServe(resolved.exe, host, resolved.modelsDir);
+      const list = await ollama.listModels(host);
+      if (list.ok && list.models.includes(model)) {
+        writeSettings({ ollamaModel: model, ollamaReady: true });
+        return { ok: true, already: true };
+      }
+      await pullModel(host, model, sendProgress);
+      writeSettings({ ollamaModel: model, ollamaReady: true });
+      return { ok: true, already: false };
+    } catch (err: any) {
+      const msg = String((err && err.message) || err);
+      log(`[ollama] ensureModel 失败：${msg}`);
+      return { ok: false, message: msg };
+    }
   });
 }

@@ -29,6 +29,8 @@ import Background from "./components/canvas/background";
 import WebSocketStatus from "./components/canvas/ws-status";
 import Subtitle from "./components/canvas/subtitle";
 import { ModeProvider, useMode } from "./context/mode-context";
+import OllamaOnboarding from "./components/onboarding/ollama-onboarding";
+import ModelDownloadIndicator from "./components/onboarding/model-download-indicator";
 
 function AppContent(): JSX.Element {
   const [showSidebar, setShowSidebar] = useState(true);
@@ -151,6 +153,12 @@ function AppContent(): JSX.Element {
 
       {/* Conditional Rendering of Pet Mode UI */}
       {mode === "pet" && <InputSubtitle />}
+
+      {/* 首启「设置选项」覆盖层：仅在需要引导时显示，下载并启动后淡出 */}
+      <OllamaOnboarding />
+
+      {/* 常驻角落下载进度：覆盖层淡出后，模型仍在后台下载时显示于右上角 */}
+      <ModelDownloadIndicator />
     </>
   );
 }
