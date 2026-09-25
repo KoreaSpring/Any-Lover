@@ -12,8 +12,13 @@
  *  - secondary 暖金（路线图“探索方向”）
  *  - background 奶油白（由浅到深）
  *  - foreground 暖褐 / 深灰（正文与标题）
+ *
+ * 主题切换：白天（cream）为默认，变量同时挂在 :root 与 .theme-cream；
+ * 夜间（legacy）变量在 legacy-theme.css 的 .theme-legacy 作用域覆盖。
+ * 运行时给根容器切换 theme-cream / theme-legacy 即整套换色。
  */
-:root {
+:root,
+.theme-cream {
   /* background — 奶油白 */
   --background-50: 0.995 0.004 72;
   --background-100: 0.978 0.008 68;
@@ -81,6 +86,10 @@
 
   --font-heading: 'Noto Serif SC', serif;
   --font-body: 'Noto Sans SC', sans-serif;
+
+  /* 页面底色/文字（cream：浅底深字） */
+  --page-bg: var(--background-50);
+  --page-fg: var(--foreground-800);
 }
 
 html {
@@ -92,8 +101,9 @@ html {
 html,
 body {
   font-family: var(--font-body);
-  background-color: oklch(var(--background-50));
-  color: oklch(var(--foreground-800));
+  /* 页面底色随主题：cream 用浅底、legacy 用深底（见 --page-bg / --page-fg）。 */
+  background-color: oklch(var(--page-bg, var(--background-50)));
+  color: oklch(var(--page-fg, var(--foreground-800)));
   -webkit-font-smoothing: antialiased;
   overflow-x: clip;
   margin: 0;

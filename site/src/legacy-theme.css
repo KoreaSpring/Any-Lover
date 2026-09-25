@@ -1,0 +1,161 @@
+/*
+ * 夜间（legacy）主题：原 React+Tailwind 官网的 oklch 深色语义色板 +
+ * 呼吸/声波/浮动/光晕动效。所有规则限定在 `.theme-legacy` 作用域内，
+ * 与白天 cream 主题（index.css 的 :root / .theme-cream）互不干扰。
+ *
+ * 注意：本文件不含 @tailwind 指令（@tailwind 只在 index.css 引入一次）。
+ * 颜色变量沿用与 cream 相同的语义命名，Tailwind 生成的 utility class
+ * 通过 oklch(var(--x)) 读取，因此切换 .theme-legacy 即整套换色。
+ */
+
+.theme-legacy {
+  /* primary — 暖橙珊瑚 */
+  --primary-50: 0.96 0.02 40;
+  --primary-100: 0.92 0.04 40;
+  --primary-200: 0.86 0.07 40;
+  --primary-300: 0.79 0.11 40;
+  --primary-400: 0.72 0.15 38;
+  --primary-500: 0.66 0.17 36;
+  --primary-600: 0.59 0.16 34;
+  --primary-700: 0.5 0.14 33;
+  --primary-800: 0.42 0.11 32;
+  --primary-900: 0.34 0.08 32;
+  --primary-950: 0.24 0.05 32;
+
+  /* accent — 青色 */
+  --accent-50: 0.97 0.02 210;
+  --accent-100: 0.93 0.04 210;
+  --accent-200: 0.87 0.07 205;
+  --accent-300: 0.8 0.1 200;
+  --accent-400: 0.74 0.12 198;
+  --accent-500: 0.68 0.13 196;
+  --accent-600: 0.6 0.12 198;
+  --accent-700: 0.51 0.1 200;
+  --accent-800: 0.42 0.08 202;
+  --accent-900: 0.34 0.06 205;
+  --accent-950: 0.24 0.04 208;
+
+  /* secondary — 柔紫 */
+  --secondary-50: 0.96 0.02 300;
+  --secondary-100: 0.92 0.04 300;
+  --secondary-200: 0.86 0.07 298;
+  --secondary-300: 0.79 0.11 295;
+  --secondary-400: 0.72 0.14 292;
+  --secondary-500: 0.65 0.16 290;
+  --secondary-600: 0.57 0.15 290;
+  --secondary-700: 0.48 0.13 291;
+  --secondary-800: 0.4 0.1 292;
+  --secondary-900: 0.33 0.08 293;
+  --secondary-950: 0.23 0.05 294;
+
+  /* background — 深黑蓝 */
+  --background-50: 0.96 0.005 265;
+  --background-100: 0.9 0.006 265;
+  --background-200: 0.8 0.008 265;
+  --background-300: 0.68 0.01 265;
+  --background-400: 0.54 0.012 265;
+  --background-500: 0.42 0.014 265;
+  --background-600: 0.34 0.016 265;
+  --background-700: 0.27 0.018 265;
+  --background-800: 0.2 0.02 265;
+  --background-900: 0.15 0.022 265;
+  --background-950: 0.1 0.02 265;
+
+  /* foreground — 暖白 / 灰 */
+  --foreground-50: 0.98 0.004 60;
+  --foreground-100: 0.95 0.006 60;
+  --foreground-200: 0.89 0.008 60;
+  --foreground-300: 0.78 0.01 265;
+  --foreground-400: 0.64 0.012 265;
+  --foreground-500: 0.52 0.014 265;
+  --foreground-600: 0.42 0.014 265;
+  --foreground-700: 0.34 0.014 265;
+  --foreground-800: 0.26 0.014 265;
+  --foreground-900: 0.18 0.014 265;
+  --foreground-950: 0.12 0.014 265;
+
+  /* 页面底色/文字（legacy：深底浅字） */
+  --page-bg: var(--background-950);
+  --page-fg: var(--foreground-100);
+
+  scroll-padding-top: 84px;
+}
+
+/* 滚动进入动画：初始下移淡出，加 .in 后归位 */
+.theme-legacy .reveal {
+  opacity: 0;
+  transform: translateY(28px);
+  transition:
+    opacity 0.7s cubic-bezier(0.22, 0.68, 0.24, 1),
+    transform 0.7s cubic-bezier(0.22, 0.68, 0.24, 1);
+  will-change: opacity, transform;
+}
+.theme-legacy .reveal.in {
+  opacity: 1;
+  transform: none;
+}
+
+/* ============ 原版装饰动效（限定 .theme-legacy 作用域，避免与 cream 同名类冲突） ============ */
+@keyframes legacyBreathe {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.9;
+  }
+  50% {
+    transform: scale(1.04);
+    opacity: 1;
+  }
+}
+.theme-legacy .animate-breathe {
+  animation: legacyBreathe 5s ease-in-out infinite;
+}
+
+@keyframes legacyWave {
+  0%,
+  100% {
+    transform: scaleY(0.6);
+    opacity: 0.6;
+  }
+  50% {
+    transform: scaleY(1.15);
+    opacity: 1;
+  }
+}
+.theme-legacy .animate-wave {
+  animation: legacyWave 1.2s ease-in-out infinite;
+}
+
+@keyframes legacyFloat {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-12px);
+  }
+}
+.theme-legacy .animate-float {
+  animation: legacyFloat 6s ease-in-out infinite;
+}
+
+@keyframes legacyGlow {
+  0%,
+  100% {
+    box-shadow: 0 0 20px oklch(var(--primary-500) / 0.35);
+  }
+  50% {
+    box-shadow: 0 0 40px oklch(var(--primary-500) / 0.6);
+  }
+}
+.theme-legacy .animate-glow {
+  animation: legacyGlow 3s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .theme-legacy .reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+}
