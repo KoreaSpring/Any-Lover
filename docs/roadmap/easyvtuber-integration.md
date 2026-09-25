@@ -120,6 +120,40 @@ Electron 主进程                 EasyVtuber sidecar (仅 Windows)
 
 ---
 
+## 3.5 EasyVtuber 特性清单与桌宠场景取舍
+
+> 记录 EasyVtuber 原生提供的全部能力，并标注在 Any-Lover 桌宠场景（方案甲）里「用/关/后续」的取舍。依据来自实际代码（`src/args.py`、`src/main.py`、各 input client、`tha2/poser/modes/mode_20_wx.py`）与 README。
+
+### 1) 输入 / 动作捕捉（4 种，代码在各 *_client.py）
+
+| 输入方式 | 精度 | 依赖 | 桌宠取舍 |
+| --- | --- | --- | --- |
+| iFacialMocap（iPhone 结构光面捕） | 最高 | iPhone + 付费 App，UDP 直连 | ❌ 桌宠不需要用户表演 |
+| OpenSeeFace（普通摄像头高精度） | 高 | 普通摄像头 + 单独跑 OSF 程序 | ❌ 默认关；后续「摄像头感知」可选 |
+| OpenCV/mediapipe（普通摄像头低精度） | 一般 | 普通摄像头，免配置 | ❌ 默认关 |
+| 鼠标 + 音频（无摄像头） | 无捕捉 | 鼠标位置 + 麦克风音量 + 定时眨眼/呼吸 | ✅ **复用其 idle 逻辑**（眨眼/呼吸），音量输入换成 TTS 音量包络 |
+
+> 桌宠场景**默认不用面捕/摄像头**：角色动作由「TTS 口型 + LLM 情绪 + 自动眨眼呼吸」驱动（见 §4）。摄像头感知（用户在不在/情绪）属 README 规划方向，后续可选，不进方案甲主线。
+
+### 2) 渲染 / 画质增强（可直接复用）
+
+- **THA 模型**：v3_seperable / v3_standard / v4 / v4_student，半/全精度。
+- **RIFE 补帧**：x2/x3/x4，同帧率下降显卡占用。
+- **超分**：waifu2x / real-esrgan（x2/x4）/ Anime4K，512→1024（吃显存，2060 谨慎）。
+- **缓存**：VRAM + RAM 双缓存 + brotli 压缩 + 输入量化，姿态相同命中缓存跳过 GPU。
+- 以上在 §5.5 面板里作为「性能预设 / 补帧 / 超分」暴露给用户。
+
+### 3) 输出方式（**方案甲会替换掉**）
+
+- Spout2（带透明通道给 OBS）/ OBS 虚拟摄像头 / OpenCV Debug 窗口。
+- 桌宠不走 OBS：改造为 WebSocket 帧流推给 Electron 前端（见 §2、§3）。
+
+### 4) 硬件兼容
+
+- N卡 TensorRT（算力 ≥7.5，20 系起）/ A卡·I卡 DirectML；`EZVTB_DEVICE_ID` 指定 GPU。
+
+---
+
 ## 4. 口型 / 表情驱动映射（本项目要新写的核心逻辑）
 
 EasyVtuber 原本靠面捕给 45 维 pose。Any-Lover 没有面捕，需要把**对话信号**转成 pose：
@@ -134,6 +168,33 @@ EasyVtuber 原本靠面捕给 45 维 pose。Any-Lover 没有面捕，需要把**
 **实现位置建议**：在 THA sidecar 内做一个 `pose_driver`，接收来自前端/主进程转发的三类信号（口型包络、表情标签、idle），合成 45 维 pose 喂给 `model_infer_client`。口型包络可由前端在播 TTS 音频时用 Web Audio AnalyserNode 计算音量，经 IPC/WS 发给 sidecar。
 
 这是**上游没有、必须自研**的一块，也是效果好坏的关键。第一版可以先做"音量→嘴张合 + 定时眨眼"最小闭环，跑通再迭代表情。
+
+### THA 的情绪表达能力（45 维 pose，来自 mode_20_wx.py）
+
+THA **能表达丰富情绪**（喜/怒/惊/为难/严肃/微笑/震惊等），不是只会张嘴的僵尸脸。45 维里与情绪相关的维度：
+
+- **眉毛（12）**：`eyebrow_troubled`(为难)、`eyebrow_angry`(生气)、`eyebrow_happy`(开心)、`eyebrow_raised`(挑眉/惊)、`eyebrow_lowered`(皱眉)、`eyebrow_serious`(严肃)，左右各一。
+- **眼睛（10）**：`eye_surprised`(睁大)、`eye_wink`(闭眼)、`eye_happy_wink`(弯眼笑)、`eye_relaxed`(眯眼)、`eye_raised_lower_eyelid`(卧蚕)。
+- **眼球（4）**：`iris_small`(瞳孔缩小=震惊)、`iris_rotation_x/y`(视线)。
+- **头部（3）**：`head_x`、`head_y`(点头/歪头)、`neck_z`。
+- **嘴（9）**：元音口型 `mouth_aaa/iii/uuu/eee/ooo`(对口型)、`mouth_raised_corner`(嘴角上扬=笑)、`mouth_lowered_corner`(嘴角下垂)。
+
+**关键认知**：THA 是纯执行器，本身不"理解"情绪——原版这些数值来自面捕（用户表演→角色复制）。桌宠没有人表演，所以必须我们把**情绪标签算成 pose 数值**。好在 Any-Lover 上游后端（Open-LLM-VTuber）**本就输出情绪标签**驱动 Live2D expression，我们复用这个信号源，改成映射到 THA pose 即可——**信号现成，缺的是映射表**。
+
+### 情绪 → pose 映射表（第一版，可穷举的静态映射）
+
+情绪种类有限、每种是固定 pose 组合，属可穷举的静态表。第一版做 6 种基础情绪（数值为示意，需在 Windows 上按实际画风微调）：
+
+| 情绪标签 | 主要 pose 组合（示意） |
+| --- | --- |
+| neutral(中性) | 全 0 + idle 眨眼呼吸 |
+| happy(开心) | eyebrow_happy↑ + eye_happy_wink 0.3 + mouth_raised_corner 0.6 |
+| surprised(惊讶) | eyebrow_raised↑ + eye_surprised 0.8 + iris_small 0.4 + mouth_ooo 0.4 |
+| angry(生气) | eyebrow_angry↑ + eye_relaxed 0.2 + mouth_lowered_corner 0.3 |
+| shy(害羞) | eyebrow_troubled 0.4 + eye_relaxed 0.4 + mouth_raised_corner 0.2（可配合立绘腮红图层） |
+| sad(难过) | eyebrow_troubled↑ + eyebrow_lowered 0.3 + mouth_lowered_corner 0.5 + head_y 微低 |
+
+**合成规则**：情绪 pose 作为「基底」，口型元音维度（aaa/iii/...）由 TTS 音量包络实时叠加，眨眼/呼吸/头部微动作为 idle 层叠加。三层合成后送 THA。情绪切换时在 pose 之间做插值过渡（如 0.2s），避免表情突变。
 
 ---
 
