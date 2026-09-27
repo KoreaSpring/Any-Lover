@@ -79,6 +79,11 @@ export default function OllamaOnboarding(): JSX.Element | null {
   const [progress, setProgress] = useState<Progress | null>(null);
   const [msg, setMsg] = useState('');
 
+  // THA 高画质模型（可选）：Windows THA 渲染的高清档位，随包只带默认画质，这里可选下载 ~1.5GB 全档位包。
+  const [thaHqInstalled, setThaHqInstalled] = useState<boolean | null>(null);
+  const [thaDownloading, setThaDownloading] = useState(false);
+  const [thaProgress, setThaProgress] = useState<{ percent: number; message: string } | null>(null);
+
   // manual 视图状态
   const [useOllama, setUseOllama] = useState(false);
   const [baseUrl, setBaseUrl] = useState('');
@@ -160,6 +165,50 @@ export default function OllamaOnboarding(): JSX.Element | null {
         r.removeListener('ollama:progress', handler);
       } catch {}
     };
+  }, []);
+
+  // 载入 THA 高画质模型状态 + 订阅其下载进度。
+  useEffect(() => {
+    const r = ipc();
+    if (!r) return undefined;
+    (async () => {
+      try {
+        const st = await r.invoke('tha:modelStatus');
+        if (st && st.ok) setThaHqInstalled(!!st.allInstalled);
+      } catch {
+        /* THA 不可用（非 Windows 等）：thaHqInstalled 保持 null，不显示该区块 */
+      }
+    })();
+    const handler = (_e: any, p: { stage: string; percent: number; message: string }): void => {
+      setThaProgress({ percent: p.percent, message: p.message });
+      if (p.stage === 'done' || p.percent >= 100) {
+        setThaHqInstalled(true);
+        setThaDownloading(false);
+      }
+    };
+    r.on('tha:progress', handler);
+    return () => {
+      try {
+        r.removeListener('tha:progress', handler);
+      } catch {}
+    };
+  }, []);
+
+  const onDownloadThaHq = useCallback(async () => {
+    const r = ipc();
+    if (!r) return;
+    setThaDownloading(true);
+    setThaProgress({ percent: 0, message: '准备下载高画质模型…' });
+    try {
+      const res = await r.invoke('tha:downloadHQ');
+      if (!res || !res.ok) {
+        setThaProgress({ percent: -1, message: res?.message || '下载失败' });
+        setThaDownloading(false);
+      }
+    } catch (e: any) {
+      setThaProgress({ percent: -1, message: String((e && e.message) || e) });
+      setThaDownloading(false);
+    }
   }, []);
 
   // 覆盖层可见后移除 index.html 的启动遮罩（此时覆盖层已盖住，遮罩可退场）。
@@ -284,13 +333,11 @@ export default function OllamaOnboarding(): JSX.Element | null {
       setMMsg({ text: '正在保存并启动…', kind: '' });
       await r.invoke('settings:save', payload);
       setApiKey('');
-      const launched = await r.invoke('pet:launch');
-      if (launched && launched.ok) {
-        dismiss();
-      } else {
-        setMMsg({ text: (launched && launched.message) || '启动失败', kind: 'err' });
-        setBusy(false);
-      }
+      // 即发即忘：不 await pet:launch（后端/模型就绪可能耗时），直接进入，进度显示在右上角。
+      try {
+        r.invoke('pet:launch').catch(() => {});
+      } catch {}
+      dismiss();
     } catch (e: any) {
       setMMsg({ text: String((e && e.message) || e), kind: 'err' });
       setBusy(false);
@@ -386,6 +433,39 @@ export default function OllamaOnboarding(): JSX.Element | null {
               </div>
             )}
 
+            {/* THA 高画质模型（可选，仅 Windows THA 可用时显示）。默认画质随包已带，此处可选下载高清档位。 */}
+            {thaHqInstalled !== null && (
+              <div style={{ ...field, border: '1px solid #ece7df', borderRadius: 12, padding: '12px 14px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: 14, color: '#2a2320', fontWeight: 600 }}>桌宠高画质模型（可选）</span>
+                  {thaHqInstalled ? (
+                    <span style={{ fontSize: 13, color: '#2e7d5b' }}>已就绪</span>
+                  ) : (
+                    <button onClick={onDownloadThaHq} disabled={thaDownloading} style={btnMini}>
+                      {thaDownloading ? '下载中…' : '下载（约 1.5GB）'}
+                    </button>
+                  )}
+                </div>
+                <div style={{ fontSize: 12, color: '#7a7167', marginTop: 6 }}>
+                  默认已含流畅画质，可正常使用；下载后解锁「中/高/极高」清晰度档位。
+                </div>
+                {thaProgress && !thaHqInstalled && (
+                  <div style={{ marginTop: 8 }}>
+                    <div style={{ fontSize: 12, color: '#7a7167', marginBottom: 6 }}>{thaProgress.message}</div>
+                    <div style={bar}>
+                      <div
+                        style={{
+                          ...barFill,
+                          width: thaProgress.percent < 0 ? '100%' : `${thaProgress.percent}%`,
+                          opacity: thaProgress.percent < 0 ? 0.5 : 1,
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             {!started ? (
               <button onClick={onDownloadAndStart} disabled={busy || !model} style={btnPrimary}>
                 {busy ? '正在开始下载…' : '下载模型'}
@@ -393,11 +473,11 @@ export default function OllamaOnboarding(): JSX.Element | null {
             ) : (
               <button
                 onClick={onStartExperience}
-                disabled={busy || !ready}
-                style={ready ? btnPrimary : btnDisabled}
-                title={ready ? '' : '模型下载完成后可开始体验'}
+                disabled={busy}
+                style={btnPrimary}
+                title="下载会在后台继续，进度显示在右上角"
               >
-                {busy ? '正在进入…' : ready ? '开始体验' : '模型下载中，请稍候…'}
+                {busy ? '正在进入…' : ready ? '开始体验' : '直接进入（下载后台继续）'}
               </button>
             )}
             <div style={{ marginTop: 12 }}>

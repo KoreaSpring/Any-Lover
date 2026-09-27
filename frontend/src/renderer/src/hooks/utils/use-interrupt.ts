@@ -4,6 +4,7 @@ import { useChatHistory } from '@/context/chat-history-context';
 import { audioTaskQueue } from '@/utils/task-queue';
 import { useSubtitle } from '@/context/subtitle-context';
 import { useAudioTask } from './use-audio-task';
+import { thaDriver } from '@/utils/tha-driver';
 
 export const useInterrupt = () => {
   const { aiState, setAiState } = useAiState();
@@ -18,6 +19,9 @@ export const useInterrupt = () => {
     console.log('Interrupting conversation chain');
 
     stopCurrentAudioAndLipSync();
+    // THA 模式：中断时闭嘴 + 表情回 neutral（非 THA 模式下无连接，静默跳过）
+    thaDriver.resetMouth();
+    thaDriver.sendExpression('neutral');
 
     audioTaskQueue.clearQueue();
 

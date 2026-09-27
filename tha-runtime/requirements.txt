@@ -1,0 +1,16 @@
+# THA 渲染运行时依赖（Windows / DirectML）。走 ONNX Runtime，不需要 torch。
+# 由 tha-manager 拉起的 tha_server.py + ezvtb_rt 推理核心 + 立绘预处理所需。
+numpy
+scipy
+opencv-python
+Pillow
+onnx
+onnxruntime-directml
+pyanime4k
+brotli
+websockets
+# 立绘预处理：动漫抠图去背景（首次使用自动下载 isnet-anime 模型 ~176MB 到用户缓存）
+rembg
+# 可选（NVIDIA TensorRT 加速，不装则自动回退 DirectML；需 pycuda + tensorrt_rtx，见 README）
+# tensorrt-rtx
+# pycuda

@@ -35,3 +35,22 @@ build/scripts/_*.mjs
 *.log
 verdor/
 .venv-pack/
+
+# THA 渲染运行时
+# 打包组装产物（含嵌入式 Python，可由 prepare-tha-runtime.js 再生，不入库）
+dist-tha-runtime/
+# 开发/验证用的本地 venv 与首启依赖标记（不入库）
+tha-runtime/.venv/
+tha-runtime/.deps-installed
+tha-runtime/_pip_tha.log
+# 立绘预处理产物（用户上传抠图后生成，运行期数据）
+tha-runtime/data/images/*_512.png
+# 临时验证脚本（根目录）
+_*.ps1
+
+# THA 模型（体积大，不入库；由 setup 脚本下载或本地准备后 prepare-tha-runtime 组装）
+tha-runtime/data/models/
+tha-runtime/data/rembg/
+tha-runtime/__pycache__/
+tha-runtime/ezvtb_rt/**/__pycache__/
+tha-runtime/src/**/__pycache__/

@@ -17,6 +17,10 @@ import { CharacterConfigProvider } from "./context/character-config-context";
 import { Toaster } from "./components/ui/toaster";
 import { VADProvider } from "./context/vad-context";
 import { Live2D } from "./components/canvas/live2d";
+import { ThaStage } from "./components/canvas/tha-stage";
+import { ThaSettingsPanel } from "./components/canvas/tha-settings-panel";
+import { RenderModeProvider, useRenderMode } from "./context/render-mode-context";
+import { ThaConfigProvider } from "./context/tha-config-context";
 import TitleBar from "./components/electron/title-bar";
 import { InputSubtitle } from "./components/electron/input-subtitle";
 import { ProactiveSpeakProvider } from "./context/proactive-speak-context";
@@ -36,6 +40,7 @@ function AppContent(): JSX.Element {
   const [showSidebar, setShowSidebar] = useState(true);
   const [isFooterCollapsed, setIsFooterCollapsed] = useState(false);
   const { mode } = useMode();
+  const { renderMode } = useRenderMode();
   const isElectron = window.api !== undefined;
   const live2dContainerRef = useRef<HTMLDivElement>(null);
 
@@ -103,7 +108,14 @@ function AppContent(): JSX.Element {
           ? getResponsiveLive2DWindowStyle(showSidebar)
           : live2dPetStyle)}
       >
-        <Live2D />
+        {renderMode === "tha" ? (
+          <ThaStage showSidebar={showSidebar} />
+        ) : (
+          <Live2D />
+        )}
+        {/* THA 参数面板（立绘上传 + 性能预设）放在角色区内，浮于角色区左上，
+            不遮挡 window 模式左侧的原生 Sidebar（摄像头/屏幕/浏览器/历史）。 */}
+        {renderMode === "tha" && <ThaSettingsPanel />}
       </Box>
 
       {/* Conditional Rendering of Window UI */}
@@ -179,32 +191,37 @@ function AppWithGlobalStyles(): JSX.Element {
   return (
     <>
       <CameraProvider>
-        <ScreenCaptureProvider>
-          <CharacterConfigProvider>
-            <ChatHistoryProvider>
-              <AiStateProvider>
-                <ProactiveSpeakProvider>
-                  <Live2DConfigProvider>
-                    <SubtitleProvider>
-                      <VADProvider>
-                        <BgUrlProvider>
-                          <GroupProvider>
-                            <BrowserProvider>
-                              <WebSocketHandler>
-                                <Toaster />
-                                <AppContent />
-                              </WebSocketHandler>
-                            </BrowserProvider>
-                          </GroupProvider>
-                        </BgUrlProvider>
-                      </VADProvider>
-                    </SubtitleProvider>
-                  </Live2DConfigProvider>
-                </ProactiveSpeakProvider>
-              </AiStateProvider>
-            </ChatHistoryProvider>
-          </CharacterConfigProvider>
-        </ScreenCaptureProvider>
+        {/* RenderMode/ThaConfig 需在 VADProvider 等外层：VADProvider→useInterrupt→useAudioTask→useRenderMode */}
+        <RenderModeProvider>
+          <ThaConfigProvider>
+            <ScreenCaptureProvider>
+              <CharacterConfigProvider>
+                <ChatHistoryProvider>
+                  <AiStateProvider>
+                    <ProactiveSpeakProvider>
+                      <Live2DConfigProvider>
+                        <SubtitleProvider>
+                          <VADProvider>
+                            <BgUrlProvider>
+                              <GroupProvider>
+                                <BrowserProvider>
+                                  <WebSocketHandler>
+                                    <Toaster />
+                                    <AppContent />
+                                  </WebSocketHandler>
+                                </BrowserProvider>
+                              </GroupProvider>
+                            </BgUrlProvider>
+                          </VADProvider>
+                        </SubtitleProvider>
+                      </Live2DConfigProvider>
+                    </ProactiveSpeakProvider>
+                  </AiStateProvider>
+                </ChatHistoryProvider>
+              </CharacterConfigProvider>
+            </ScreenCaptureProvider>
+          </ThaConfigProvider>
+        </RenderModeProvider>
       </CameraProvider>
     </>
   );

@@ -9,6 +9,8 @@
 import { app, globalShortcut, BrowserWindow, ipcMain } from 'electron';
 import log from 'electron-log/main';
 import { BackendManager } from './backend-manager';
+import { ThaManager } from './tha-manager';
+import { registerThaIpc, ensureHqDownload } from './tha-ipc';
 import './gpu-fix';
 import { OllamaManager, resolveBundledOllama, resolveAnyOllama } from './ollama-manager';
 import { registerAibotIpc } from './aibot-ipc';
@@ -48,6 +50,24 @@ function logToFile(line: string): void {
 
 const backend = new BackendManager(logToFile);
 const ollama = new OllamaManager(logToFile);
+// THA 渲染后端（仅 Windows）。开发态指向仓库外 EasyVtuber，见 tha-manager.ts。
+const tha = new ThaManager(logToFile);
+
+// 是否启用 THA 渲染：默认在 Windows 且能找到 THA 服务时启用；
+// 可用环境变量 ANYLOVER_RENDER_MODE=live2d 强制关闭（回退纯 Live2D）。
+function thaEnabled(): boolean {
+  if (String(process.env.ANYLOVER_RENDER_MODE || '').toLowerCase() === 'live2d') return false;
+  return tha.canStart();
+}
+
+// 启动 THA 渲染服务（不阻塞主流程；失败仅记录日志，前端会回退 Live2D）。
+function startThaIfEnabled(): void {
+  if (!thaEnabled()) return;
+  tha
+    .start()
+    .then((url) => logToFile(`[startup] THA 渲染服务就绪：${url}`))
+    .catch((err) => logToFile(`[startup] THA 渲染服务启动失败（回退 Live2D）：${String((err && err.message) || err)}`));
+}
 
 function llmConfigured(): boolean {
   const s = readSettings();
@@ -163,6 +183,12 @@ async function startBackend(): Promise<string> {
       }
     }
   }
+  // 进入后并行补齐所有可选资源：THA 高画质模型包（仅 Windows；幂等，已装则跳过）。
+  // 语言模型由上面的 ensureModelSilently 后台下；两者进度都显示在右上角。不阻塞后端启动。
+  if (tha.canStart()) {
+    void ensureHqDownload(tha, logToFile);
+  }
+
   return backend.start();
 }
 
@@ -176,6 +202,9 @@ app.whenReady().then(() => {
     getSettingsWindow,
   });
 
+  // THA 立绘上传 + 高画质模型下载 IPC（仅 Windows THA 模式用到；注册无副作用，其它平台不触发）
+  registerThaIpc(tha, logToFile);
+
   // 覆盖层「手动设置」入口：打开独立设置窗（云端 API 等高级配置）。
   ipcMain.handle('settings:openWindow', () => {
     openSettingsWindow();
@@ -186,10 +215,9 @@ app.whenReady().then(() => {
   // 避免先渲染出桌宠、再异步弹出覆盖层导致的「闪一下」。
   ipcMain.on('onboarding:need-sync', (evt) => {
     const st = readSettings();
-    // 覆盖层只在「用户从未点过下载」（onboarded=false）时显示。
-    // 用户手动点过「下载模型」后 onboarded=true，后续启动不再展示覆盖层，直接进桌宠；
-    // 模型是否下完由桌宠界面的连接按钮按 ollamaReady 门控（下完前禁用）。
-    evt.returnValue = st.provider === 'ollama' && !st.onboarded;
+    // 首帧同步口径必须与覆盖层异步判断一致（覆盖层 need = !st.ready），否则会「桌宠先露出、
+    // 覆盖层迟到」：未 onboarded（首次）或模型未就绪（onboarded 但下载未完成、需恢复下载）时都要盖。
+    evt.returnValue = st.provider === 'ollama' && (!st.onboarded || !st.ollamaReady);
   });
 
   // 快捷键随时打开设置：Ctrl+Alt+S
@@ -197,6 +225,10 @@ app.whenReady().then(() => {
 
   // 首次运行自动写入默认配置（整合版用内置 Ollama，其余用本机默认地址）
   adoptDefaultConfigIfNeeded();
+
+  // 启动 THA 渲染服务（仅 Windows）。与 LLM 后端相互独立：不管是否首启引导，
+  // 只要能找到 THA 服务就尽早拉起，让前端 ThaStage 能连上帧流；失败则前端回退 Live2D。
+  startThaIfEnabled();
 
   const s = readSettings();
 
@@ -252,6 +284,11 @@ function cleanupAll(): void {
     logToFile(`[shutdown] ollama.killAll 异常：${String((e as any)?.message || e)}`);
   }
   try {
+    tha.killAll();
+  } catch (e) {
+    logToFile(`[shutdown] tha.killAll 异常：${String((e as any)?.message || e)}`);
+  }
+  try {
     globalShortcut.unregisterAll();
   } catch {
     /* ignore */
@@ -264,6 +301,7 @@ app.on('before-quit', () => {
   try {
     if (backend.isRunning()) void backend.stop();
     if (ollama.isServing()) void ollama.stop();
+    if (tha.isRunning()) void tha.stop();
   } catch {
     /* ignore */
   }

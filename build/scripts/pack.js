@@ -125,6 +125,16 @@ function runBuilder() {
     log('提示：未找到 vendor/ffmpeg/bin/ffmpeg.exe，产物将不含 ffmpeg，缺 ffmpeg 的机器语音会静音');
   }
 
+  // Windows THA 渲染运行时（源码 + 嵌入式 Python）：由 prepare-tha-runtime.js 组装到 dist-tha-runtime。
+  // 存在则打入 resources/tha-runtime；不存在（未跑 prepare-tha-runtime）则跳过，应用回退 Live2D。
+  const thaRuntime = path.join(ROOT, 'dist-tha-runtime');
+  if (fs.existsSync(path.join(thaRuntime, 'tha_server.py'))) {
+    extra.push({ from: '../dist-tha-runtime', to: 'tha-runtime', filter: ['**/*'] });
+    log('打入 dist-tha-runtime（THA 源码 + 嵌入式 Python；依赖首启安装）');
+  } else {
+    log('提示：未找到 dist-tha-runtime（未运行 prepare-tha-runtime），产物将不含 THA，Windows 回退 Live2D');
+  }
+
   // Ollama 打包形态
   const ollamaBin = path.join(VENDOR_OLLAMA, 'bin');
   const hasOllamaBin =
@@ -158,6 +168,10 @@ function runBuilder() {
   const yaml = require(path.join(DESKTOP, 'node_modules', 'js-yaml'));
   const baseConfig = yaml.load(fs.readFileSync(yamlPath, 'utf-8'));
   baseConfig.extraResources = extra;
+  // 禁用发布/自动更新信息生成：无 git repository 时 updateInfoBuilder 计算 channel 会崩，
+  // 且本地打包不需要 latest.yml。置 null 彻底跳过该阶段（NSIS 产物本身已生成）。
+  baseConfig.publish = null;
+  baseConfig.publishAutoUpdate = false;
 
   // 输出到带时间戳的唯一目录，避免复用可能被占用的旧 win-unpacked
   const out = makeOutputDir();
@@ -166,7 +180,8 @@ function runBuilder() {
   const tmpConfig = path.join(DESKTOP, 'electron-builder.pack.json');
   fs.writeFileSync(tmpConfig, JSON.stringify(baseConfig, null, 2), 'utf-8');
 
-  const args = ['electron-builder', '--win', '--x64', '--config', 'electron-builder.pack.json'];
+  // --publish never：不生成/上传自动更新信息（避免无 git repository 时 updateInfo 计算 channel 报错）
+  const args = ['electron-builder', '--win', '--x64', '--publish', 'never', '--config', 'electron-builder.pack.json'];
   if (dirOnly) {
     args.push('--dir');
     log('测试模式：仅产出免安装目录（不压缩、不打 NSIS）');
