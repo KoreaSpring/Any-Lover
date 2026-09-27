@@ -68,6 +68,8 @@ const api = {
     ipcRenderer.send('pre-mode-changed', mode);
   },
   getConfigFiles: () => ipcRenderer.invoke('get-config-files'),
+  // THA 立绘上传：打开选图框，返回本地绝对路径（renderer 再经 thaDriver 发 setImage）
+  pickThaImage: (): Promise<{ path: string }> => ipcRenderer.invoke('tha:pickImage'),
   updateConfigFiles: (files: ConfigFile[]) => {
     ipcRenderer.send('update-config-files', files);
   },

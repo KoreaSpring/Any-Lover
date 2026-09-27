@@ -160,6 +160,7 @@ app.on("window-all-closed", () => {
 
 app.on("before-quit", () => {
   isQuitting = true;
-  menuManager.destroy();
+  // menuManager 在 whenReady 后才创建；若启动早期就退出（如未获单例锁）此处可能为 undefined，需空值保护。
+  menuManager?.destroy();
   globalShortcut.unregisterAll();
 });

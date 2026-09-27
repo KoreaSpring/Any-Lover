@@ -18,6 +18,7 @@ declare global {
       setMode: (mode: 'window' | 'pet') => void
       getConfigFiles: () => Promise<any>
       updateConfigFiles: (files: any[]) => void
+      pickThaImage: () => Promise<{ path: string }>
     }
   }
 }

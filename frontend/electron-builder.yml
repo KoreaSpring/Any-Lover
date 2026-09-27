@@ -21,6 +21,12 @@ extraResources:
     to: 'runtime'
     filter:
       - '**/*'
+  # Windows THA 渲染运行时（源码 + 嵌入式 Python；由 prepare-tha-runtime.js 组装）。
+  # 仅 Windows 打包需要；其它平台该目录不存在时 electron-builder 会跳过。
+  - from: '../dist-tha-runtime'
+    to: 'tha-runtime'
+    filter:
+      - '**/*'
 asarUnpack:
   - resources/**
 win:
