@@ -170,8 +170,9 @@ function runBuilder() {
   baseConfig.extraResources = extra;
   // 禁用发布/自动更新信息生成：无 git repository 时 updateInfoBuilder 计算 channel 会崩，
   // 且本地打包不需要 latest.yml。置 null 彻底跳过该阶段（NSIS 产物本身已生成）。
+  // 注意：electron-builder 24 的配置 schema 没有 publishAutoUpdate 顶级项，
+  // 写入会触发 "unknown property" 校验失败。跳过更新信息只需 publish=null + 命令行 --publish never。
   baseConfig.publish = null;
-  baseConfig.publishAutoUpdate = false;
 
   // 输出到带时间戳的唯一目录，避免复用可能被占用的旧 win-unpacked
   const out = makeOutputDir();

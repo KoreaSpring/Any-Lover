@@ -21,6 +21,7 @@ import { useLocalStorage } from '@/hooks/utils/use-local-storage';
 import { useGroup } from '@/context/group-context';
 import { useInterrupt } from '@/hooks/utils/use-interrupt';
 import { useBrowser } from '@/context/browser-context';
+import { isLlmErrorText } from '@/utils/llm-error';
 
 function WebSocketHandler({ children }: { children: React.ReactNode }) {
   const { t } = useTranslation();
@@ -42,6 +43,28 @@ function WebSocketHandler({ children }: { children: React.ReactNode }) {
   const { setBrowserViewData } = useBrowser();
   // 累积当前一轮对话的流式 token 文本，用于 partial-text 增量显示字幕
   const partialTextRef = useRef('');
+  // 本轮对话是否已提示过「LLM 未就绪」，避免同一轮里每个 token/每句都弹 toaster
+  const llmErrorNotifiedRef = useRef(false);
+
+  // 统一处理「后端把 LLM 连接错误当作回复吐出」的情况：
+  // 显示可读的中文字幕 + 弹一次友好提示，返回 true 表示本条消息已被拦截（调用方应提前 return，
+  // 不再显示原文、不加入历史、不进音频队列，避免桌宠念出英文错误堆栈）。
+  const handleLlmErrorText = useCallback((text: string | null | undefined): boolean => {
+    if (!isLlmErrorText(text)) return false;
+    setSubtitleText(t('error.llmNotReadySubtitle'));
+    if (!llmErrorNotifiedRef.current) {
+      llmErrorNotifiedRef.current = true;
+      toaster.create({
+        title: t('error.llmNotReadyTitle'),
+        description: t('error.llmNotReadyBody'),
+        type: 'warning',
+        duration: 6000,
+      });
+    }
+    // 出错即回到 idle，避免卡在 thinking-speaking
+    setAiState('idle');
+    return true;
+  }, [setSubtitleText, setAiState, t]);
 
   useEffect(() => {
     autoStartMicOnConvEndRef.current = autoStartMicOnConvEnd;
@@ -73,6 +96,7 @@ function WebSocketHandler({ children }: { children: React.ReactNode }) {
         audioTaskQueue.clearQueue();
         clearResponse();
         partialTextRef.current = ''; // 新一轮对话开始，清空流式文本累积
+        llmErrorNotifiedRef.current = false; // 允许本轮再次提示 LLM 未就绪
         break;
       case 'conversation-chain-end':
         audioTaskQueue.addTask(() => new Promise<void>((resolve) => {
@@ -127,6 +151,8 @@ function WebSocketHandler({ children }: { children: React.ReactNode }) {
         break;
       case 'full-text':
         if (message.text) {
+          // 后端把 LLM 连接错误当作回复吐出时，替换为可读的中文提示，不显示英文堆栈。
+          if (handleLlmErrorText(message.text)) break;
           setSubtitleText(message.text);
         }
         break;
@@ -135,6 +161,8 @@ function WebSocketHandler({ children }: { children: React.ReactNode }) {
         // 后续该句对应的 audio 消息会用整句 display_text 覆盖字幕，自然收敛。
         if (message.text) {
           partialTextRef.current += message.text;
+          // 累积文本一旦命中 LLM 错误特征，整体拦截为友好提示（错误通常整段一次性 yield）。
+          if (handleLlmErrorText(partialTextRef.current)) break;
           setSubtitleText(partialTextRef.current);
         }
         break;
@@ -166,6 +194,9 @@ function WebSocketHandler({ children }: { children: React.ReactNode }) {
       case 'audio':
         if (aiState === 'interrupted' || aiState === 'listening') {
           console.log('Audio playback intercepted. Sentence:', message.display_text?.text);
+        } else if (handleLlmErrorText(message.display_text?.text)) {
+          // 这段「音频」其实是 LLM 连接错误被 TTS 合成出来的，拦截掉不让桌宠念出英文堆栈。
+          console.warn('Suppressed TTS for LLM error text.');
         } else {
           console.log("actions", message.actions);
           addAudioTask({
@@ -300,7 +331,7 @@ function WebSocketHandler({ children }: { children: React.ReactNode }) {
       default:
         console.warn('Unknown message type:', message.type);
     }
-  }, [aiState, addAudioTask, appendHumanMessage, baseUrl, bgUrlContext, setAiState, setConfName, setConfUid, setConfigFiles, setCurrentHistoryUid, setHistoryList, setMessages, setModelInfo, setSubtitleText, startMic, stopMic, setSelfUid, setGroupMembers, setIsOwner, backendSynthComplete, setBackendSynthComplete, clearResponse, handleControlMessage, appendOrUpdateToolCallMessage, interrupt, setBrowserViewData, t]);
+  }, [aiState, addAudioTask, appendHumanMessage, baseUrl, bgUrlContext, setAiState, setConfName, setConfUid, setConfigFiles, setCurrentHistoryUid, setHistoryList, setMessages, setModelInfo, setSubtitleText, startMic, stopMic, setSelfUid, setGroupMembers, setIsOwner, backendSynthComplete, setBackendSynthComplete, clearResponse, handleControlMessage, appendOrUpdateToolCallMessage, interrupt, setBrowserViewData, handleLlmErrorText, t]);
 
   // 先订阅状态，再启动连接，避免 Subject 的同步 CONNECTING 事件在首次挂载时丢失。
   useEffect(() => {

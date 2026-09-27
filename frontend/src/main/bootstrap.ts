@@ -215,9 +215,16 @@ app.whenReady().then(() => {
   // 避免先渲染出桌宠、再异步弹出覆盖层导致的「闪一下」。
   ipcMain.on('onboarding:need-sync', (evt) => {
     const st = readSettings();
-    // 首帧同步口径必须与覆盖层异步判断一致（覆盖层 need = !st.ready），否则会「桌宠先露出、
-    // 覆盖层迟到」：未 onboarded（首次）或模型未就绪（onboarded 但下载未完成、需恢复下载）时都要盖。
-    evt.returnValue = st.provider === 'ollama' && (!st.onboarded || !st.ollamaReady);
+    // 首帧同步口径：未 onboarded（首次）或模型未就绪（onboarded 但下载未完成、需恢复下载）时都要盖。
+    // 关键补强：同步不能做网络探测，但可用 resolveAnyOllama（纯文件系统检查，很快）判断
+    // 「当前是否真的存在可用的 Ollama」。换机器 / 目录被清后，settings 的 onboarded/ollamaReady
+    // 可能仍为 true 却已失效——此时必须显示引导，否则会先露出桌宠、再让后端连不上 Ollama 报错。
+    if (st.provider !== 'ollama') {
+      evt.returnValue = false;
+      return;
+    }
+    const hasOllama = !!resolveAnyOllama(st.ollamaDir);
+    evt.returnValue = !st.onboarded || !st.ollamaReady || !hasOllama;
   });
 
   // 快捷键随时打开设置：Ctrl+Alt+S
@@ -239,10 +246,16 @@ app.whenReady().then(() => {
   //
   // 注意：首启（未 onboarded）时不要在这里就 startBackend——等用户在覆盖层确认后，
   // 由覆盖层调用 pet:launch 启动，避免用可能未就绪的配置提前拉起后端。
-  // 覆盖层只在「用户从未点过下载」（onboarded=false）时拦截首启：
-  // 不启动后端，等用户在覆盖层点「下载模型」触发 ollama:install + pet:launch。
-  if (s.provider === 'ollama' && !s.onboarded) {
-    logToFile('[startup] 首次运行：主窗覆盖层引导选择并下载模型（等待用户确认）');
+  // 覆盖层在以下任一情况拦截首启，交由用户在覆盖层里安装/选择模型后再由 pet:launch 启动：
+  //   1) 从未点过下载（onboarded=false）——真·首次运行；
+  //   2) 虽已 onboarded，但当前解析不到可用的 Ollama（换机器 / 安装目录被清 / 未内置）。
+  //      这种情况若直接 startBackend，后端会连不上 11434 并把英文错误当作回复吐出。
+  if (s.provider === 'ollama' && (!s.onboarded || !ollamaAvailable())) {
+    if (!s.onboarded) {
+      logToFile('[startup] 首次运行：主窗覆盖层引导选择并下载模型（等待用户确认）');
+    } else {
+      logToFile('[startup] 已 onboarded 但当前无可用 Ollama：交由覆盖层引导安装，不提前启动后端');
+    }
     return;
   }
 
