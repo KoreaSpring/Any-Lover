@@ -132,6 +132,12 @@ class ThaDriver {
     this.send({ type: 'gaze', mode });
   }
 
+  // 方向级注视跟随：yaw/pitch(度)，来自摄像头感知（主进程规则化后经 IPC 下发）。
+  // 服务端 follow 优先级高于 mode，超时自动回落程序化游移。
+  sendGazeTarget(yaw: number, pitch: number): void {
+    this.send({ type: 'gazeTarget', yaw, pitch });
+  }
+
   // 预连接（进入 THA 模式时可调用，减少首句延迟）
   connect(): void {
     this.ensure();
