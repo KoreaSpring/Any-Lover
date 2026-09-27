@@ -119,7 +119,10 @@
     "failedCapture": "捕获{{source}}帧失败",
     "failedParseWebSocket": "解析WebSocket消息失败",
     "websocketNotOpen": "WebSocket未连接",
-    "vadMisfire": "检测到语音但过于简短，请尝试提高音量或说得更久一些，或调整识别设置（降低语音识别阈值、降低负面语音阈值、减少验证帧数）"
+    "vadMisfire": "检测到语音但过于简短，请尝试提高音量或说得更久一些，或调整识别设置（降低语音识别阈值、降低负面语音阈值、减少验证帧数）",
+    "llmNotReadyTitle": "AI 模型还没准备好",
+    "llmNotReadyBody": "暂时连不上本地 AI 模型，可能还在下载或尚未启动。可按 Ctrl+Alt+S 打开设置来安装或启动模型，稍后再试。",
+    "llmNotReadySubtitle": "AI 模型还没准备好，请等待下载完成，或在设置里配置后再试。"
   },
   "aiState": {
     "idle": "空闲",

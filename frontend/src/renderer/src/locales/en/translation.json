@@ -122,7 +122,10 @@
     "failedCapture": "Failed to capture {{source}} frame",
     "failedParseWebSocket": "Failed to parse WebSocket message",
     "websocketNotOpen": "WebSocket is not open.",
-    "vadMisfire": "Voice detected but too brief. Try speaking louder/longer, or adjust settings (lower speech threshold, lower negative threshold, reduce redemption frames)."
+    "vadMisfire": "Voice detected but too brief. Try speaking louder/longer, or adjust settings (lower speech threshold, lower negative threshold, reduce redemption frames).",
+    "llmNotReadyTitle": "The AI model isn't ready yet",
+    "llmNotReadyBody": "Can't reach the local AI model. It may still be downloading or not started yet. Open Settings (Ctrl+Alt+S) to install or start the model, then try again.",
+    "llmNotReadySubtitle": "The AI model isn't ready yet. Please wait for the download to finish or set it up in Settings."
   },
   "aiState": {
     "idle": "idle",

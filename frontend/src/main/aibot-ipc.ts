@@ -211,6 +211,20 @@ export function registerAibotIpc(deps: Deps): void {
       const list = await ollama.listModels(s.ollamaHost);
       hasModel = list.ok && list.models.includes(s.ollamaModel || defaultModel);
     }
+    // ready 必须反映「当前真的可用」，而不是仅凭 settings 里可能过时的 ollamaReady 标志。
+    // 场景：换机器 / 安装目录被清 / 服务未起时，ollamaReady 仍为 true 会导致首启引导误判为
+    // 已就绪、不再拦截，随后后端连不上 Ollama 报错。因此这里以「能解析到 Ollama 且目标模型
+    // 确实存在」为准；settings 的 ollamaReady 仅作为不降级的加成条件。
+    const actuallyReady = !!resolved && hasModel;
+    if (s.ollamaReady && !actuallyReady) {
+      // 纠正过时的持久标志，避免后续 bootstrap / 覆盖层继续被误导。
+      try {
+        writeSettings({ ollamaReady: false });
+      } catch {
+        /* ignore */
+      }
+      log('[ollama] 校正 ollamaReady：settings 标记就绪，但当前无法解析到 Ollama/模型，已置为 false');
+    }
     return {
       installed: !!resolved,
       source: resolved?.source || null,
@@ -220,7 +234,7 @@ export function registerAibotIpc(deps: Deps): void {
       mirrors: OLLAMA_MIRRORS,
       model: s.ollamaModel || defaultModel,
       hasModel,
-      ready: !!s.ollamaReady,
+      ready: actuallyReady,
       onboarded: !!s.onboarded,
     };
   });
