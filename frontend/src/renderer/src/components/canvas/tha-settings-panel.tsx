@@ -149,6 +149,30 @@ export const ThaSettingsPanel = memo((): JSX.Element => {
     }
   };
 
+  // 中枢对话（F-1）：开启后文字对话走中枢(注入记忆/画像/关系/情绪),默认关(走老后端)。纯本地开关。
+  const [hubDialogueOn, setHubDialogueOn] = useState(() => {
+    try {
+      return window.localStorage.getItem('anylover_hub_dialogue') === '1';
+    } catch {
+      return false;
+    }
+  });
+  const toggleHubDialogue = (): void => {
+    const next = !hubDialogueOn;
+    setHubDialogueOn(next);
+    try {
+      window.localStorage.setItem('anylover_hub_dialogue', next ? '1' : '0');
+    } catch {
+      /* ignore */
+    }
+    toaster.create({
+      title: next ? '已切换到中枢对话' : '已切换回后端对话',
+      description: next ? '文字对话将结合记忆/画像/关系/情绪（需配好主模型）' : undefined,
+      type: 'success',
+      duration: 2500,
+    });
+  };
+
   // 主动搭话（非对话时基于观察主动关心，默认关）。
   const [proactiveOn, setProactiveOn] = useState(false);
   const [proactiveBusy, setProactiveBusy] = useState(false);
@@ -549,6 +573,22 @@ export const ThaSettingsPanel = memo((): JSX.Element => {
         <Text fontSize="10px" color="whiteAlpha.500">
           开启后桌宠会每隔几分钟观察一次屏幕，记住你在做什么（如"在调代码"），让陪伴更贴近你的当下。
           画面仅在本地处理、不上传、不保存截图；密码/银行等敏感窗口自动跳过；关闭即停止。
+        </Text>
+      </Box>
+
+      {/* 中枢对话（F-1，实验性，默认关；开启后文字对话结合记忆/画像/关系/情绪） */}
+      <Box>
+        <Box display="flex" alignItems="center" justifyContent="space-between" mb="6px">
+          <Text fontSize="sm" color="whiteAlpha.700" fontWeight="semibold">
+            中枢对话（实验）
+          </Text>
+          <Button size="sm" variant={hubDialogueOn ? 'solid' : 'outline'} onClick={toggleHubDialogue}>
+            {hubDialogueOn ? '已开启' : '开启'}
+          </Button>
+        </Box>
+        <Text fontSize="10px" color="whiteAlpha.500">
+          开启后文字对话由中枢统筹，结合它对你的记忆、画像、关系与当下情绪来回应，更懂你。
+          需先配好主模型；语音对话暂仍走原通道；关闭即回到原对话。
         </Text>
       </Box>
 

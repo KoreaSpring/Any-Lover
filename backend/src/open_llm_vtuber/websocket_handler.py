@@ -27,6 +27,8 @@ from .conversations.conversation_handler import (
     handle_group_interrupt,
     handle_individual_interrupt,
 )
+from .conversations.tts_manager import TTSTaskManager
+from .agent.output_types import DisplayText, Actions
 
 
 class MessageType(Enum):
@@ -69,6 +71,9 @@ class WebSocketHandler:
         self.current_conversation_tasks: Dict[str, Optional[asyncio.Task]] = {}
         self.default_context_cache = default_context_cache
         self.received_data_buffers: Dict[str, np.ndarray] = {}
+        # 中枢对话（hub-speak）专用 TTS 管理器：中枢生成回复后逐句灌来做 TTS+表情，
+        # 每个 client 一个，保证一轮内多句有序播放。见 _handle_hub_speak。
+        self.hub_tts_managers: Dict[str, TTSTaskManager] = {}
 
         # Message handlers mapping
         self._message_handlers = self._init_message_handlers()
@@ -95,6 +100,11 @@ class WebSocketHandler:
             "audio-play-start": self._handle_audio_play_start,
             "request-init-config": self._handle_init_config_request,
             "heartbeat": self._handle_heartbeat,
+            # 中枢对话（F-1）：中枢在主进程用注入了记忆/画像/关系/情绪的上下文生成回复，
+            # 逐句灌来这里做 TTS + 表情；后端在此仅充当"语音+表情服务"，不参与对话生成。
+            "hub-speak-start": self._handle_hub_speak_start,
+            "hub-speak": self._handle_hub_speak,
+            "hub-speak-end": self._handle_hub_speak_end,
         }
 
     async def handle_new_connection(
@@ -509,6 +519,66 @@ class WebSocketHandler:
                     await websocket.send_text(
                         json.dumps({"type": "control", "text": "mic-audio-end"})
                     )
+
+    async def _handle_hub_speak_start(
+        self, websocket: WebSocket, client_uid: str, data: WSMessage
+    ) -> None:
+        """中枢对话开始：新建本轮 hub TTS 管理器并发 conversation-chain-start。"""
+        self.hub_tts_managers[client_uid] = TTSTaskManager()
+        await websocket.send_text(
+            json.dumps({"type": "control", "text": "conversation-chain-start"})
+        )
+
+    async def _handle_hub_speak(
+        self, websocket: WebSocket, client_uid: str, data: WSMessage
+    ) -> None:
+        """中枢对话逐句：给一句文本 → 表情提取 + TTS 合成 → 发 audio（口型/表情/字幕复用现有链路）。"""
+        text = (data.get("text") or "").strip()
+        if not text:
+            return
+        context = self.client_contexts.get(client_uid)
+        if not context:
+            return
+        tts_manager = self.hub_tts_managers.get(client_uid)
+        if tts_manager is None:
+            tts_manager = TTSTaskManager()
+            self.hub_tts_managers[client_uid] = tts_manager
+
+        name = data.get("name") or context.character_config.character_name
+        display_text = DisplayText(
+            text=text,
+            name=name,
+            avatar=context.character_config.avatar,
+        )
+        # 表情：复用 live2d 模型的关键词→情绪映射（与老对话链路一致，表情/口型不退化）。
+        expressions = context.live2d_model.extract_emotion(text)
+        actions = Actions(expressions=expressions) if expressions else None
+
+        await tts_manager.speak(
+            tts_text=text,
+            display_text=display_text,
+            actions=actions,
+            live2d_model=context.live2d_model,
+            tts_engine=context.tts_engine,
+            websocket_send=websocket.send_text,
+        )
+
+    async def _handle_hub_speak_end(
+        self, websocket: WebSocket, client_uid: str, data: WSMessage
+    ) -> None:
+        """中枢对话结束：等本轮所有 TTS 任务完成 → backend-synth-complete + conversation-chain-end。"""
+        tts_manager = self.hub_tts_managers.get(client_uid)
+        if tts_manager and tts_manager.task_list:
+            try:
+                await asyncio.gather(*tts_manager.task_list, return_exceptions=True)
+            except Exception as e:
+                logger.warning(f"hub-speak-end 等待 TTS 异常：{e}")
+        await websocket.send_text(json.dumps({"type": "backend-synth-complete"}))
+        await websocket.send_text(
+            json.dumps({"type": "control", "text": "conversation-chain-end"})
+        )
+        if tts_manager:
+            tts_manager.clear()
 
     async def _handle_conversation_trigger(
         self, websocket: WebSocket, client_uid: str, data: WSMessage
