@@ -23,6 +23,7 @@ import { VlmClient } from './agent/vlm-client';
 import { VlmResource } from './agent/vlm-resource';
 import { llmProviderRegistry } from './agent/llm-provider';
 import { rebuildProvidersFromSettings } from './agent/providers/provider-factory';
+import { ProactiveEngine } from './agent/proactive-engine';
 import './gpu-fix';
 import { OllamaManager, resolveBundledOllama, resolveAnyOllama } from './ollama-manager';
 import { registerAibotIpc } from './aibot-ipc';
@@ -90,6 +91,15 @@ const vlmClient = new VlmClient({}, logToFile);
 const vlmResource = new VlmResource(vlmClient, logToFile);
 resourceCoordinator.register(vlmResource);
 screenSampler.setVlm(resourceCoordinator, vlmClient);
+
+// 主动搭话引擎（决策层，默认关，由 agent:proactive IPC 启停）：非对话+空闲+有新观察时，
+// 基于屏幕记忆生成一句主动关心，经 IPC 广播到 renderer 显示（不接管 Python 后端对话链路）。
+const proactiveEngine = new ProactiveEngine(memoryStore, llmProviderRegistry, logToFile);
+proactiveEngine.setDeliver((text: string) => {
+  for (const w of BrowserWindow.getAllWindows()) {
+    if (!w.isDestroyed()) w.webContents.send('agent:proactive-say', { text });
+  }
+});
 
 // 是否启用 THA 渲染：默认在 Windows 且能找到 THA 服务时启用；
 // 可用环境变量 ANYLOVER_RENDER_MODE=live2d 强制关闭（回退纯 Live2D）。
@@ -392,6 +402,28 @@ app.whenReady().then(() => {
     }
   });
 
+  // 主动搭话开关（默认关，主动打扰是敏感行为需显式开启）。
+  ipcMain.handle('agent:proactive', (_evt, payload: { enabled?: boolean }) => {
+    const enabled = !!(payload && payload.enabled);
+    try {
+      if (enabled) {
+        // 需要有可用主模型才有意义。
+        rebuildProvidersFromSettings(logToFile);
+        if (!llmProviderRegistry.active()) {
+          return { ok: false, message: '未配置可用的主模型，无法开启主动搭话' };
+        }
+        proactiveEngine.start();
+      } else {
+        proactiveEngine.stop();
+      }
+      return { ok: true };
+    } catch (e: any) {
+      const msg = String((e && e.message) || e);
+      proactiveEngine.stop();
+      return { ok: false, message: msg };
+    }
+  });
+
   // 首帧同步返回「是否需要首启引导」：让主窗覆盖层第一帧就决定是否显示，
   // 避免先渲染出桌宠、再异步弹出覆盖层导致的「闪一下」。
   ipcMain.on('onboarding:need-sync', (evt) => {
@@ -505,6 +537,11 @@ function cleanupAll(): void {
     screenSampler.stop();
   } catch (e) {
     logToFile(`[shutdown] screenSampler.stop 异常：${String((e as any)?.message || e)}`);
+  }
+  try {
+    proactiveEngine.stop();
+  } catch (e) {
+    logToFile(`[shutdown] proactiveEngine.stop 异常：${String((e as any)?.message || e)}`);
   }
   try {
     screenMemoryBridge.stop();
