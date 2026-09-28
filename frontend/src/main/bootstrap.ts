@@ -458,6 +458,16 @@ app.whenReady().then(() => {
     }
   });
 
+  // renderer 上报语音情绪（声学特征启发式出的 valence/arousal）→ perception.emotion(source:'voice')。
+  // 语音主给 arousal，与文字(valence准)/面部一起由 EmotionState late-fusion。
+  ipcMain.on('agent:voice-emotion', (_evt, payload: { valence?: number; arousal?: number }) => {
+    const valence = Number(payload?.valence);
+    const arousal = Number(payload?.arousal);
+    if (Number.isFinite(valence) && Number.isFinite(arousal)) {
+      eventBus.emit({ kind: 'perception.emotion', ts: Date.now(), valence, arousal, source: 'voice' });
+    }
+  });
+
   // 主动搭话开关（默认关，主动打扰是敏感行为需显式开启）。
   ipcMain.handle('agent:proactive', (_evt, payload: { enabled?: boolean }) => {
     const enabled = !!(payload && payload.enabled);
