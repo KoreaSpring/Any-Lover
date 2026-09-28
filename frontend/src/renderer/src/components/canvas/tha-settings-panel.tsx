@@ -6,6 +6,7 @@ import { useThaConfig, ThaPerfPreset } from '@/context/tha-config-context';
 import { thaDriver } from '@/utils/tha-driver';
 import { toaster } from '@/components/ui/toaster';
 import { FaceEmotionRunner } from '@/utils/face-emotion';
+import { VoiceEmotionRunner } from '@/utils/voice-emotion';
 
 // THA 参数侧边面板（Windows / THA 模式）。展开态占满左侧一列（对标截图蓝圈），
 // 含：立绘上传 + 抠图模型选择（动漫/写实）+ 当前立绘 + 性能预设 + 提示。
@@ -75,6 +76,45 @@ export const ThaSettingsPanel = memo((): JSX.Element => {
       });
     } finally {
       setFaceBusy(false);
+    }
+  };
+
+  // 语音情绪（声学特征，renderer 本地，需麦克风，默认关）。
+  const [voiceOn, setVoiceOn] = useState(false);
+  const [voiceBusy, setVoiceBusy] = useState(false);
+  const voiceRunnerRef = useRef<VoiceEmotionRunner | null>(null);
+
+  const toggleVoice = async (): Promise<void> => {
+    const r = (window as any).electron?.ipcRenderer;
+    const next = !voiceOn;
+    setVoiceBusy(true);
+    try {
+      if (next) {
+        const runner = new VoiceEmotionRunner((reading) => {
+          r?.send('agent:voice-emotion', reading);
+        });
+        await runner.start(); // 无麦克风/拒绝会抛错
+        voiceRunnerRef.current = runner;
+        setVoiceOn(true);
+        toaster.create({ title: '已开启语音情绪', type: 'success', duration: 2000 });
+      } else {
+        voiceRunnerRef.current?.stop();
+        voiceRunnerRef.current = null;
+        setVoiceOn(false);
+        toaster.create({ title: '已关闭语音情绪', type: 'success', duration: 2000 });
+      }
+    } catch (e) {
+      voiceRunnerRef.current?.stop();
+      voiceRunnerRef.current = null;
+      setVoiceOn(false);
+      toaster.create({
+        title: '语音情绪不可用',
+        description: `${e instanceof Error ? e.message : e}（需麦克风权限）`,
+        type: 'warning',
+        duration: 4000,
+      });
+    } finally {
+      setVoiceBusy(false);
     }
   };
 
@@ -551,6 +591,27 @@ export const ThaSettingsPanel = memo((): JSX.Element => {
         <Text fontSize="10px" color="whiteAlpha.500">
           开启后通过摄像头体察你的面部情绪，与话语情绪一起让桌宠更懂你的状态。
           仅本地实时识别、不录像不上传不保存画面；只取情绪不复制你的表情；关闭即停止采集。
+        </Text>
+      </Box>
+
+      {/* 语音情绪（声学特征，需麦克风，默认关；主要体察情绪激动程度） */}
+      <Box>
+        <Box display="flex" alignItems="center" justifyContent="space-between" mb="6px">
+          <Text fontSize="sm" color="whiteAlpha.700" fontWeight="semibold">
+            语音情绪
+          </Text>
+          <Button
+            size="sm"
+            variant={voiceOn ? 'solid' : 'outline'}
+            loading={voiceBusy}
+            onClick={toggleVoice}
+          >
+            {voiceOn ? '已开启' : '开启'}
+          </Button>
+        </Box>
+        <Text fontSize="10px" color="whiteAlpha.500">
+          开启后从你说话的声调起伏体察情绪的激动程度，与话语内容一起判断你的状态。
+          仅本地实时分析、不录音不上传不保存音频；只取情绪信号；关闭即停止采集。
         </Text>
       </Box>
 
