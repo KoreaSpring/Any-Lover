@@ -21,6 +21,8 @@ import { ResourceCoordinator } from './agent/resource-coordinator';
 import { ThaResource, THA_RESOURCE_ID } from './agent/tha-resource';
 import { VlmClient } from './agent/vlm-client';
 import { VlmResource } from './agent/vlm-resource';
+import { llmProviderRegistry } from './agent/llm-provider';
+import { rebuildProvidersFromSettings } from './agent/providers/provider-factory';
 import './gpu-fix';
 import { OllamaManager, resolveBundledOllama, resolveAnyOllama } from './ollama-manager';
 import { registerAibotIpc } from './aibot-ipc';
@@ -344,6 +346,47 @@ app.whenReady().then(() => {
     try {
       memoryStore.clear();
       return { ok: true };
+    } catch (e: any) {
+      return { ok: false, message: String((e && e.message) || e) };
+    }
+  });
+
+  // LLM Provider（中枢直连）：按当前设置组装 provider 注册表。过渡期不接管现有对话
+  // （对话仍走 Python 后端），仅让中枢能独立发起在线 LLM 调用，为将来编排上移铺路。
+  rebuildProvidersFromSettings(logToFile);
+
+  // 探测当前激活 provider 连通性。
+  ipcMain.handle('agent:llm:probe', async () => {
+    try {
+      rebuildProvidersFromSettings(logToFile); // 反映最新设置
+      const p = llmProviderRegistry.active();
+      if (!p) return { ok: false, message: '未配置可用的主模型 provider' };
+      if (!p.probe) return { ok: true, message: `provider ${p.id} 已就绪（无探测）` };
+      const r = await p.probe();
+      return { ok: r.ok, message: r.message, provider: p.id };
+    } catch (e: any) {
+      return { ok: false, message: String((e && e.message) || e) };
+    }
+  });
+
+  // 一次性对话（收集完整流式回复后返回）：验证 provider 抽象独立于 Python 后端工作。
+  // 注意：这不接管桌宠对话（桌宠仍走 12393），仅供中枢/测试直连主模型用。
+  ipcMain.handle('agent:llm:chat', async (_evt, payload: { messages?: any[]; model?: string }) => {
+    try {
+      const p = llmProviderRegistry.active();
+      if (!p) return { ok: false, message: '未配置可用的主模型 provider' };
+      const s = readSettings();
+      const model = String(payload?.model || (s.provider === 'openai' ? s.model : s.ollamaModel) || '').trim();
+      if (!model) return { ok: false, message: '未指定模型' };
+      const messages = Array.isArray(payload?.messages) && payload!.messages!.length
+        ? payload!.messages!
+        : [{ role: 'user', content: 'ping' }];
+      let text = '';
+      for await (const chunk of p.chat({ model, messages, temperature: s.temperature })) {
+        text += chunk.delta;
+        if (chunk.done) break;
+      }
+      return { ok: true, text, provider: p.id, model };
     } catch (e: any) {
       return { ok: false, message: String((e && e.message) || e) };
     }
