@@ -33,6 +33,41 @@ export const ThaSettingsPanel = memo((): JSX.Element => {
   const [screenOn, setScreenOn] = useState(false);
   const [screenBusy, setScreenBusy] = useState(false);
 
+  // 情绪识别共情（默认关，需主模型）。
+  const [emotionOn, setEmotionOn] = useState(false);
+  const [emotionBusy, setEmotionBusy] = useState(false);
+
+  const toggleEmotion = async (): Promise<void> => {
+    const r = (window as any).electron?.ipcRenderer;
+    if (!r) return;
+    const next = !emotionOn;
+    setEmotionBusy(true);
+    try {
+      const res = await r.invoke('agent:emotion', { enabled: next });
+      if (res?.ok) {
+        setEmotionOn(next);
+        toaster.create({
+          title: next ? '已开启情绪共情' : '已关闭情绪共情',
+          type: 'success',
+          duration: 2000,
+        });
+      } else {
+        setEmotionOn(false);
+        toaster.create({
+          title: '情绪共情不可用',
+          description: res?.message || '需先配置主模型',
+          type: 'warning',
+          duration: 4000,
+        });
+      }
+    } catch (e) {
+      setEmotionOn(false);
+      toaster.create({ title: `切换失败: ${e}`, type: 'error', duration: 3000 });
+    } finally {
+      setEmotionBusy(false);
+    }
+  };
+
   // 主动搭话（非对话时基于观察主动关心，默认关）。
   const [proactiveOn, setProactiveOn] = useState(false);
   const [proactiveBusy, setProactiveBusy] = useState(false);
@@ -406,6 +441,27 @@ export const ThaSettingsPanel = memo((): JSX.Element => {
         <Text fontSize="10px" color="whiteAlpha.500">
           开启后桌宠会每隔几分钟观察一次屏幕，记住你在做什么（如"在调代码"），让陪伴更贴近你的当下。
           画面仅在本地处理、不上传、不保存截图；密码/银行等敏感窗口自动跳过；关闭即停止。
+        </Text>
+      </Box>
+
+      {/* 情绪共情（实验性，默认关；需先配好主模型） */}
+      <Box>
+        <Box display="flex" alignItems="center" justifyContent="space-between" mb="6px">
+          <Text fontSize="sm" color="whiteAlpha.700" fontWeight="semibold">
+            情绪共情
+          </Text>
+          <Button
+            size="sm"
+            variant={emotionOn ? 'solid' : 'outline'}
+            loading={emotionBusy}
+            onClick={toggleEmotion}
+          >
+            {emotionOn ? '已开启' : '开启'}
+          </Button>
+        </Box>
+        <Text fontSize="10px" color="whiteAlpha.500">
+          开启后，桌宠会体察你话里的情绪，用贴合的表情与语气回应（识别情绪不复制表情）。
+          需先配置主模型；关闭即停止。
         </Text>
       </Box>
 

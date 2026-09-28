@@ -24,6 +24,9 @@ import { VlmResource } from './agent/vlm-resource';
 import { llmProviderRegistry } from './agent/llm-provider';
 import { rebuildProvidersFromSettings } from './agent/providers/provider-factory';
 import { ProactiveEngine } from './agent/proactive-engine';
+import { EmotionSource } from './agent/emotion-source';
+import { EmotionState } from './agent/emotion-state';
+import { EmotionExpressionBridge } from './agent/emotion-expression-bridge';
 import './gpu-fix';
 import { OllamaManager, resolveBundledOllama, resolveAnyOllama } from './ollama-manager';
 import { registerAibotIpc } from './aibot-ipc';
@@ -100,6 +103,13 @@ proactiveEngine.setDeliver((text: string) => {
     if (!w.isDestroyed()) w.webContents.send('agent:proactive-say', { text });
   }
 });
+
+// 情绪融合共情（文字路，第一步）：EmotionState 聚合 + Bridge 共情表情常驻订阅；
+// EmotionSource（调 LLM 判情绪）由 agent:emotion 开关控制。情绪注入主动搭话语气。
+const emotionState = new EmotionState();
+const emotionSource = new EmotionSource(llmProviderRegistry, logToFile);
+const emotionExpressionBridge = new EmotionExpressionBridge(emotionState, logToFile);
+proactiveEngine.setEmotionState(emotionState);
 
 // 是否启用 THA 渲染：默认在 Windows 且能找到 THA 服务时启用；
 // 可用环境变量 ANYLOVER_RENDER_MODE=live2d 强制关闭（回退纯 Live2D）。
@@ -402,6 +412,13 @@ app.whenReady().then(() => {
     }
   });
 
+  // renderer 上报用户消息 → 注入 agent 中枢事件总线（供情绪识别/主动搭话交互时间）。
+  // 不改 Python 后端对话链路，只是把「用户说了什么」旁路一份给中枢感知。
+  ipcMain.on('agent:user-msg', (_evt, payload: { text?: string }) => {
+    const text = String(payload?.text || '').trim();
+    if (text) eventBus.emit({ kind: 'user.msg', ts: Date.now(), text });
+  });
+
   // 主动搭话开关（默认关，主动打扰是敏感行为需显式开启）。
   ipcMain.handle('agent:proactive', (_evt, payload: { enabled?: boolean }) => {
     const enabled = !!(payload && payload.enabled);
@@ -420,6 +437,31 @@ app.whenReady().then(() => {
     } catch (e: any) {
       const msg = String((e && e.message) || e);
       proactiveEngine.stop();
+      return { ok: false, message: msg };
+    }
+  });
+
+  // 情绪聚合与共情表情常驻订阅（只聚合读数/映射表情，不主动调 LLM，无副作用）。
+  emotionState.start();
+  emotionExpressionBridge.start();
+
+  // 情绪识别开关（默认关；开启后每条用户消息节流后调一次 LLM 判情绪 → 共情表情 + 语气）。
+  ipcMain.handle('agent:emotion', (_evt, payload: { enabled?: boolean }) => {
+    const enabled = !!(payload && payload.enabled);
+    try {
+      if (enabled) {
+        rebuildProvidersFromSettings(logToFile);
+        if (!llmProviderRegistry.active()) {
+          return { ok: false, message: '未配置可用的主模型，无法开启情绪识别' };
+        }
+        emotionSource.start();
+      } else {
+        emotionSource.stop();
+      }
+      return { ok: true };
+    } catch (e: any) {
+      const msg = String((e && e.message) || e);
+      emotionSource.stop();
       return { ok: false, message: msg };
     }
   });
@@ -542,6 +584,13 @@ function cleanupAll(): void {
     proactiveEngine.stop();
   } catch (e) {
     logToFile(`[shutdown] proactiveEngine.stop 异常：${String((e as any)?.message || e)}`);
+  }
+  try {
+    emotionSource.stop();
+    emotionExpressionBridge.stop();
+    emotionState.stop();
+  } catch (e) {
+    logToFile(`[shutdown] emotion.stop 异常：${String((e as any)?.message || e)}`);
   }
   try {
     screenMemoryBridge.stop();

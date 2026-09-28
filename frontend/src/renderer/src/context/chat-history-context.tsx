@@ -73,6 +73,13 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
       type: 'text', // Explicitly set type for human messages
       timestamp: new Date().toISOString(),
     };
+    // 上报用户消息给主进程 agent 中枢（供情绪识别/主动搭话交互时间等）。
+    // 文字输入与语音转写都汇聚于此，一处覆盖两条来源；失败静默，不影响对话。
+    try {
+      (window as any).electron?.ipcRenderer?.send('agent:user-msg', { text: content });
+    } catch {
+      /* ignore */
+    }
     setMessages((prevMessages) => [...prevMessages, newMessage]);
   }, []);
 
