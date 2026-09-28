@@ -1,10 +1,11 @@
 /* eslint-disable @typescript-eslint/ban-ts-comment */
-import { memo, useState } from 'react';
+import { memo, useState, useRef } from 'react';
 import { Box, Button, Text } from '@chakra-ui/react';
 import { FiChevronLeft, FiUpload, FiSettings } from 'react-icons/fi';
 import { useThaConfig, ThaPerfPreset } from '@/context/tha-config-context';
 import { thaDriver } from '@/utils/tha-driver';
 import { toaster } from '@/components/ui/toaster';
+import { FaceEmotionRunner } from '@/utils/face-emotion';
 
 // THA 参数侧边面板（Windows / THA 模式）。展开态占满左侧一列（对标截图蓝圈），
 // 含：立绘上传 + 抠图模型选择（动漫/写实）+ 当前立绘 + 性能预设 + 提示。
@@ -36,6 +37,46 @@ export const ThaSettingsPanel = memo((): JSX.Element => {
   // 情绪识别共情（默认关，需主模型）。
   const [emotionOn, setEmotionOn] = useState(false);
   const [emotionBusy, setEmotionBusy] = useState(false);
+
+  // 面部情绪（MediaPipe，renderer 本地，需摄像头，默认关）。
+  const [faceOn, setFaceOn] = useState(false);
+  const [faceBusy, setFaceBusy] = useState(false);
+  const faceRunnerRef = useRef<FaceEmotionRunner | null>(null);
+
+  const toggleFace = async (): Promise<void> => {
+    const r = (window as any).electron?.ipcRenderer;
+    const next = !faceOn;
+    setFaceBusy(true);
+    try {
+      if (next) {
+        const runner = new FaceEmotionRunner((reading) => {
+          // 上报主进程 → perception.emotion(source:'face') → EmotionState 融合。
+          r?.send('agent:face-emotion', reading);
+        });
+        await runner.start(); // 无摄像头/加载失败会抛错
+        faceRunnerRef.current = runner;
+        setFaceOn(true);
+        toaster.create({ title: '已开启面部情绪', type: 'success', duration: 2000 });
+      } else {
+        faceRunnerRef.current?.stop();
+        faceRunnerRef.current = null;
+        setFaceOn(false);
+        toaster.create({ title: '已关闭面部情绪', type: 'success', duration: 2000 });
+      }
+    } catch (e) {
+      faceRunnerRef.current?.stop();
+      faceRunnerRef.current = null;
+      setFaceOn(false);
+      toaster.create({
+        title: '面部情绪不可用',
+        description: `${e instanceof Error ? e.message : e}（需摄像头且可联网加载模型）`,
+        type: 'warning',
+        duration: 4000,
+      });
+    } finally {
+      setFaceBusy(false);
+    }
+  };
 
   const toggleEmotion = async (): Promise<void> => {
     const r = (window as any).electron?.ipcRenderer;
@@ -489,6 +530,27 @@ export const ThaSettingsPanel = memo((): JSX.Element => {
         <Text fontSize="10px" color="whiteAlpha.500">
           开启后，桌宠会体察你话里的情绪，用贴合的表情与语气回应（识别情绪不复制表情）。
           需先配置主模型；关闭即停止。
+        </Text>
+      </Box>
+
+      {/* 面部情绪（MediaPipe，需摄像头，默认关；与文字情绪一起融合） */}
+      <Box>
+        <Box display="flex" alignItems="center" justifyContent="space-between" mb="6px">
+          <Text fontSize="sm" color="whiteAlpha.700" fontWeight="semibold">
+            面部情绪
+          </Text>
+          <Button
+            size="sm"
+            variant={faceOn ? 'solid' : 'outline'}
+            loading={faceBusy}
+            onClick={toggleFace}
+          >
+            {faceOn ? '已开启' : '开启'}
+          </Button>
+        </Box>
+        <Text fontSize="10px" color="whiteAlpha.500">
+          开启后通过摄像头体察你的面部情绪，与话语情绪一起让桌宠更懂你的状态。
+          仅本地实时识别、不录像不上传不保存画面；只取情绪不复制你的表情；关闭即停止采集。
         </Text>
       </Box>
 
