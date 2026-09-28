@@ -349,6 +349,24 @@ function WebSocketHandler({ children }: { children: React.ReactNode }) {
     return () => wsService.disconnect();
   }, [wsUrl]);
 
+  // 主动搭话：订阅主进程广播（agent:proactive-say），把桌宠主动说的一句显示为字幕。
+  // 不经 Python 后端对话链路，是中枢决策层直接产出的表达。
+  useEffect(() => {
+    const api = (window as any).electron?.ipcRenderer;
+    if (!api) return undefined;
+    const handler = (_e: unknown, payload: { text?: string }): void => {
+      if (payload?.text) setSubtitleText(payload.text);
+    };
+    api.on('agent:proactive-say', handler);
+    return () => {
+      try {
+        api.removeListener('agent:proactive-say', handler);
+      } catch {
+        /* ignore */
+      }
+    };
+  }, [setSubtitleText]);
+
   const webSocketContextValue = useMemo(() => ({
     sendMessage: wsService.sendMessage.bind(wsService),
     wsState,

@@ -33,6 +33,82 @@ export const ThaSettingsPanel = memo((): JSX.Element => {
   const [screenOn, setScreenOn] = useState(false);
   const [screenBusy, setScreenBusy] = useState(false);
 
+  // 主动搭话（非对话时基于观察主动关心，默认关）。
+  const [proactiveOn, setProactiveOn] = useState(false);
+  const [proactiveBusy, setProactiveBusy] = useState(false);
+
+  const toggleProactive = async (): Promise<void> => {
+    const r = (window as any).electron?.ipcRenderer;
+    if (!r) return;
+    const next = !proactiveOn;
+    setProactiveBusy(true);
+    try {
+      const res = await r.invoke('agent:proactive', { enabled: next });
+      if (res?.ok) {
+        setProactiveOn(next);
+        toaster.create({
+          title: next ? '已开启主动搭话' : '已关闭主动搭话',
+          type: 'success',
+          duration: 2000,
+        });
+      } else {
+        setProactiveOn(false);
+        toaster.create({
+          title: '主动搭话不可用',
+          description: res?.message || '需先配置主模型',
+          type: 'warning',
+          duration: 4000,
+        });
+      }
+    } catch (e) {
+      setProactiveOn(false);
+      toaster.create({ title: `切换失败: ${e}`, type: 'error', duration: 3000 });
+    } finally {
+      setProactiveBusy(false);
+    }
+  };
+
+  // 记忆查看/清空。
+  interface MemItem { id: string; ts: number; note: string; tags: string[]; count?: number }
+  const [memExpanded, setMemExpanded] = useState(false);
+  const [memItems, setMemItems] = useState<MemItem[]>([]);
+  const [memLoading, setMemLoading] = useState(false);
+
+  const loadMemory = async (): Promise<void> => {
+    const r = (window as any).electron?.ipcRenderer;
+    if (!r) return;
+    setMemLoading(true);
+    try {
+      const res = await r.invoke('agent:memory:recent', { limit: 30 });
+      if (res?.ok) setMemItems(res.items || []);
+    } catch {
+      /* ignore */
+    } finally {
+      setMemLoading(false);
+    }
+  };
+
+  const toggleMemory = async (): Promise<void> => {
+    const next = !memExpanded;
+    setMemExpanded(next);
+    if (next) await loadMemory();
+  };
+
+  const clearMemory = async (): Promise<void> => {
+    const r = (window as any).electron?.ipcRenderer;
+    if (!r) return;
+    // 二次确认，避免误清。
+    // eslint-disable-next-line no-alert
+    if (!window.confirm('确定清空全部桌面观察记忆？此操作不可撤销。')) return;
+    try {
+      await r.invoke('agent:memory:clear');
+      setMemItems([]);
+      toaster.create({ title: '已清空记忆', type: 'success', duration: 2000 });
+    } catch (e) {
+      toaster.create({ title: `清空失败: ${e}`, type: 'error', duration: 3000 });
+    }
+  };
+
   const toggleScreen = async (): Promise<void> => {
     const r = (window as any).electron?.ipcRenderer;
     if (!r) return;
@@ -330,6 +406,69 @@ export const ThaSettingsPanel = memo((): JSX.Element => {
         <Text fontSize="10px" color="whiteAlpha.500">
           开启后桌宠会每隔几分钟观察一次屏幕，记住你在做什么（如"在调代码"），让陪伴更贴近你的当下。
           画面仅在本地处理、不上传、不保存截图；密码/银行等敏感窗口自动跳过；关闭即停止。
+        </Text>
+      </Box>
+
+      {/* 主动搭话（实验性，默认关；需先配好主模型） */}
+      <Box>
+        <Box display="flex" alignItems="center" justifyContent="space-between" mb="6px">
+          <Text fontSize="sm" color="whiteAlpha.700" fontWeight="semibold">
+            主动搭话
+          </Text>
+          <Button
+            size="sm"
+            variant={proactiveOn ? 'solid' : 'outline'}
+            loading={proactiveBusy}
+            onClick={toggleProactive}
+          >
+            {proactiveOn ? '已开启' : '开启'}
+          </Button>
+        </Box>
+        <Text fontSize="10px" color="whiteAlpha.500">
+          开启后，桌宠会在你空闲时结合观察到的近况偶尔主动关心一句（有冷却，不频繁打扰）。
+          需先配置主模型；关闭即停止。
+        </Text>
+      </Box>
+
+      {/* 记忆查看/清空：桌宠记住的关于你的观察，透明可控 */}
+      <Box>
+        <Box display="flex" alignItems="center" justifyContent="space-between" mb="6px">
+          <Text fontSize="sm" color="whiteAlpha.700" fontWeight="semibold">
+            记忆
+          </Text>
+          <Box display="flex" gap="6px">
+            <Button size="sm" variant="outline" onClick={toggleMemory}>
+              {memExpanded ? '收起' : '查看'}
+            </Button>
+            <Button size="sm" variant="outline" onClick={clearMemory} title="清空全部记忆">
+              清空
+            </Button>
+          </Box>
+        </Box>
+        {memExpanded && (
+          <Box maxHeight="180px" overflowY="auto" bg="blackAlpha.400" borderRadius="8px" p="8px">
+            {memLoading ? (
+              <Text fontSize="11px" color="whiteAlpha.500">加载中…</Text>
+            ) : memItems.length === 0 ? (
+              <Text fontSize="11px" color="whiteAlpha.500">暂无记忆（开启桌面观察后逐步积累）</Text>
+            ) : (
+              memItems.map((m) => (
+                <Box key={m.id} mb="6px" pb="6px" borderBottom="1px solid rgba(255,255,255,0.08)">
+                  <Text fontSize="11px" color="whiteAlpha.800" truncate title={m.note}>
+                    {m.note}
+                    {m.count && m.count > 1 ? ` ×${m.count}` : ''}
+                  </Text>
+                  <Text fontSize="9px" color="whiteAlpha.400">
+                    {new Date(m.ts).toLocaleString()}
+                    {m.tags?.length ? `  ·  ${m.tags.join('/')}` : ''}
+                  </Text>
+                </Box>
+              ))
+            )}
+          </Box>
+        )}
+        <Text fontSize="10px" color="whiteAlpha.500" mt="4px">
+          桌宠记住的关于你的观察，仅存文字摘要于本地，可随时清空。
         </Text>
       </Box>
 
