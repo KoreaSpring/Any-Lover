@@ -17,6 +17,7 @@ import { eventBus, EventBus, Unsubscribe } from './event-bus';
 import { MemoryStore } from './memory-store';
 import { LLMProviderRegistry } from './llm-provider';
 import { readSettings } from '../settings-store';
+import type { EmotionState } from './emotion-state';
 
 export interface ProactiveConfig {
   /** 检查周期（毫秒）。 */
@@ -66,6 +67,9 @@ export class ProactiveEngine {
   /** 生成主动搭话后如何送达表达层（由 bootstrap 注入：IPC 广播 + 字幕）。 */
   private deliver: ((text: string) => void) | null = null;
 
+  /** 可选：当前情绪（注入语气，让主动搭话贴合用户情绪）。 */
+  private emotionState: EmotionState | null = null;
+
   constructor(
     store: MemoryStore,
     registry: LLMProviderRegistry,
@@ -83,6 +87,11 @@ export class ProactiveEngine {
   /** 注入送达回调（把生成的话交给表达层）。 */
   setDeliver(fn: (text: string) => void): void {
     this.deliver = fn;
+  }
+
+  /** 注入情绪状态（可选）：主动搭话时据当前用户情绪调整语气。 */
+  setEmotionState(state: EmotionState): void {
+    this.emotionState = state;
   }
 
   isRunning(): boolean {
@@ -157,13 +166,22 @@ export class ProactiveEngine {
       this.lastProactiveTs = now; // 先占用冷却，避免并发重复触发
       this.hasNewScreen = false;
 
+      // 若有情绪状态，把当前用户情绪注入语气（如低落时更温柔安抚）。
+      let moodHint = '';
+      if (this.emotionState) {
+        const mood = this.emotionState.current();
+        if (mood.label !== 'neutral') {
+          moodHint = `\n（用户当前情绪偏「${mood.label}」，请用贴合的语气。）`;
+        }
+      }
+
       let text = '';
       const messages = [
         { role: 'system' as const, content: PERSONA },
         {
           role: 'user' as const,
           content:
-            `根据你最近观察到用户在做的事，主动关心一句（口语、简短、不超过25字、不要多句、不要解释）：\n${observations}`,
+            `根据你最近观察到用户在做的事，主动关心一句（口语、简短、不超过25字、不要多句、不要解释）：\n${observations}${moodHint}`,
         },
       ];
       for await (const chunk of provider.chat({ model, messages, temperature: s.temperature })) {

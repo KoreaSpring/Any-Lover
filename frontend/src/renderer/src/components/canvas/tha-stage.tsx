@@ -65,6 +65,23 @@ export const ThaStage = memo(({ showSidebar: _showSidebar }: ThaStageProps): JSX
     };
   }, []);
 
+  // 共情表情：订阅主进程按用户情绪下发的桌宠共情表情（agent:express-emotion）→ 驱动 THA。
+  useEffect(() => {
+    const api = (window as any).electron?.ipcRenderer;
+    if (!api) return undefined;
+    const handler = (_e: unknown, payload: { name?: string }): void => {
+      if (payload?.name) thaDriver.sendExpression(payload.name);
+    };
+    api.on('agent:express-emotion', handler);
+    return () => {
+      try {
+        api.removeListener('agent:express-emotion', handler);
+      } catch {
+        /* ignore */
+      }
+    };
+  }, []);
+
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const closedRef = useRef(false);
