@@ -29,6 +29,7 @@ import { EmotionState } from './agent/emotion-state';
 import { EmotionExpressionBridge } from './agent/emotion-expression-bridge';
 import { RelationshipState } from './agent/relationship-state';
 import { ProfileStore, ProfileExtractor } from './agent/profile-store';
+import { LocalEmbeddingClient } from './agent/embedding-client';
 import './gpu-fix';
 import { OllamaManager, resolveBundledOllama, resolveAnyOllama } from './ollama-manager';
 import { registerAibotIpc } from './aibot-ipc';
@@ -83,6 +84,10 @@ const screenSampler = new ScreenSampler(logToFile);
 // （采样关则无 perception.screen 事件，桥自然不写入）。
 const memoryStore = new MemoryStore('screen-memory.jsonl', logToFile);
 const screenMemoryBridge = new ScreenMemoryBridge(memoryStore, logToFile);
+// 本地 embedding（走本地 Ollama nomic-embed-text，不上云）：注入后启用记忆语义检索；
+// Ollama/模型不可用时 MemoryStore 自动回退关键词检索。
+const embeddingClient = new LocalEmbeddingClient({}, logToFile);
+memoryStore.setEmbedder(embeddingClient);
 
 // 资源协调器：统一管理 THA / 采样 VLM 等重资源的显存占用（6GB 上互斥共存）。
 // THA 作为高优先资源注册；采样 VLM（P2）加载时会让 THA 临时让位。
@@ -380,6 +385,18 @@ app.whenReady().then(() => {
       return { ok: true };
     } catch (e: any) {
       return { ok: false, message: String((e && e.message) || e) };
+    }
+  });
+
+  // 记忆语义检索（有本地 embedding 则语义排序，否则回退关键词）。供将来对话注入/面板搜索。
+  ipcMain.handle('agent:memory:search', async (_evt, payload: { query?: string; limit?: number }) => {
+    try {
+      const q = String(payload?.query || '').trim();
+      if (!q) return { ok: true, items: [] };
+      const hits = await memoryStore.searchSemantic(q, payload?.limit ?? 8);
+      return { ok: true, items: hits.map((h) => ({ ...h.entry, score: h.score })) };
+    } catch (e: any) {
+      return { ok: false, message: String((e && e.message) || e), items: [] };
     }
   });
 
