@@ -29,6 +29,7 @@
     "@electron-toolkit/preload": "^3.0.1",
     "@electron-toolkit/utils": "^3.0.0",
     "@emotion/react": "^11.14.0",
+    "@mediapipe/tasks-vision": "^1.0.1",
     "@reduxjs/toolkit": "2.5.0",
     "@ricky0123/vad-web": "^0.0.24",
     "clsx": "^2.1.1",

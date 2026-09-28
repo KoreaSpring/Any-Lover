@@ -448,6 +448,16 @@ app.whenReady().then(() => {
     if (text) eventBus.emit({ kind: 'user.msg', ts: Date.now(), text });
   });
 
+  // renderer 上报面部情绪（MediaPipe 出的 valence/arousal）→ 注入 perception.emotion(source:'face')。
+  // 与文字/语音情绪一起由 EmotionState late-fusion。renderer 侧只在有摄像头且用户开启时上报。
+  ipcMain.on('agent:face-emotion', (_evt, payload: { valence?: number; arousal?: number }) => {
+    const valence = Number(payload?.valence);
+    const arousal = Number(payload?.arousal);
+    if (Number.isFinite(valence) && Number.isFinite(arousal)) {
+      eventBus.emit({ kind: 'perception.emotion', ts: Date.now(), valence, arousal, source: 'face' });
+    }
+  });
+
   // 主动搭话开关（默认关，主动打扰是敏感行为需显式开启）。
   ipcMain.handle('agent:proactive', (_evt, payload: { enabled?: boolean }) => {
     const enabled = !!(payload && payload.enabled);
