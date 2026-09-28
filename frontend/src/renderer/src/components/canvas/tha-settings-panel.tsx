@@ -29,6 +29,41 @@ export const ThaSettingsPanel = memo((): JSX.Element => {
   const [cameraOn, setCameraOn] = useState(false);
   const [cameraBusy, setCameraBusy] = useState(false);
 
+  // 桌面观察（定期采样屏幕形成记忆，默认关，比摄像头更敏感）。
+  const [screenOn, setScreenOn] = useState(false);
+  const [screenBusy, setScreenBusy] = useState(false);
+
+  const toggleScreen = async (): Promise<void> => {
+    const r = (window as any).electron?.ipcRenderer;
+    if (!r) return;
+    const next = !screenOn;
+    setScreenBusy(true);
+    try {
+      const res = await r.invoke('agent:screen', { enabled: next });
+      if (res?.ok) {
+        setScreenOn(next);
+        toaster.create({
+          title: next ? '已开启桌面观察' : '已关闭桌面观察',
+          type: 'success',
+          duration: 2000,
+        });
+      } else {
+        setScreenOn(false);
+        toaster.create({
+          title: '桌面观察不可用',
+          description: res?.message || '无法开启',
+          type: 'warning',
+          duration: 4000,
+        });
+      }
+    } catch (e) {
+      setScreenOn(false);
+      toaster.create({ title: `切换失败: ${e}`, type: 'error', duration: 3000 });
+    } finally {
+      setScreenBusy(false);
+    }
+  };
+
   const toggleCamera = async (): Promise<void> => {
     const r = (window as any).electron?.ipcRenderer;
     if (!r) return;
@@ -274,6 +309,27 @@ export const ThaSettingsPanel = memo((): JSX.Element => {
         <Text fontSize="10px" color="whiteAlpha.500">
           开启后桌宠视线会跟随你的头部朝向转动（仅识别朝向，不复制你的表情）。
           摄像头画面仅在本地处理、不上传、不录制；关闭即停止采集。
+        </Text>
+      </Box>
+
+      {/* 桌面观察（定期采样屏幕形成记忆，实验性，默认关；比摄像头更敏感） */}
+      <Box>
+        <Box display="flex" alignItems="center" justifyContent="space-between" mb="6px">
+          <Text fontSize="sm" color="whiteAlpha.700" fontWeight="semibold">
+            桌面观察
+          </Text>
+          <Button
+            size="sm"
+            variant={screenOn ? 'solid' : 'outline'}
+            loading={screenBusy}
+            onClick={toggleScreen}
+          >
+            {screenOn ? '已开启' : '开启'}
+          </Button>
+        </Box>
+        <Text fontSize="10px" color="whiteAlpha.500">
+          开启后桌宠会每隔几分钟观察一次屏幕，记住你在做什么（如"在调代码"），让陪伴更贴近你的当下。
+          画面仅在本地处理、不上传、不保存截图；密码/银行等敏感窗口自动跳过；关闭即停止。
         </Text>
       </Box>
 

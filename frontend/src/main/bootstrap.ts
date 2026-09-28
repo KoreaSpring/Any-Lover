@@ -14,6 +14,7 @@ import { registerThaIpc, ensureHqDownload } from './tha-ipc';
 import { OpenSeeFaceManager } from './openseeface-manager';
 import { eventBus } from './agent/event-bus';
 import { GazeBridge } from './agent/gaze-bridge';
+import { ScreenSampler } from './screen-sampler';
 import './gpu-fix';
 import { OllamaManager, resolveBundledOllama, resolveAnyOllama } from './ollama-manager';
 import { registerAibotIpc } from './aibot-ipc';
@@ -61,6 +62,9 @@ const tha = new ThaManager(logToFile);
 eventBus.setLogSink(logToFile);
 const openSeeFace = new OpenSeeFaceManager(logToFile);
 const gazeBridge = new GazeBridge(logToFile);
+// 桌面采样源（默认关，由 agent:screen IPC 显式启停）。P1 只做采样+门控骨架，
+// 命中发 perception.screen 占位事件；本地 VLM 摘要与落地记忆在后续步骤接入。
+const screenSampler = new ScreenSampler(logToFile);
 
 // 是否启用 THA 渲染：默认在 Windows 且能找到 THA 服务时启用；
 // 可用环境变量 ANYLOVER_RENDER_MODE=live2d 强制关闭（回退纯 Live2D）。
@@ -253,6 +257,23 @@ app.whenReady().then(() => {
     }
   });
 
+  // 桌面观察开关（默认关，敏感能力需用户显式开启）。
+  //   { enabled: true }  → 开始定期截屏采样（门控/去重后发 perception.screen）
+  //   { enabled: false } → 停止采样
+  ipcMain.handle('agent:screen', (_evt, payload: { enabled?: boolean }) => {
+    const enabled = !!(payload && payload.enabled);
+    try {
+      if (enabled) screenSampler.start();
+      else screenSampler.stop();
+      return { ok: true };
+    } catch (e: any) {
+      const msg = String((e && e.message) || e);
+      logToFile(`[startup] 桌面观察切换失败：${msg}`);
+      screenSampler.stop();
+      return { ok: false, message: msg };
+    }
+  });
+
   // 首帧同步返回「是否需要首启引导」：让主窗覆盖层第一帧就决定是否显示，
   // 避免先渲染出桌宠、再异步弹出覆盖层导致的「闪一下」。
   ipcMain.on('onboarding:need-sync', (evt) => {
@@ -347,6 +368,11 @@ function cleanupAll(): void {
     openSeeFace.killAll();
   } catch (e) {
     logToFile(`[shutdown] openSeeFace.killAll 异常：${String((e as any)?.message || e)}`);
+  }
+  try {
+    screenSampler.stop();
+  } catch (e) {
+    logToFile(`[shutdown] screenSampler.stop 异常：${String((e as any)?.message || e)}`);
   }
   try {
     globalShortcut.unregisterAll();
