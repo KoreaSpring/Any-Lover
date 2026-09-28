@@ -144,6 +144,33 @@ export const ThaSettingsPanel = memo((): JSX.Element => {
     }
   };
 
+  // 关系 + 画像查看。
+  interface RelView { familiarity: number; level: string; daysKnown: number; interactionCount: number }
+  interface ProfileFact { key: string; value: string }
+  const [relExpanded, setRelExpanded] = useState(false);
+  const [rel, setRel] = useState<RelView | null>(null);
+  const [profile, setProfile] = useState<ProfileFact[]>([]);
+
+  const loadRelationship = async (): Promise<void> => {
+    const r = (window as any).electron?.ipcRenderer;
+    if (!r) return;
+    try {
+      const res = await r.invoke('agent:relationship:get');
+      if (res?.ok) {
+        setRel(res.relationship || null);
+        setProfile(res.profile || []);
+      }
+    } catch {
+      /* ignore */
+    }
+  };
+
+  const toggleRelationship = async (): Promise<void> => {
+    const next = !relExpanded;
+    setRelExpanded(next);
+    if (next) await loadRelationship();
+  };
+
   const toggleScreen = async (): Promise<void> => {
     const r = (window as any).electron?.ipcRenderer;
     if (!r) return;
@@ -525,6 +552,42 @@ export const ThaSettingsPanel = memo((): JSX.Element => {
         )}
         <Text fontSize="10px" color="whiteAlpha.500" mt="4px">
           桌宠记住的关于你的观察，仅存文字摘要于本地，可随时清空。
+        </Text>
+      </Box>
+
+      {/* 关系 + 画像：桌宠和你的关系温度、它记住的你的长期事实 */}
+      <Box>
+        <Box display="flex" alignItems="center" justifyContent="space-between" mb="6px">
+          <Text fontSize="sm" color="whiteAlpha.700" fontWeight="semibold">
+            关系
+          </Text>
+          <Button size="sm" variant="outline" onClick={toggleRelationship}>
+            {relExpanded ? '收起' : '查看'}
+          </Button>
+        </Box>
+        {relExpanded && (
+          <Box bg="blackAlpha.400" borderRadius="8px" p="8px">
+            {rel ? (
+              <Text fontSize="11px" color="whiteAlpha.800" mb="6px">
+                {`关系：${rel.level}（熟悉度 ${Math.round(rel.familiarity * 100)}%）· 相识 ${Math.floor(rel.daysKnown)} 天 · 互动 ${rel.interactionCount} 次`}
+              </Text>
+            ) : (
+              <Text fontSize="11px" color="whiteAlpha.500" mb="6px">暂无关系数据</Text>
+            )}
+            {profile.length > 0 && (
+              <Box>
+                <Text fontSize="10px" color="whiteAlpha.500" mb="3px">桌宠记住的你：</Text>
+                {profile.map((f) => (
+                  <Text key={f.key} fontSize="11px" color="whiteAlpha.700" truncate>
+                    · {f.key}：{f.value}
+                  </Text>
+                ))}
+              </Box>
+            )}
+          </Box>
+        )}
+        <Text fontSize="10px" color="whiteAlpha.500" mt="4px">
+          关系随互动自然升温；画像由主模型从观察中提炼，均存本地，随记忆一并清空。
         </Text>
       </Box>
 
