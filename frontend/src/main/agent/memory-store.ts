@@ -11,6 +11,13 @@
 import fs from 'fs';
 import path from 'path';
 import { app } from 'electron';
+import { LocalEmbeddingClient, cosineSimilarity } from './embedding-client';
+
+/** 检索结果：记忆条目 + 相关度得分。 */
+export interface MemoryHit {
+  entry: MemoryEntry;
+  score: number;
+}
 
 /** 一条记忆。kind 区分来源（screen/对话/情绪…）。 */
 export interface MemoryEntry {
@@ -22,6 +29,7 @@ export interface MemoryEntry {
   importance: number; // 0..1，低权重可过期清理
   count?: number; // 合并计数（连续同活动合并成一条）
   firstTs?: number; // 首次发生时间（合并时保留）
+  embedding?: number[]; // 语义向量（本地 Ollama 懒计算缓存；无则回退关键词检索）
   meta?: Record<string, unknown>;
 }
 
@@ -54,10 +62,18 @@ export class MemoryStore {
 
   private readonly log: (msg: string) => void;
 
+  /** 可选本地 embedding 客户端（注入后启用语义检索；不注入/不可用则回退关键词）。 */
+  private embedder: LocalEmbeddingClient | null = null;
+
   constructor(fileName = 'screen-memory.jsonl', logger?: (msg: string) => void, capacity = DEFAULT_CAPACITY) {
     this.fileName = fileName;
     this.log = logger || (() => {});
     this.capacity = capacity;
+  }
+
+  /** 注入本地 embedding 客户端（启用语义检索）。 */
+  setEmbedder(embedder: LocalEmbeddingClient): void {
+    this.embedder = embedder;
   }
 
   private dir(): string {
@@ -140,6 +156,64 @@ export class MemoryStore {
     return this.query({ limit });
   }
 
+  /**
+   * 轻量本地检索（无 embedding，立即可用）：查询分词后与每条 note+tags 做词命中打分，
+   * 叠加时间衰减与合并计数加权，返回按相关度排序的命中。纯本地纯计算。
+   */
+  search(queryText: string, limit = 8, now = Date.now()): MemoryHit[] {
+    this.load();
+    const terms = tokenize(queryText);
+    if (!terms.length) return this.recent(limit).map((e) => ({ entry: e, score: 0 }));
+    const hits: MemoryHit[] = [];
+    for (const e of this.entries) {
+      const hay = (e.note + ' ' + e.tags.join(' ')).toLowerCase();
+      let hit = 0;
+      for (const t of terms) if (hay.includes(t)) hit += 1;
+      if (hit === 0) continue;
+      const ageDays = (now - e.ts) / (24 * 3600 * 1000);
+      const recency = Math.pow(0.5, ageDays / 14); // 两周半衰
+      const countBoost = 1 + Math.log(1 + (e.count || 1)) * 0.1;
+      const score = (hit / terms.length) * recency * countBoost;
+      hits.push({ entry: e, score });
+    }
+    hits.sort((a, b) => b.score - a.score);
+    return hits.slice(0, limit);
+  }
+
+  /**
+   * 语义检索：注入了本地 embedding 且可用时，用向量余弦相似度排序（懒计算缺失向量并缓存）；
+   * 否则回退到 search() 的关键词检索。
+   */
+  async searchSemantic(queryText: string, limit = 8): Promise<MemoryHit[]> {
+    this.load();
+    if (!this.embedder) return this.search(queryText, limit);
+    const qvec = await this.embedder.embed(queryText);
+    if (!qvec) return this.search(queryText, limit); // Ollama/模型不可用 → 回退
+
+    // 懒计算：为参与检索的条目补齐缺失向量（限量，避免一次算太多卡顿）。
+    let computed = 0;
+    for (const e of this.entries) {
+      if (!e.embedding && computed < 20) {
+        // eslint-disable-next-line no-await-in-loop
+        const v = await this.embedder.embed(e.note);
+        if (v) {
+          e.embedding = v;
+          computed += 1;
+        }
+      }
+    }
+    if (computed > 0) this.scheduleFlush();
+
+    const hits: MemoryHit[] = [];
+    for (const e of this.entries) {
+      if (!e.embedding) continue;
+      hits.push({ entry: e, score: cosineSimilarity(qvec, e.embedding) });
+    }
+    if (!hits.length) return this.search(queryText, limit); // 都没向量 → 回退
+    hits.sort((a, b) => b.score - a.score);
+    return hits.slice(0, limit);
+  }
+
   /** 清空全部记忆（用户一键清空）。 */
   clear(): void {
     this.load();
@@ -167,4 +241,27 @@ export class MemoryStore {
     if (this.flushTimer) clearTimeout(this.flushTimer);
     this.flushTimer = setTimeout(() => this.flushNow(), FLUSH_DEBOUNCE_MS);
   }
+}
+
+/**
+ * 简易分词（供关键词检索）：英文/数字按词，中文按 2-gram（相邻两字），忽略过短噪声。
+ * 不追求 NLP 精度，只为「多关键词命中打分」够用。
+ */
+function tokenize(text: string): string[] {
+  const s = (text || '').toLowerCase();
+  const terms = new Set<string>();
+  // 英文/数字词
+  for (const m of s.match(/[a-z0-9]+/g) || []) {
+    if (m.length >= 2) terms.add(m);
+  }
+  // 中文按 2-gram
+  const han = s.match(/[\u4e00-\u9fa5]+/g) || [];
+  for (const seg of han) {
+    if (seg.length === 1) {
+      terms.add(seg);
+    } else {
+      for (let i = 0; i < seg.length - 1; i++) terms.add(seg.slice(i, i + 2));
+    }
+  }
+  return [...terms];
 }

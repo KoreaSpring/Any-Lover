@@ -171,10 +171,16 @@ export class ProactiveEngine {
     const provider = this.registry.active();
     if (!provider) return; // 无可用主模型，静默跳过
 
-    // 组织上下文：最近几条屏幕记忆 + 人设。
-    const recent = this.store.recent(5).filter((m) => m.kind === 'screen');
-    if (!recent.length) return;
-    const observations = recent.map((m) => `- ${m.note}`).join('\n');
+    // 组织上下文：以最近一条观察为线索做语义检索，取「相关 + 最近」的屏幕记忆（去重）。
+    // 有本地 embedding 时是语义相关，否则回退关键词/最近。让主动搭话更聚焦当前主题。
+    const latest = this.store.recent(1)[0];
+    const relatedHits = latest ? await this.store.searchSemantic(latest.note, 4) : [];
+    const picked = new Map<string, string>();
+    for (const h of relatedHits) if (h.entry.kind === 'screen') picked.set(h.entry.id, h.entry.note);
+    for (const m of this.store.recent(5)) if (m.kind === 'screen') picked.set(m.id, m.note);
+    const notes = [...picked.values()].slice(0, 6);
+    if (!notes.length) return;
+    const observations = notes.map((n) => `- ${n}`).join('\n');
 
     const s = readSettings();
     const model = String(s.provider === 'openai' ? s.model : s.ollamaModel || '').trim();
