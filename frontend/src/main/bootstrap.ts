@@ -19,6 +19,8 @@ import { MemoryStore } from './agent/memory-store';
 import { ScreenMemoryBridge } from './agent/screen-memory-bridge';
 import { ResourceCoordinator } from './agent/resource-coordinator';
 import { ThaResource, THA_RESOURCE_ID } from './agent/tha-resource';
+import { VlmClient } from './agent/vlm-client';
+import { VlmResource } from './agent/vlm-resource';
 import './gpu-fix';
 import { OllamaManager, resolveBundledOllama, resolveAnyOllama } from './ollama-manager';
 import { registerAibotIpc } from './aibot-ipc';
@@ -79,6 +81,13 @@ const screenMemoryBridge = new ScreenMemoryBridge(memoryStore, logToFile);
 const resourceCoordinator = new ResourceCoordinator(4500, logToFile);
 const thaResource = new ThaResource(tha, logToFile);
 resourceCoordinator.register(thaResource);
+
+// 采样 VLM（本地 moondream 出屏幕摘要）：注册为低优先资源（加载时让 THA 让位），
+// 并注入 ScreenSampler。无 Ollama/moondream 时优雅降级为占位摘要，不影响其它功能。
+const vlmClient = new VlmClient({}, logToFile);
+const vlmResource = new VlmResource(vlmClient, logToFile);
+resourceCoordinator.register(vlmResource);
+screenSampler.setVlm(resourceCoordinator, vlmClient);
 
 // 是否启用 THA 渲染：默认在 Windows 且能找到 THA 服务时启用；
 // 可用环境变量 ANYLOVER_RENDER_MODE=live2d 强制关闭（回退纯 Live2D）。

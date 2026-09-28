@@ -13,6 +13,9 @@
 import { desktopCapturer } from 'electron';
 import { eventBus, EventBus } from './agent/event-bus';
 import { isBlocked, perceptualHash, isNearDuplicate, DEFAULT_BLOCKLIST } from './agent/screen-gate';
+import type { ResourceCoordinator } from './agent/resource-coordinator';
+import type { VlmClient } from './agent/vlm-client';
+import { VLM_RESOURCE_ID } from './agent/vlm-resource';
 
 export interface ScreenSamplerConfig {
   /** 采样间隔（毫秒）。默认 3 分钟。 */
@@ -47,10 +50,21 @@ export class ScreenSampler {
 
   private readonly bus: EventBus;
 
+  // 可选依赖：接入后命中帧会经资源协调器加载 VLM 出真实摘要；未注入则保持占位摘要。
+  private coordinator: ResourceCoordinator | null = null;
+
+  private vlm: VlmClient | null = null;
+
   constructor(logger?: (msg: string) => void, bus: EventBus = eventBus, config: Partial<ScreenSamplerConfig> = {}) {
     this.log = logger || (() => {});
     this.bus = bus;
     this.config = { ...DEFAULT_CONFIG, ...config };
+  }
+
+  /** 注入 VLM 摘要能力（资源协调器 + VLM 客户端）。不注入则命中帧发占位摘要。 */
+  setVlm(coordinator: ResourceCoordinator, vlm: VlmClient): void {
+    this.coordinator = coordinator;
+    this.vlm = vlm;
   }
 
   isRunning(): boolean {
@@ -112,17 +126,51 @@ export class ScreenSampler {
       }
       this.lastHash = hash;
 
-      // 4) 命中：emit perception.screen（P1 占位摘要，P2 由本地 VLM 替换为真实内容摘要）。
-      this.bus.emit({
-        kind: 'perception.screen',
-        ts: Date.now(),
-        summary: '(待视觉摘要)', // P2 接入本地 VLM 后替换
-        tags: [],
-      });
-      this.log('[screen] 采样一帧（画面有变化），已发 perception.screen 占位事件');
+      // 4) 命中：出摘要（有 VLM 则本地 VLM 出真实摘要，用完即卸让 THA 恢复；否则占位）。
+      const { summary, tags } = await this.summarize();
+      this.bus.emit({ kind: 'perception.screen', ts: Date.now(), summary, tags });
+      this.log(`[screen] 采样一帧（画面有变化）：${summary}`);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       this.log(`[screen] 采样异常：${msg}`);
+    }
+  }
+
+  /**
+   * 出摘要：注入了 VLM 则经资源协调器加载 VLM（会让 THA 让出显存）→ 截一张中等尺寸图 →
+   * 本地 VLM 出摘要 → release（用完即卸，THA 恢复）。未注入或不可用则返回占位摘要。
+   */
+  private async summarize(): Promise<{ summary: string; tags: string[] }> {
+    const placeholder = { summary: '(待视觉摘要)', tags: [] as string[] };
+    if (!this.coordinator || !this.vlm) return placeholder;
+    try {
+      // 加载 VLM（协调器会在显存不足时让 THA degrade 让位）。
+      await this.coordinator.acquire(VLM_RESOURCE_ID);
+      if (!this.coordinator.isLoaded(VLM_RESOURCE_ID)) {
+        // Ollama/moondream 不可用：优雅降级为占位。
+        this.coordinator.release(VLM_RESOURCE_ID);
+        return placeholder;
+      }
+      // 截一张中等尺寸图给 VLM（比哈希用的缩略图大，但不必全尺，省 token/显存）。
+      const sources = await desktopCapturer.getSources({
+        types: ['screen'],
+        thumbnailSize: { width: 640, height: 360 },
+      });
+      const thumb = sources[0]?.thumbnail;
+      if (!thumb || thumb.isEmpty()) return placeholder;
+      const b64 = thumb.toPNG().toString('base64');
+      const res = await this.vlm.summarize(b64);
+      return res && res.summary ? res : placeholder;
+    } catch (e) {
+      this.log(`[screen] VLM 摘要异常（降级为占位）：${e instanceof Error ? e.message : String(e)}`);
+      return placeholder;
+    } finally {
+      // 用完即释放：引用归零后 THA 可在下次需要时恢复。
+      try {
+        this.coordinator?.release(VLM_RESOURCE_ID);
+      } catch {
+        /* ignore */
+      }
     }
   }
 
