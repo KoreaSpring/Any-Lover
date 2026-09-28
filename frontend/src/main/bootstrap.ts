@@ -264,6 +264,55 @@ async function ensureModelSilently(): Promise<void> {
   }
 }
 
+// 本地辅助小模型：屏幕观察的视觉理解(moondream) + 记忆语义检索的 embedding(nomic-embed-text)。
+// 架构原则「除主模型走线上外全本地」——这两个跑在本地 Ollama。首启自动 pull，让「桌面观察/记忆
+// 语义检索」开箱即用；幂等（已装跳过）、并行、失败不阻塞、进度推右上角。
+const LOCAL_HELPER_MODELS = ['moondream', 'nomic-embed-text'];
+
+async function ensureLocalHelperModels(): Promise<void> {
+  const s = readSettings();
+  // 需要有可用 Ollama（本地辅助模型都在 Ollama 上）。即使主模型走线上，也用本地 Ollama 跑辅助模型。
+  const resolved = resolveAnyOllama(s.ollamaDir);
+  if (!resolved) return;
+  const host = s.ollamaHost || 'http://127.0.0.1:11434';
+  // 确保 serve 起来（主模型走线上时 startBackend 不会起 Ollama，这里为辅助模型补起）。
+  try {
+    await ollama.ensureServe(resolved.exe, host, resolved.modelsDir);
+  } catch {
+    /* 起不来则下面 listModels 会失败并跳过 */
+  }
+  let list: { ok: boolean; models: string[] };
+  try {
+    list = await ollama.listModels(host);
+  } catch {
+    return; // Ollama 未就绪则跳过（下次启动再试）
+  }
+  if (!list.ok) return;
+
+  for (const model of LOCAL_HELPER_MODELS) {
+    // 前缀匹配（模型名可能带 :tag）；已装则跳过。
+    const installed = list.models.some((n) => n === model || n.startsWith(model + ':'));
+    if (installed) {
+      logToFile(`[startup] 本地辅助模型已就绪：${model}`);
+      continue;
+    }
+    if (ollama.isPulling(model) || !ollama.beginPull(model)) continue;
+    // 逐个后台拉取（不阻塞；进度推右上角）。不 await 全部并发，避免同时占满带宽/磁盘。
+    void (async () => {
+      try {
+        logToFile(`[startup] 后台拉取本地辅助模型：${model}`);
+        await pullModel(host, model, (p) => broadcastOllamaProgress({ ...(p as object), model }));
+        logToFile(`[startup] 本地辅助模型拉取完成：${model}`);
+      } catch (e: any) {
+        logToFile(`[startup] 拉取本地辅助模型失败（${model}）：${String((e && e.message) || e)}`);
+        broadcastOllamaProgress({ stage: 'pull', percent: -1, message: `${model} 下载失败`, model });
+      } finally {
+        ollama.endPull(model);
+      }
+    })();
+  }
+}
+
 // 启动后端（前端窗口的 WebSocket 会自动连到 127.0.0.1:12393，无需改前端）
 async function startBackend(): Promise<string> {
   const s = readSettings();
@@ -288,6 +337,9 @@ async function startBackend(): Promise<string> {
   if (tha.canStart()) {
     void ensureHqDownload(tha, logToFile);
   }
+  // 本地辅助小模型（moondream 视觉 + nomic-embed-text embedding）：首启自动 pull，让桌面观察/
+  // 记忆语义检索开箱即用。跨平台（不限 Windows）；幂等、并行、失败不阻塞、进度推右上角。
+  void ensureLocalHelperModels();
 
   return backend.start();
 }
