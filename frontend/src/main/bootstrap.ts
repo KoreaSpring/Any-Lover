@@ -30,6 +30,7 @@ import { EmotionExpressionBridge } from './agent/emotion-expression-bridge';
 import { RelationshipState } from './agent/relationship-state';
 import { ProfileStore, ProfileExtractor } from './agent/profile-store';
 import { LocalEmbeddingClient } from './agent/embedding-client';
+import { DialogueEngine } from './agent/dialogue-engine';
 import './gpu-fix';
 import { OllamaManager, resolveBundledOllama, resolveAnyOllama } from './ollama-manager';
 import { registerAibotIpc } from './aibot-ipc';
@@ -127,6 +128,17 @@ proactiveEngine.setRelationship(relationshipState);
 proactiveEngine.setProfile(profileStore);
 // 每次写入屏幕记忆后，尝试低频提炼画像（内部有冷却与 provider 守卫）。
 eventBus.on('memory.write', () => void profileExtractor.maybeExtract());
+
+// 中枢对话引擎（F-1）：接管文字对话，注入记忆/画像/关系/情绪。默认关（由 agent:dialogue 开关切换
+// 中枢对话 vs 老后端对话）。生成的句子经 IPC 广播 → renderer 转发后端 hub-speak 做 TTS+表情。
+const dialogueEngine = new DialogueEngine(
+  llmProviderRegistry,
+  memoryStore,
+  profileStore,
+  relationshipState,
+  emotionState,
+  logToFile,
+);
 
 // 是否启用 THA 渲染：默认在 Windows 且能找到 THA 服务时启用；
 // 可用环境变量 ANYLOVER_RENDER_MODE=live2d 强制关闭（回退纯 Live2D）。
@@ -450,6 +462,30 @@ app.whenReady().then(() => {
     } catch (e: any) {
       return { ok: false, message: String((e && e.message) || e), items: [] };
     }
+  });
+
+  // 中枢对话（F-1）：renderer 开启「中枢对话」后把用户文字发到这里，中枢生成回复并逐句
+  // 广播给 renderer 转发后端 hub-speak 做 TTS+表情。probe provider 后运行；不接管语音（F-2）。
+  const dialogueBroadcast = (channel: string, payload?: unknown): void => {
+    for (const w of BrowserWindow.getAllWindows()) {
+      if (!w.isDestroyed()) w.webContents.send(channel, payload);
+    }
+  };
+  ipcMain.handle('agent:dialogue', async (_evt, payload: { text?: string }) => {
+    const text = String(payload?.text || '').trim();
+    if (!text) return { ok: false, message: '空消息' };
+    rebuildProvidersFromSettings(logToFile);
+    if (!dialogueEngine.canRun()) {
+      return { ok: false, message: '未配置可用的主模型，无法使用中枢对话' };
+    }
+    // 即发即忘地跑一轮：句子经 sink 广播给 renderer 转发 hub-speak。返回 ok 表示已受理。
+    void dialogueEngine.handle(text, {
+      start: () => dialogueBroadcast('agent:dialogue-start'),
+      say: (sentence) => dialogueBroadcast('agent:dialogue-say', { text: sentence }),
+      end: (fullText) => dialogueBroadcast('agent:dialogue-end', { text: fullText }),
+      error: (message) => dialogueBroadcast('agent:dialogue-error', { message }),
+    });
+    return { ok: true };
   });
 
   // LLM Provider（中枢直连）：按当前设置组装 provider 注册表。过渡期不接管现有对话

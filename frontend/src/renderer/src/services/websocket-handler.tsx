@@ -367,6 +367,40 @@ function WebSocketHandler({ children }: { children: React.ReactNode }) {
     };
   }, [setSubtitleText]);
 
+  // 中枢对话（F-1）：中枢生成的回复经这些 IPC 到达，renderer 转发后端 hub-speak 做 TTS+表情，
+  // 后端把 audio 消息发回来，走现有 audio 链路(字幕/口型/表情)播放。renderer 是"转发者"。
+  useEffect(() => {
+    const api = (window as any).electron?.ipcRenderer;
+    if (!api) return undefined;
+    const onStart = (): void => {
+      wsService.sendMessage({ type: 'hub-speak-start' });
+    };
+    const onSay = (_e: unknown, payload: { text?: string }): void => {
+      if (payload?.text) wsService.sendMessage({ type: 'hub-speak', text: payload.text });
+    };
+    const onEnd = (): void => {
+      wsService.sendMessage({ type: 'hub-speak-end' });
+    };
+    const onError = (_e: unknown, payload: { message?: string }): void => {
+      setSubtitleText(payload?.message || '（对话出错了）');
+      wsService.sendMessage({ type: 'hub-speak-end' });
+    };
+    api.on('agent:dialogue-start', onStart);
+    api.on('agent:dialogue-say', onSay);
+    api.on('agent:dialogue-end', onEnd);
+    api.on('agent:dialogue-error', onError);
+    return () => {
+      try {
+        api.removeListener('agent:dialogue-start', onStart);
+        api.removeListener('agent:dialogue-say', onSay);
+        api.removeListener('agent:dialogue-end', onEnd);
+        api.removeListener('agent:dialogue-error', onError);
+      } catch {
+        /* ignore */
+      }
+    };
+  }, [setSubtitleText]);
+
   const webSocketContextValue = useMemo(() => ({
     sendMessage: wsService.sendMessage.bind(wsService),
     wsState,
