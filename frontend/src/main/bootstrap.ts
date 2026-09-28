@@ -17,6 +17,8 @@ import { GazeBridge } from './agent/gaze-bridge';
 import { ScreenSampler } from './screen-sampler';
 import { MemoryStore } from './agent/memory-store';
 import { ScreenMemoryBridge } from './agent/screen-memory-bridge';
+import { ResourceCoordinator } from './agent/resource-coordinator';
+import { ThaResource, THA_RESOURCE_ID } from './agent/tha-resource';
 import './gpu-fix';
 import { OllamaManager, resolveBundledOllama, resolveAnyOllama } from './ollama-manager';
 import { registerAibotIpc } from './aibot-ipc';
@@ -72,6 +74,12 @@ const screenSampler = new ScreenSampler(logToFile);
 const memoryStore = new MemoryStore('screen-memory.jsonl', logToFile);
 const screenMemoryBridge = new ScreenMemoryBridge(memoryStore, logToFile);
 
+// 资源协调器：统一管理 THA / 采样 VLM 等重资源的显存占用（6GB 上互斥共存）。
+// THA 作为高优先资源注册；采样 VLM（P2）加载时会让 THA 临时让位。
+const resourceCoordinator = new ResourceCoordinator(4500, logToFile);
+const thaResource = new ThaResource(tha, logToFile);
+resourceCoordinator.register(thaResource);
+
 // 是否启用 THA 渲染：默认在 Windows 且能找到 THA 服务时启用；
 // 可用环境变量 ANYLOVER_RENDER_MODE=live2d 强制关闭（回退纯 Live2D）。
 function thaEnabled(): boolean {
@@ -79,13 +87,38 @@ function thaEnabled(): boolean {
   return tha.canStart();
 }
 
-// 启动 THA 渲染服务（不阻塞主流程；失败仅记录日志，前端会回退 Live2D）。
+// 启动 THA 渲染服务（经资源协调器 acquire；不阻塞主流程；失败仅记录日志，前端回退 Live2D）。
+// 走协调器而非直接 tha.start，是为了让后续采样 VLM 能在显存紧张时让 THA 让位、用完恢复。
 function startThaIfEnabled(): void {
   if (!thaEnabled()) return;
-  tha
-    .start()
-    .then((url) => logToFile(`[startup] THA 渲染服务就绪：${url}`))
+  resourceCoordinator
+    .acquire(THA_RESOURCE_ID)
+    .then(() => logToFile(`[startup] THA 渲染服务就绪（经资源协调器）`))
     .catch((err) => logToFile(`[startup] THA 渲染服务启动失败（回退 Live2D）：${String((err && err.message) || err)}`));
+}
+
+// R2 可见性驱动：桌宠窗口最小化/隐藏 → 卸载 THA 省显存；恢复/显示 → 重新加载。
+// 说明：pet 模式桌宠常驻置顶、不进任务栏，通常不会最小化/隐藏，故此路径主要覆盖
+// window 模式最小化场景；显存的主要腾挪仍靠采样 VLM 加载时的 degrade（见资源协调器）。
+function bindThaVisibility(win: import('electron').BrowserWindow): void {
+  const release = (): void => {
+    if (!thaEnabled()) return;
+    void resourceCoordinator.forceUnload(THA_RESOURCE_ID).catch(() => {});
+  };
+  const acquire = (): void => {
+    if (!thaEnabled()) return;
+    void resourceCoordinator.acquire(THA_RESOURCE_ID).catch(() => {});
+  };
+  win.on('minimize', () => {
+    logToFile('[startup] 窗口最小化：卸载 THA 省显存');
+    release();
+  });
+  win.on('restore', () => {
+    logToFile('[startup] 窗口恢复：重新加载 THA');
+    acquire();
+  });
+  win.on('hide', release);
+  win.on('show', acquire);
 }
 
 function llmConfigured(): boolean {
@@ -332,6 +365,20 @@ app.whenReady().then(() => {
   // 启动 THA 渲染服务（仅 Windows）。与 LLM 后端相互独立：不管是否首启引导，
   // 只要能找到 THA 服务就尽早拉起，让前端 ThaStage 能连上帧流；失败则前端回退 Live2D。
   startThaIfEnabled();
+
+  // R2：把 THA 的加载/卸载绑到主窗口可见性。用 browser-window-created 监听，避免与原版
+  // index.ts 创建窗口的时序竞争（谁先 whenReady 不定）。只绑一次主窗。
+  {
+    let bound = false;
+    const tryBind = (win: BrowserWindow): void => {
+      if (bound) return;
+      bound = true;
+      bindThaVisibility(win);
+    };
+    const existing = BrowserWindow.getAllWindows();
+    if (existing.length) tryBind(existing[0]);
+    else app.on('browser-window-created', (_e, win) => tryBind(win));
+  }
 
   const s = readSettings();
 
