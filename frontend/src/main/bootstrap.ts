@@ -15,6 +15,8 @@ import { OpenSeeFaceManager } from './openseeface-manager';
 import { eventBus } from './agent/event-bus';
 import { GazeBridge } from './agent/gaze-bridge';
 import { ScreenSampler } from './screen-sampler';
+import { MemoryStore } from './agent/memory-store';
+import { ScreenMemoryBridge } from './agent/screen-memory-bridge';
 import './gpu-fix';
 import { OllamaManager, resolveBundledOllama, resolveAnyOllama } from './ollama-manager';
 import { registerAibotIpc } from './aibot-ipc';
@@ -63,8 +65,12 @@ eventBus.setLogSink(logToFile);
 const openSeeFace = new OpenSeeFaceManager(logToFile);
 const gazeBridge = new GazeBridge(logToFile);
 // 桌面采样源（默认关，由 agent:screen IPC 显式启停）。P1 只做采样+门控骨架，
-// 命中发 perception.screen 占位事件；本地 VLM 摘要与落地记忆在后续步骤接入。
+// 命中发 perception.screen 占位事件；本地 VLM 摘要在后续步骤接入。
 const screenSampler = new ScreenSampler(logToFile);
+// 屏幕记忆：本地存储 + 桥（订阅 perception.screen 写入记忆）。桥常驻订阅，与采样开关解耦
+// （采样关则无 perception.screen 事件，桥自然不写入）。
+const memoryStore = new MemoryStore('screen-memory.jsonl', logToFile);
+const screenMemoryBridge = new ScreenMemoryBridge(memoryStore, logToFile);
 
 // 是否启用 THA 渲染：默认在 Windows 且能找到 THA 服务时启用；
 // 可用环境变量 ANYLOVER_RENDER_MODE=live2d 强制关闭（回退纯 Live2D）。
@@ -274,6 +280,33 @@ app.whenReady().then(() => {
     }
   });
 
+  // 屏幕记忆桥常驻订阅（写入与采样开关解耦：采样关则无事件，桥自然不写）。
+  screenMemoryBridge.start();
+
+  // 记忆查询/清空 IPC（供将来对话注入与面板查看用；先做 API，未接对话）。
+  ipcMain.handle('agent:memory:recent', (_evt, payload: { limit?: number }) => {
+    try {
+      return { ok: true, items: memoryStore.recent(payload?.limit ?? 20) };
+    } catch (e: any) {
+      return { ok: false, message: String((e && e.message) || e), items: [] };
+    }
+  });
+  ipcMain.handle('agent:memory:query', (_evt, q: Record<string, unknown>) => {
+    try {
+      return { ok: true, items: memoryStore.query((q as any) || {}) };
+    } catch (e: any) {
+      return { ok: false, message: String((e && e.message) || e), items: [] };
+    }
+  });
+  ipcMain.handle('agent:memory:clear', () => {
+    try {
+      memoryStore.clear();
+      return { ok: true };
+    } catch (e: any) {
+      return { ok: false, message: String((e && e.message) || e) };
+    }
+  });
+
   // 首帧同步返回「是否需要首启引导」：让主窗覆盖层第一帧就决定是否显示，
   // 避免先渲染出桌宠、再异步弹出覆盖层导致的「闪一下」。
   ipcMain.on('onboarding:need-sync', (evt) => {
@@ -373,6 +406,12 @@ function cleanupAll(): void {
     screenSampler.stop();
   } catch (e) {
     logToFile(`[shutdown] screenSampler.stop 异常：${String((e as any)?.message || e)}`);
+  }
+  try {
+    screenMemoryBridge.stop();
+    memoryStore.flushNow(); // 退出前把记忆落盘
+  } catch (e) {
+    logToFile(`[shutdown] memory flush 异常：${String((e as any)?.message || e)}`);
   }
   try {
     globalShortcut.unregisterAll();
