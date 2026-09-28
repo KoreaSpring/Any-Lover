@@ -45,6 +45,26 @@ export const ThaStage = memo(({ showSidebar: _showSidebar }: ThaStageProps): JSX
     thaDriver.sendGaze(mode);
   }, [aiState]);
 
+  // 摄像头视线跟随：订阅主进程广播的方向级注视目标（agent:express-gaze），
+  // 转发给 THA 服务（follow 优先于对话状态的程序化 gaze，超时自动回落）。
+  // 无摄像头/未开启时主进程不会广播，自然回落到上面的 mode 驱动，优雅降级。
+  useEffect(() => {
+    const api = (window as any).electron?.ipcRenderer;
+    if (!api) return undefined;
+    const handler = (_e: unknown, payload: { yaw: number; pitch: number }): void => {
+      if (!payload) return;
+      thaDriver.sendGazeTarget(payload.yaw, payload.pitch);
+    };
+    api.on('agent:express-gaze', handler);
+    return () => {
+      try {
+        api.removeListener('agent:express-gaze', handler);
+      } catch {
+        /* ignore */
+      }
+    };
+  }, []);
+
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const closedRef = useRef(false);

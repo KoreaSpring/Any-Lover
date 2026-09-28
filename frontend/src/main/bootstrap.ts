@@ -11,6 +11,9 @@ import log from 'electron-log/main';
 import { BackendManager } from './backend-manager';
 import { ThaManager } from './tha-manager';
 import { registerThaIpc, ensureHqDownload } from './tha-ipc';
+import { OpenSeeFaceManager } from './openseeface-manager';
+import { eventBus } from './agent/event-bus';
+import { GazeBridge } from './agent/gaze-bridge';
 import './gpu-fix';
 import { OllamaManager, resolveBundledOllama, resolveAnyOllama } from './ollama-manager';
 import { registerAibotIpc } from './aibot-ipc';
@@ -52,6 +55,12 @@ const backend = new BackendManager(logToFile);
 const ollama = new OllamaManager(logToFile);
 // THA 渲染后端（仅 Windows）。开发态指向仓库外 EasyVtuber，见 tha-manager.ts。
 const tha = new ThaManager(logToFile);
+
+// Agent 中枢：事件总线接日志；摄像头感知源（OpenSeeFace）+ 视线跟随桥（默认关闭，
+// 由 agent:camera IPC 显式启停，见 docs/roadmap/agent-core-and-camera.md）。
+eventBus.setLogSink(logToFile);
+const openSeeFace = new OpenSeeFaceManager(logToFile);
+const gazeBridge = new GazeBridge(logToFile);
 
 // 是否启用 THA 渲染：默认在 Windows 且能找到 THA 服务时启用；
 // 可用环境变量 ANYLOVER_RENDER_MODE=live2d 强制关闭（回退纯 Live2D）。
@@ -211,6 +220,39 @@ app.whenReady().then(() => {
     return { ok: true };
   });
 
+  // 摄像头视线跟随开关（默认关闭，敏感能力需用户显式开启）。
+  //   { enabled: true }  → 启动 OpenSeeFace 感知源 + 视线桥（无 facetracker/非 Windows 时优雅失败）
+  //   { enabled: false } → 停止并回中视线
+  ipcMain.handle('agent:camera', async (_evt, payload: { enabled?: boolean }) => {
+    const enabled = !!(payload && payload.enabled);
+    try {
+      if (enabled) {
+        if (!openSeeFace.canStart()) {
+          return { ok: false, message: '摄像头面捕不可用（未找到 facetracker 或非 Windows）' };
+        }
+        gazeBridge.start();
+        await openSeeFace.start();
+        logToFile('[startup] 摄像头视线跟随已开启');
+        return { ok: true };
+      }
+      await openSeeFace.stop();
+      gazeBridge.stop();
+      logToFile('[startup] 摄像头视线跟随已关闭');
+      return { ok: true };
+    } catch (e: any) {
+      const msg = String((e && e.message) || e);
+      logToFile(`[startup] 摄像头视线跟随切换失败：${msg}`);
+      // 失败时确保停干净，避免半启动状态
+      try {
+        await openSeeFace.stop();
+      } catch {
+        /* ignore */
+      }
+      gazeBridge.stop();
+      return { ok: false, message: msg };
+    }
+  });
+
   // 首帧同步返回「是否需要首启引导」：让主窗覆盖层第一帧就决定是否显示，
   // 避免先渲染出桌宠、再异步弹出覆盖层导致的「闪一下」。
   ipcMain.on('onboarding:need-sync', (evt) => {
@@ -302,6 +344,11 @@ function cleanupAll(): void {
     logToFile(`[shutdown] tha.killAll 异常：${String((e as any)?.message || e)}`);
   }
   try {
+    openSeeFace.killAll();
+  } catch (e) {
+    logToFile(`[shutdown] openSeeFace.killAll 异常：${String((e as any)?.message || e)}`);
+  }
+  try {
     globalShortcut.unregisterAll();
   } catch {
     /* ignore */
@@ -315,6 +362,7 @@ app.on('before-quit', () => {
     if (backend.isRunning()) void backend.stop();
     if (ollama.isServing()) void ollama.stop();
     if (tha.isRunning()) void tha.stop();
+    if (openSeeFace.isRunning()) void openSeeFace.stop();
   } catch {
     /* ignore */
   }

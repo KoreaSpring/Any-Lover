@@ -25,6 +25,42 @@ export const ThaSettingsPanel = memo((): JSX.Element => {
   const [cutModel, setCutModel] = useState<CutModel>('isnet-anime');
   const [uploadProg, setUploadProg] = useState<{ percent: number; message: string } | null>(null);
 
+  // 摄像头视线跟随（默认关，敏感能力需显式开启）。
+  const [cameraOn, setCameraOn] = useState(false);
+  const [cameraBusy, setCameraBusy] = useState(false);
+
+  const toggleCamera = async (): Promise<void> => {
+    const r = (window as any).electron?.ipcRenderer;
+    if (!r) return;
+    const next = !cameraOn;
+    setCameraBusy(true);
+    try {
+      const res = await r.invoke('agent:camera', { enabled: next });
+      if (res?.ok) {
+        setCameraOn(next);
+        toaster.create({
+          title: next ? '已开启摄像头视线跟随' : '已关闭摄像头视线跟随',
+          type: 'success',
+          duration: 2000,
+        });
+      } else {
+        // 开启失败（无摄像头/无 facetracker/非 Windows）：保持关闭并提示。
+        setCameraOn(false);
+        toaster.create({
+          title: '摄像头视线跟随不可用',
+          description: res?.message || '未检测到摄像头或组件缺失',
+          type: 'warning',
+          duration: 4000,
+        });
+      }
+    } catch (e) {
+      setCameraOn(false);
+      toaster.create({ title: `切换失败: ${e}`, type: 'error', duration: 3000 });
+    } finally {
+      setCameraBusy(false);
+    }
+  };
+
   const handleUpload = async (): Promise<void> => {
     if (!window.api?.pickThaImage) return;
     let res: { path: string } | undefined;
@@ -218,6 +254,27 @@ export const ThaSettingsPanel = memo((): JSX.Element => {
             </Button>
           ))}
         </Box>
+      </Box>
+
+      {/* 摄像头视线跟随（实验性，默认关；仅 Windows + 有摄像头时可用） */}
+      <Box>
+        <Box display="flex" alignItems="center" justifyContent="space-between" mb="6px">
+          <Text fontSize="sm" color="whiteAlpha.700" fontWeight="semibold">
+            摄像头视线跟随
+          </Text>
+          <Button
+            size="sm"
+            variant={cameraOn ? 'solid' : 'outline'}
+            loading={cameraBusy}
+            onClick={toggleCamera}
+          >
+            {cameraOn ? '已开启' : '开启'}
+          </Button>
+        </Box>
+        <Text fontSize="10px" color="whiteAlpha.500">
+          开启后桌宠视线会跟随你的头部朝向转动（仅识别朝向，不复制你的表情）。
+          摄像头画面仅在本地处理、不上传、不录制；关闭即停止采集。
+        </Text>
       </Box>
 
       <Text fontSize="xs" color="whiteAlpha.500" mt="auto">

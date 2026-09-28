@@ -180,22 +180,49 @@ _gaze = {
 }
 GAZE_LERP = 0.08  # 注视插值步长(越小越平滑)
 
+# 方向级注视跟随（follow）：由摄像头感知（OpenSeeFace 头部朝向经主进程规则化后）下发。
+# 优先级高于程序化 mode：有新鲜的 follow 目标时，用它作为注视方向，绕过随机游移；
+# 超过 _GAZE_FOLLOW_TTL 秒没有新目标则自动回落到程序化 mode（优雅降级）。
+_gaze_follow = {
+    "target": [0.0, 0.0, 0.0, 0.0],  # head_x, head_y, iris_x, iris_y（已归一）
+    "ts": -1.0,                       # 最近一次收到 follow 目标的时刻(perf_counter)
+}
+_GAZE_FOLLOW_TTL = 1.0  # follow 目标有效期(秒)；超时回落程序化游移
+# yaw/pitch(度) → pose 归一化幅度的映射系数（头部小幅、眼球较大幅）
+_GAZE_HEAD_PER_DEG = 0.006
+_GAZE_IRIS_PER_DEG = 0.03
+
+
+def set_gaze_follow(yaw_deg, pitch_deg, now):
+    """接收方向级注视目标（度）。把 yaw/pitch 映射到 head/iris 归一幅度并记录时刻。"""
+    hx = max(-0.2, min(0.2, yaw_deg * _GAZE_HEAD_PER_DEG))
+    hy = max(-0.2, min(0.2, pitch_deg * _GAZE_HEAD_PER_DEG))
+    ix = max(-1.0, min(1.0, yaw_deg * _GAZE_IRIS_PER_DEG))
+    iy = max(-1.0, min(1.0, pitch_deg * _GAZE_IRIS_PER_DEG))
+    _gaze_follow["target"] = [hx, hy, ix, iy]
+    _gaze_follow["ts"] = now
+
 
 def update_gaze(mode, now):
-    """更新注视：到点则按当前模式随机换一个注视目标；每帧向目标平滑插值。返回 (head_x,head_y,iris_x,iris_y)。"""
-    p = GAZE_PARAMS.get(mode, GAZE_PARAMS["idle"])
-    if now >= _gaze["next_t"]:
-        import random
-        _gaze["target"] = [
-            (random.random() * 2 - 1) * p["head"],
-            (random.random() * 2 - 1) * p["head"],
-            (random.random() * 2 - 1) * p["iris"],
-            (random.random() * 2 - 1) * p["iris"],
-        ]
-        # 间隔带 ±40% 随机，避免机械节奏
-        _gaze["next_t"] = now + p["interval"] * (0.6 + random.random() * 0.8)
+    """更新注视：优先用新鲜的 follow 目标（摄像头视线跟随）；否则按当前模式随机游移。
+    每帧向目标平滑插值。返回 (head_x,head_y,iris_x,iris_y)。"""
+    following = _gaze_follow["ts"] >= 0 and (now - _gaze_follow["ts"]) <= _GAZE_FOLLOW_TTL
+    if following:
+        tgt = _gaze_follow["target"]
+    else:
+        p = GAZE_PARAMS.get(mode, GAZE_PARAMS["idle"])
+        if now >= _gaze["next_t"]:
+            import random
+            _gaze["target"] = [
+                (random.random() * 2 - 1) * p["head"],
+                (random.random() * 2 - 1) * p["head"],
+                (random.random() * 2 - 1) * p["iris"],
+                (random.random() * 2 - 1) * p["iris"],
+            ]
+            # 间隔带 ±40% 随机，避免机械节奏
+            _gaze["next_t"] = now + p["interval"] * (0.6 + random.random() * 0.8)
+        tgt = _gaze["target"]
     cur = _gaze["cur"]
-    tgt = _gaze["target"]
     for i in range(4):
         cur[i] += (tgt[i] - cur[i]) * GAZE_LERP
     return tuple(cur)
@@ -447,6 +474,15 @@ def apply_control(msg):
             mode = "idle"
         with lock:
             state["gaze_mode"] = mode
+    elif mtype == "gazeTarget":
+        # 方向级注视跟随：{type:gazeTarget, yaw, pitch}（度），来自摄像头感知。
+        # 优先级高于 mode；超时自动回落程序化游移（见 update_gaze）。
+        try:
+            yaw = float(obj.get("yaw", 0.0))
+            pitch = float(obj.get("pitch", 0.0))
+        except Exception:
+            return
+        set_gaze_follow(yaw, pitch, time.perf_counter())
 
 
 async def handler(ws):

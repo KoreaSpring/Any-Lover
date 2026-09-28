@@ -135,6 +135,17 @@ function runBuilder() {
     log('提示：未找到 dist-tha-runtime（未运行 prepare-tha-runtime），产物将不含 THA，Windows 回退 Live2D');
   }
 
+  // OpenSeeFace 摄像头面捕（可选，仅 Windows）：由 fetch-openseeface.js 拉到 vendor/openseeface。
+  // 存在则打入 resources/openseeface（openseeface-manager.ts resolveExe 找此路径）；
+  // 缺失则跳过——摄像头视线跟随不可用，canStart 返 false 优雅降级，不影响其它功能。
+  const osfDir = path.join(ROOT, 'vendor', 'openseeface');
+  if (fs.existsSync(path.join(osfDir, 'facetracker.exe'))) {
+    extra.push({ from: '../vendor/openseeface', to: 'openseeface', filter: ['**/*'] });
+    log('打入 vendor/openseeface（facetracker + models，用于摄像头视线跟随，约 200MB）');
+  } else {
+    log('提示：未找到 vendor/openseeface（未运行 fetch-openseeface），产物将不含摄像头视线跟随');
+  }
+
   // Ollama 打包形态
   const ollamaBin = path.join(VENDOR_OLLAMA, 'bin');
   const hasOllamaBin =
