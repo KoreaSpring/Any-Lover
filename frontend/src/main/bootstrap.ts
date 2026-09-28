@@ -27,6 +27,8 @@ import { ProactiveEngine } from './agent/proactive-engine';
 import { EmotionSource } from './agent/emotion-source';
 import { EmotionState } from './agent/emotion-state';
 import { EmotionExpressionBridge } from './agent/emotion-expression-bridge';
+import { RelationshipState } from './agent/relationship-state';
+import { ProfileStore, ProfileExtractor } from './agent/profile-store';
 import './gpu-fix';
 import { OllamaManager, resolveBundledOllama, resolveAnyOllama } from './ollama-manager';
 import { registerAibotIpc } from './aibot-ipc';
@@ -110,6 +112,16 @@ const emotionState = new EmotionState();
 const emotionSource = new EmotionSource(llmProviderRegistry, logToFile);
 const emotionExpressionBridge = new EmotionExpressionBridge(emotionState, logToFile);
 proactiveEngine.setEmotionState(emotionState);
+
+// 关系演进 + 用户画像（四层记忆第2/3层）：关系状态纯本地常驻累积；画像由 LLM 低频提炼。
+// 都注入主动搭话，让桌宠「记得你是谁、关系什么温度」。
+const relationshipState = new RelationshipState(logToFile);
+const profileStore = new ProfileStore(logToFile);
+const profileExtractor = new ProfileExtractor(profileStore, memoryStore, llmProviderRegistry, logToFile);
+proactiveEngine.setRelationship(relationshipState);
+proactiveEngine.setProfile(profileStore);
+// 每次写入屏幕记忆后，尝试低频提炼画像（内部有冷却与 provider 守卫）。
+eventBus.on('memory.write', () => void profileExtractor.maybeExtract());
 
 // 是否启用 THA 渲染：默认在 Windows 且能找到 THA 服务时启用；
 // 可用环境变量 ANYLOVER_RENDER_MODE=live2d 强制关闭（回退纯 Live2D）。
@@ -445,6 +457,27 @@ app.whenReady().then(() => {
   emotionState.start();
   emotionExpressionBridge.start();
 
+  // 关系状态常驻累积（纯本地，无 LLM，无副作用）。
+  relationshipState.start();
+
+  // 关系/画像查询与清空 IPC（面板查看用）。
+  ipcMain.handle('agent:relationship:get', () => {
+    try {
+      return { ok: true, relationship: relationshipState.current(), profile: profileStore.all() };
+    } catch (e: any) {
+      return { ok: false, message: String((e && e.message) || e) };
+    }
+  });
+  ipcMain.handle('agent:relationship:clear', () => {
+    try {
+      relationshipState.clear();
+      profileStore.clear();
+      return { ok: true };
+    } catch (e: any) {
+      return { ok: false, message: String((e && e.message) || e) };
+    }
+  });
+
   // 情绪识别开关（默认关；开启后每条用户消息节流后调一次 LLM 判情绪 → 共情表情 + 语气）。
   ipcMain.handle('agent:emotion', (_evt, payload: { enabled?: boolean }) => {
     const enabled = !!(payload && payload.enabled);
@@ -591,6 +624,11 @@ function cleanupAll(): void {
     emotionState.stop();
   } catch (e) {
     logToFile(`[shutdown] emotion.stop 异常：${String((e as any)?.message || e)}`);
+  }
+  try {
+    relationshipState.stop(); // 内含落盘
+  } catch (e) {
+    logToFile(`[shutdown] relationship.stop 异常：${String((e as any)?.message || e)}`);
   }
   try {
     screenMemoryBridge.stop();

@@ -18,6 +18,8 @@ import { MemoryStore } from './memory-store';
 import { LLMProviderRegistry } from './llm-provider';
 import { readSettings } from '../settings-store';
 import type { EmotionState } from './emotion-state';
+import type { RelationshipState } from './relationship-state';
+import type { ProfileStore } from './profile-store';
 
 export interface ProactiveConfig {
   /** 检查周期（毫秒）。 */
@@ -70,6 +72,12 @@ export class ProactiveEngine {
   /** 可选：当前情绪（注入语气，让主动搭话贴合用户情绪）。 */
   private emotionState: EmotionState | null = null;
 
+  /** 可选：关系状态（熟络度调语气/称呼）。 */
+  private relationship: RelationshipState | null = null;
+
+  /** 可选：用户画像（注入长期事实，让搭话更懂用户）。 */
+  private profile: ProfileStore | null = null;
+
   constructor(
     store: MemoryStore,
     registry: LLMProviderRegistry,
@@ -92,6 +100,16 @@ export class ProactiveEngine {
   /** 注入情绪状态（可选）：主动搭话时据当前用户情绪调整语气。 */
   setEmotionState(state: EmotionState): void {
     this.emotionState = state;
+  }
+
+  /** 注入关系状态（可选）：据熟络度调整语气/称呼。 */
+  setRelationship(state: RelationshipState): void {
+    this.relationship = state;
+  }
+
+  /** 注入用户画像（可选）：把长期事实加入上下文。 */
+  setProfile(store: ProfileStore): void {
+    this.profile = store;
   }
 
   isRunning(): boolean {
@@ -175,13 +193,29 @@ export class ProactiveEngine {
         }
       }
 
+      // 关系熟络度：越熟越随意亲近，越生疏越客气。
+      let relHint = '';
+      if (this.relationship) {
+        const rel = this.relationship.current();
+        relHint = `\n（你和用户的关系：${rel.level}，语气请与之相称。）`;
+      }
+
+      // 用户画像：把已知长期事实作为背景（帮助搭话更懂用户）。
+      let profileHint = '';
+      if (this.profile) {
+        const facts = this.profile.all().slice(0, 5);
+        if (facts.length) {
+          profileHint = `\n你已知道关于用户：${facts.map((f) => `${f.key}=${f.value}`).join('；')}`;
+        }
+      }
+
       let text = '';
       const messages = [
         { role: 'system' as const, content: PERSONA },
         {
           role: 'user' as const,
           content:
-            `根据你最近观察到用户在做的事，主动关心一句（口语、简短、不超过25字、不要多句、不要解释）：\n${observations}${moodHint}`,
+            `根据你最近观察到用户在做的事，主动关心一句（口语、简短、不超过25字、不要多句、不要解释）：\n${observations}${moodHint}${relHint}${profileHint}`,
         },
       ];
       for await (const chunk of provider.chat({ model, messages, temperature: s.temperature })) {
