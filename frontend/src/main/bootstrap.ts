@@ -14,6 +14,13 @@ import { registerThaIpc, ensureHqDownload } from './tha-ipc';
 import { OpenSeeFaceManager } from './openseeface-manager';
 import { eventBus } from './agent/event-bus';
 import { GazeBridge } from './agent/gaze-bridge';
+import { ScreenSampler } from './screen-sampler';
+import { MemoryStore } from './agent/memory-store';
+import { ScreenMemoryBridge } from './agent/screen-memory-bridge';
+import { ResourceCoordinator } from './agent/resource-coordinator';
+import { ThaResource, THA_RESOURCE_ID } from './agent/tha-resource';
+import { VlmClient } from './agent/vlm-client';
+import { VlmResource } from './agent/vlm-resource';
 import './gpu-fix';
 import { OllamaManager, resolveBundledOllama, resolveAnyOllama } from './ollama-manager';
 import { registerAibotIpc } from './aibot-ipc';
@@ -61,6 +68,26 @@ const tha = new ThaManager(logToFile);
 eventBus.setLogSink(logToFile);
 const openSeeFace = new OpenSeeFaceManager(logToFile);
 const gazeBridge = new GazeBridge(logToFile);
+// 桌面采样源（默认关，由 agent:screen IPC 显式启停）。P1 只做采样+门控骨架，
+// 命中发 perception.screen 占位事件；本地 VLM 摘要在后续步骤接入。
+const screenSampler = new ScreenSampler(logToFile);
+// 屏幕记忆：本地存储 + 桥（订阅 perception.screen 写入记忆）。桥常驻订阅，与采样开关解耦
+// （采样关则无 perception.screen 事件，桥自然不写入）。
+const memoryStore = new MemoryStore('screen-memory.jsonl', logToFile);
+const screenMemoryBridge = new ScreenMemoryBridge(memoryStore, logToFile);
+
+// 资源协调器：统一管理 THA / 采样 VLM 等重资源的显存占用（6GB 上互斥共存）。
+// THA 作为高优先资源注册；采样 VLM（P2）加载时会让 THA 临时让位。
+const resourceCoordinator = new ResourceCoordinator(4500, logToFile);
+const thaResource = new ThaResource(tha, logToFile);
+resourceCoordinator.register(thaResource);
+
+// 采样 VLM（本地 moondream 出屏幕摘要）：注册为低优先资源（加载时让 THA 让位），
+// 并注入 ScreenSampler。无 Ollama/moondream 时优雅降级为占位摘要，不影响其它功能。
+const vlmClient = new VlmClient({}, logToFile);
+const vlmResource = new VlmResource(vlmClient, logToFile);
+resourceCoordinator.register(vlmResource);
+screenSampler.setVlm(resourceCoordinator, vlmClient);
 
 // 是否启用 THA 渲染：默认在 Windows 且能找到 THA 服务时启用；
 // 可用环境变量 ANYLOVER_RENDER_MODE=live2d 强制关闭（回退纯 Live2D）。
@@ -69,13 +96,38 @@ function thaEnabled(): boolean {
   return tha.canStart();
 }
 
-// 启动 THA 渲染服务（不阻塞主流程；失败仅记录日志，前端会回退 Live2D）。
+// 启动 THA 渲染服务（经资源协调器 acquire；不阻塞主流程；失败仅记录日志，前端回退 Live2D）。
+// 走协调器而非直接 tha.start，是为了让后续采样 VLM 能在显存紧张时让 THA 让位、用完恢复。
 function startThaIfEnabled(): void {
   if (!thaEnabled()) return;
-  tha
-    .start()
-    .then((url) => logToFile(`[startup] THA 渲染服务就绪：${url}`))
+  resourceCoordinator
+    .acquire(THA_RESOURCE_ID)
+    .then(() => logToFile(`[startup] THA 渲染服务就绪（经资源协调器）`))
     .catch((err) => logToFile(`[startup] THA 渲染服务启动失败（回退 Live2D）：${String((err && err.message) || err)}`));
+}
+
+// R2 可见性驱动：桌宠窗口最小化/隐藏 → 卸载 THA 省显存；恢复/显示 → 重新加载。
+// 说明：pet 模式桌宠常驻置顶、不进任务栏，通常不会最小化/隐藏，故此路径主要覆盖
+// window 模式最小化场景；显存的主要腾挪仍靠采样 VLM 加载时的 degrade（见资源协调器）。
+function bindThaVisibility(win: import('electron').BrowserWindow): void {
+  const release = (): void => {
+    if (!thaEnabled()) return;
+    void resourceCoordinator.forceUnload(THA_RESOURCE_ID).catch(() => {});
+  };
+  const acquire = (): void => {
+    if (!thaEnabled()) return;
+    void resourceCoordinator.acquire(THA_RESOURCE_ID).catch(() => {});
+  };
+  win.on('minimize', () => {
+    logToFile('[startup] 窗口最小化：卸载 THA 省显存');
+    release();
+  });
+  win.on('restore', () => {
+    logToFile('[startup] 窗口恢复：重新加载 THA');
+    acquire();
+  });
+  win.on('hide', release);
+  win.on('show', acquire);
 }
 
 function llmConfigured(): boolean {
@@ -253,6 +305,50 @@ app.whenReady().then(() => {
     }
   });
 
+  // 桌面观察开关（默认关，敏感能力需用户显式开启）。
+  //   { enabled: true }  → 开始定期截屏采样（门控/去重后发 perception.screen）
+  //   { enabled: false } → 停止采样
+  ipcMain.handle('agent:screen', (_evt, payload: { enabled?: boolean }) => {
+    const enabled = !!(payload && payload.enabled);
+    try {
+      if (enabled) screenSampler.start();
+      else screenSampler.stop();
+      return { ok: true };
+    } catch (e: any) {
+      const msg = String((e && e.message) || e);
+      logToFile(`[startup] 桌面观察切换失败：${msg}`);
+      screenSampler.stop();
+      return { ok: false, message: msg };
+    }
+  });
+
+  // 屏幕记忆桥常驻订阅（写入与采样开关解耦：采样关则无事件，桥自然不写）。
+  screenMemoryBridge.start();
+
+  // 记忆查询/清空 IPC（供将来对话注入与面板查看用；先做 API，未接对话）。
+  ipcMain.handle('agent:memory:recent', (_evt, payload: { limit?: number }) => {
+    try {
+      return { ok: true, items: memoryStore.recent(payload?.limit ?? 20) };
+    } catch (e: any) {
+      return { ok: false, message: String((e && e.message) || e), items: [] };
+    }
+  });
+  ipcMain.handle('agent:memory:query', (_evt, q: Record<string, unknown>) => {
+    try {
+      return { ok: true, items: memoryStore.query((q as any) || {}) };
+    } catch (e: any) {
+      return { ok: false, message: String((e && e.message) || e), items: [] };
+    }
+  });
+  ipcMain.handle('agent:memory:clear', () => {
+    try {
+      memoryStore.clear();
+      return { ok: true };
+    } catch (e: any) {
+      return { ok: false, message: String((e && e.message) || e) };
+    }
+  });
+
   // 首帧同步返回「是否需要首启引导」：让主窗覆盖层第一帧就决定是否显示，
   // 避免先渲染出桌宠、再异步弹出覆盖层导致的「闪一下」。
   ipcMain.on('onboarding:need-sync', (evt) => {
@@ -278,6 +374,20 @@ app.whenReady().then(() => {
   // 启动 THA 渲染服务（仅 Windows）。与 LLM 后端相互独立：不管是否首启引导，
   // 只要能找到 THA 服务就尽早拉起，让前端 ThaStage 能连上帧流；失败则前端回退 Live2D。
   startThaIfEnabled();
+
+  // R2：把 THA 的加载/卸载绑到主窗口可见性。用 browser-window-created 监听，避免与原版
+  // index.ts 创建窗口的时序竞争（谁先 whenReady 不定）。只绑一次主窗。
+  {
+    let bound = false;
+    const tryBind = (win: BrowserWindow): void => {
+      if (bound) return;
+      bound = true;
+      bindThaVisibility(win);
+    };
+    const existing = BrowserWindow.getAllWindows();
+    if (existing.length) tryBind(existing[0]);
+    else app.on('browser-window-created', (_e, win) => tryBind(win));
+  }
 
   const s = readSettings();
 
@@ -347,6 +457,17 @@ function cleanupAll(): void {
     openSeeFace.killAll();
   } catch (e) {
     logToFile(`[shutdown] openSeeFace.killAll 异常：${String((e as any)?.message || e)}`);
+  }
+  try {
+    screenSampler.stop();
+  } catch (e) {
+    logToFile(`[shutdown] screenSampler.stop 异常：${String((e as any)?.message || e)}`);
+  }
+  try {
+    screenMemoryBridge.stop();
+    memoryStore.flushNow(); // 退出前把记忆落盘
+  } catch (e) {
+    logToFile(`[shutdown] memory flush 异常：${String((e as any)?.message || e)}`);
   }
   try {
     globalShortcut.unregisterAll();
