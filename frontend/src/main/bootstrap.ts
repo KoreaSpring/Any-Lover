@@ -488,6 +488,15 @@ app.whenReady().then(() => {
     return { ok: true };
   });
 
+  // 中枢对话中断（F-2）：前端 interrupt 时若处于中枢对话，停止中枢生成（AbortController）。
+  ipcMain.on('agent:dialogue-interrupt', () => {
+    try {
+      dialogueEngine.interrupt();
+    } catch {
+      /* ignore */
+    }
+  });
+
   // LLM Provider（中枢直连）：按当前设置组装 provider 注册表。过渡期不接管现有对话
   // （对话仍走 Python 后端），仅让中枢能独立发起在线 LLM 调用，为将来编排上移铺路。
   rebuildProvidersFromSettings(logToFile);

@@ -260,6 +260,16 @@ function WebSocketHandler({ children }: { children: React.ReactNode }) {
         console.log('user-input-transcription: ', message.text);
         if (message.text) {
           appendHumanMessage(message.text);
+          // 中枢对话（F-2）语音路径：转录文本回来后交中枢生成（后端已只做 ASR 未生成）。
+          // 仅中枢对话模式转发；老对话模式后端会自行生成，不转发。
+          try {
+            if (window.localStorage.getItem('anylover_hub_dialogue') === '1') {
+              const api = (window as any).electron?.ipcRenderer;
+              api?.invoke('agent:dialogue', { text: message.text });
+            }
+          } catch {
+            /* ignore */
+          }
         }
         break;
       case 'error':
