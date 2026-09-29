@@ -105,6 +105,9 @@ class WebSocketHandler:
             "hub-speak-start": self._handle_hub_speak_start,
             "hub-speak": self._handle_hub_speak,
             "hub-speak-end": self._handle_hub_speak_end,
+            # 中枢对话语音路径（F-2）：只做 ASR 出文本回发，不在后端生成回复
+            # （生成交给中枢 DialogueEngine，避免双回复）。
+            "mic-audio-end-asr-only": self._handle_asr_only,
         }
 
     async def handle_new_connection(
@@ -579,6 +582,26 @@ class WebSocketHandler:
         )
         if tts_manager:
             tts_manager.clear()
+
+    async def _handle_asr_only(
+        self, websocket: WebSocket, client_uid: str, data: WSMessage
+    ) -> None:
+        """中枢对话语音路径：把累积的 mic 音频做 ASR，回发 user-input-transcription，不生成回复。
+        生成由中枢 DialogueEngine 负责（renderer 收到转录文本后走 agent:dialogue）。"""
+        context = self.client_contexts.get(client_uid)
+        audio = self.received_data_buffers.get(client_uid)
+        # 取出并清空 buffer（与 mic-audio-end 一致的取用方式）。
+        self.received_data_buffers[client_uid] = np.array([])
+        if context is None or audio is None or len(audio) == 0:
+            return
+        try:
+            text = await context.asr_engine.async_transcribe_np(audio)
+        except Exception as e:
+            logger.error(f"asr-only 转录失败：{e}")
+            return
+        await websocket.send_text(
+            json.dumps({"type": "user-input-transcription", "text": text})
+        )
 
     async def _handle_conversation_trigger(
         self, websocket: WebSocket, client_uid: str, data: WSMessage
