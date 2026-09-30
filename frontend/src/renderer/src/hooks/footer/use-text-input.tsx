@@ -6,6 +6,7 @@ import { useChatHistory } from '@/context/chat-history-context';
 import { useVAD } from '@/context/vad-context';
 import { useMediaCapture } from '@/hooks/utils/use-media-capture';
 import { IPC } from '@proto/ipc';
+import { WS_OUT } from '@proto/ws-backend';
 import { isHubDialogueEnabled } from '@/utils/hub-dialogue';
 
 export function useTextInput() {
@@ -44,10 +45,10 @@ export function useTextInput() {
           wsContext.sendMessage({ type: 'text-input', text, images });
         }
       }).catch(() => {
-        wsContext.sendMessage({ type: 'text-input', text, images });
+        wsContext.sendMessage({ type: WS_OUT.textInput, text, images });
       });
     } else {
-      wsContext.sendMessage({ type: 'text-input', text, images });
+      wsContext.sendMessage({ type: WS_OUT.textInput, text, images });
     }
 
     if (autoStopMic) stopMic();

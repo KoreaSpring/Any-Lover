@@ -5,15 +5,12 @@
 // 本驱动开一条独立连接专门发控制消息（收到的帧二进制忽略），与 ThaStage 的
 // 帧连接解耦，便于 use-audio-task 这类非组件模块直接调用。
 
-import { THA_WS_URL } from '@/context/render-mode-context';
+import {
+  THA_WS_URL, THA_OUT, THA_IN, ThaSetImageProgress, ThaSegmentModel, ThaPreset, ThaGazeMode,
+} from '@proto/ws-tha';
 
-// 立绘处理进度（服务端回发）：stage 阶段名，message 文案，percent 0..100(-1 不确定/失败)。
-export interface ThaSetImageProgress {
-  type: 'setImageProgress';
-  stage: string;
-  message: string;
-  percent: number;
-}
+// 协议类型/常量统一在 proto/ws-tha.ts。此处 re-export ThaSetImageProgress 保持既有消费方 import 不变。
+export type { ThaSetImageProgress } from '@proto/ws-tha';
 
 class ThaDriver {
   private ws: WebSocket | null = null;
@@ -58,7 +55,7 @@ class ThaDriver {
         if (typeof ev.data !== 'string') return;
         try {
           const obj = JSON.parse(ev.data);
-          if (obj && obj.type === 'setImageProgress') {
+          if (obj && obj.type === THA_IN.setImageProgress) {
             this.progressListeners.forEach((cb) => cb(obj));
           }
         } catch {
@@ -92,12 +89,12 @@ class ThaDriver {
       // 仍允许变化较大的值穿透节流
     }
     this.lastMouthSent = now;
-    this.send({ type: 'mouth', value: v });
+    this.send({ type: THA_OUT.mouth, value: v });
   }
 
   // 表情驱动：发情绪名给 THA 服务，服务端按情绪→pose 映射表合成表情。
   sendExpression(name: string): void {
-    this.send({ type: 'expression', name });
+    this.send({ type: THA_OUT.expression, name });
   }
 
   // 后端 extract_emotion 返回的是 Live2D emotionMap 的数字索引（依赖当前模型）。
@@ -113,29 +110,29 @@ class ThaDriver {
 
   // 说话结束显式闭嘴
   resetMouth(): void {
-    this.send({ type: 'mouth', value: 0 });
+    this.send({ type: THA_OUT.mouth, value: 0 });
   }
 
   // 热切换立绘：把用户选中的图片路径发给 THA 服务，服务端做预处理(抠图/居中)+热切换。
   // model: 抠图分割模型 —— 'isnet-anime'(动漫，默认) / 'u2net'(写实·半写实·3D 渲染)。
-  sendSetImage(path: string, name?: string, model: 'isnet-anime' | 'u2net' = 'isnet-anime'): void {
-    this.send({ type: 'setImage', path, name, model });
+  sendSetImage(path: string, name?: string, model: ThaSegmentModel = 'isnet-anime'): void {
+    this.send({ type: THA_OUT.setImage, path, name, model });
   }
 
   // 切换性能预设：low(随包) / medium / high / ultra（后三者需高画质模型包）。
-  sendPreset(preset: 'low' | 'medium' | 'high' | 'ultra'): void {
-    this.send({ type: 'setPreset', preset });
+  sendPreset(preset: ThaPreset): void {
+    this.send({ type: THA_OUT.setPreset, preset });
   }
 
   // 注视模式：按对话状态驱动视线游移（idle 空闲 / active 说话思考 / listening 听）。
-  sendGaze(mode: 'idle' | 'active' | 'listening'): void {
-    this.send({ type: 'gaze', mode });
+  sendGaze(mode: ThaGazeMode): void {
+    this.send({ type: THA_OUT.gaze, mode });
   }
 
   // 方向级注视跟随：yaw/pitch(度)，来自摄像头感知（主进程规则化后经 IPC 下发）。
   // 服务端 follow 优先级高于 mode，超时自动回落程序化游移。
   sendGazeTarget(yaw: number, pitch: number): void {
-    this.send({ type: 'gazeTarget', yaw, pitch });
+    this.send({ type: THA_OUT.gazeTarget, yaw, pitch });
   }
 
   // 预连接（进入 THA 模式时可调用，减少首句延迟）

@@ -1,5 +1,6 @@
 import { useDisclosure } from '@chakra-ui/react';
 import { useWebSocket } from '@/context/websocket-context';
+import { WS_OUT } from '@proto/ws-backend';
 import { useInterrupt } from '@/components/canvas/live2d';
 import { useChatHistory } from '@/context/chat-history-context';
 import { useMode, ModeType } from '@/context/mode-context';
@@ -19,7 +20,7 @@ export const useSidebar = () => {
 
     interrupt();
     sendMessage({
-      type: 'create-new-history',
+      type: WS_OUT.createNewHistory,
     });
   };
 

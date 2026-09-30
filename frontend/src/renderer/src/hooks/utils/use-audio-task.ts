@@ -8,6 +8,7 @@ import { useSubtitle } from '@/context/subtitle-context';
 import { useChatHistory } from '@/context/chat-history-context';
 import { audioTaskQueue } from '@/utils/task-queue';
 import { audioManager } from '@/utils/audio-manager';
+import { WS_OUT } from '@proto/ws-backend';
 import { toaster } from '@/components/ui/toaster';
 import { useWebSocket } from '@/context/websocket-context';
 import { DisplayText } from '@/services/websocket-service';
@@ -167,7 +168,7 @@ export const useAudioTask = () => {
       }
       if (!forwarded) {
         sendMessage({
-          type: "audio-play-start",
+          type: WS_OUT.audioPlayStart,
           display_text: displayText,
           forwarded: true,
         });
@@ -322,7 +323,7 @@ export const useAudioTask = () => {
           thaDriver.resetMouth();
           thaDriver.sendExpression('neutral');
         }
-        sendMessage({ type: "frontend-playback-complete" });
+        sendMessage({ type: WS_OUT.frontendPlaybackComplete });
         setBackendSynthComplete(false);
       }
     };

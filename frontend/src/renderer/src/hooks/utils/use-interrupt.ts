@@ -5,6 +5,7 @@ import { audioTaskQueue } from '@/utils/task-queue';
 import { useSubtitle } from '@/context/subtitle-context';
 import { useAudioTask } from './use-audio-task';
 import { IPC } from '@proto/ipc';
+import { WS_OUT } from '@proto/ws-backend';
 import { isHubDialogueEnabled } from '@/utils/hub-dialogue';
 import { thaDriver } from '@/utils/tha-driver';
 
@@ -39,10 +40,10 @@ export const useInterrupt = () => {
         /* ignore */
       }
       // 让后端结束本轮 hub-speak（清 TTS 队列、发 chain-end）。
-      sendMessage({ type: 'hub-speak-end' });
+      sendMessage({ type: WS_OUT.hubSpeakEnd });
     } else if (sendSignal) {
       sendMessage({
-        type: 'interrupt-signal',
+        type: WS_OUT.interruptSignal,
         text: fullResponse,
       });
     }

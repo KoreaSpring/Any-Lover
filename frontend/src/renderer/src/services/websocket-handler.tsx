@@ -5,6 +5,7 @@ import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { wsService, MessageEvent } from '@/services/websocket-service';
 import { IPC } from '@proto/ipc';
+import { WS_OUT } from '@proto/ws-backend';
 import { isHubDialogueEnabled } from '@/utils/hub-dialogue';
 import {
   WebSocketContext, HistoryInfo, defaultWsUrl, defaultBaseUrl,
@@ -185,8 +186,8 @@ function WebSocketHandler({ children }: { children: React.ReactNode }) {
 
         // setModelInfo(undefined);
 
-        wsService.sendMessage({ type: 'fetch-history-list' });
-        wsService.sendMessage({ type: 'create-new-history' });
+        wsService.sendMessage({ type: WS_OUT.fetchHistoryList });
+        wsService.sendMessage({ type: WS_OUT.createNewHistory });
         break;
       case 'background-files':
         if (message.files) {
@@ -381,17 +382,17 @@ function WebSocketHandler({ children }: { children: React.ReactNode }) {
     const api = window.electron?.ipcRenderer;
     if (!api) return undefined;
     const onStart = (): void => {
-      wsService.sendMessage({ type: 'hub-speak-start' });
+      wsService.sendMessage({ type: WS_OUT.hubSpeakStart });
     };
     const onSay = (_e: unknown, payload: { text?: string }): void => {
-      if (payload?.text) wsService.sendMessage({ type: 'hub-speak', text: payload.text });
+      if (payload?.text) wsService.sendMessage({ type: WS_OUT.hubSpeak, text: payload.text });
     };
     const onEnd = (): void => {
-      wsService.sendMessage({ type: 'hub-speak-end' });
+      wsService.sendMessage({ type: WS_OUT.hubSpeakEnd });
     };
     const onError = (_e: unknown, payload: { message?: string }): void => {
       setSubtitleText(payload?.message || '（对话出错了）');
-      wsService.sendMessage({ type: 'hub-speak-end' });
+      wsService.sendMessage({ type: WS_OUT.hubSpeakEnd });
     };
     api.on(IPC.agent.dialogueStart, onStart);
     api.on(IPC.agent.dialogueSay, onSay);
