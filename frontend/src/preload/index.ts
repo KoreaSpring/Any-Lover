@@ -3,7 +3,8 @@ import electron from 'electron';
 const { contextBridge, ipcRenderer, desktopCapturer } = electron;
 import { electronAPI } from '@electron-toolkit/preload';
 import 'electron-log/preload';
-import { ConfigFile } from '../main/menu-manager';
+import { ConfigFile } from '../main/window/menu-manager';
+import { IPC } from '../proto/ipc';
 
 // electron-log/preload 会在 window 上桥接一个 IPC 通道，配合渲染进程里
 // `electron-log/renderer` 的 initialize()，让 renderer 侧的 console.* / log.*
@@ -19,64 +20,64 @@ declare global {
 
 const api = {
   setIgnoreMouseEvents: (ignore: boolean) => {
-    ipcRenderer.send('set-ignore-mouse-events', ignore);
+    ipcRenderer.send(IPC.window.setIgnoreMouseEvents, ignore);
   },
   toggleForceIgnoreMouse: () => {
-    ipcRenderer.send('toggle-force-ignore-mouse');
+    ipcRenderer.send(IPC.window.toggleForceIgnoreMouse);
   },
   onForceIgnoreMouseChanged: (callback: (isForced: boolean) => void) => {
     const handler = (_event: any, isForced: boolean) => callback(isForced);
-    ipcRenderer.on('force-ignore-mouse-changed', handler);
-    return () => ipcRenderer.removeListener('force-ignore-mouse-changed', handler);
+    ipcRenderer.on(IPC.window.forceIgnoreMouseChanged, handler);
+    return () => ipcRenderer.removeListener(IPC.window.forceIgnoreMouseChanged, handler);
   },
   showContextMenu: () => {
     console.log('Preload showContextMenu');
-    ipcRenderer.send('show-context-menu');
+    ipcRenderer.send(IPC.menu.showContextMenu);
   },
   onModeChanged: (callback: (mode: string) => void) => {
-    ipcRenderer.on('mode-changed', (_, mode) => callback(mode));
+    ipcRenderer.on(IPC.window.modeChanged, (_, mode) => callback(mode));
   },
   onMicToggle: (callback: () => void) => {
     const handler = (_event: any) => callback();
-    ipcRenderer.on('mic-toggle', handler);
-    return () => ipcRenderer.removeListener('mic-toggle', handler);
+    ipcRenderer.on(IPC.menu.micToggle, handler);
+    return () => ipcRenderer.removeListener(IPC.menu.micToggle, handler);
   },
   onInterrupt: (callback: () => void) => {
     const handler = (_event: any) => callback();
-    ipcRenderer.on('interrupt', handler);
-    return () => ipcRenderer.removeListener('interrupt', handler);
+    ipcRenderer.on(IPC.menu.interrupt, handler);
+    return () => ipcRenderer.removeListener(IPC.menu.interrupt, handler);
   },
   updateComponentHover: (componentId: string, isHovering: boolean) => {
-    ipcRenderer.send('update-component-hover', componentId, isHovering);
+    ipcRenderer.send(IPC.window.updateComponentHover, componentId, isHovering);
   },
   onToggleInputSubtitle: (callback: () => void) => {
     const handler = (_event: any) => callback();
-    ipcRenderer.on('toggle-input-subtitle', handler);
-    return () => ipcRenderer.removeListener('toggle-input-subtitle', handler);
+    ipcRenderer.on(IPC.menu.toggleInputSubtitle, handler);
+    return () => ipcRenderer.removeListener(IPC.menu.toggleInputSubtitle, handler);
   },
   onToggleScrollToResize: (callback: () => void) => {
     const handler = (_event: any) => callback();
-    ipcRenderer.on('toggle-scroll-to-resize', handler);
-    return () => ipcRenderer.removeListener('toggle-scroll-to-resize', handler);
+    ipcRenderer.on(IPC.menu.toggleScrollToResize, handler);
+    return () => ipcRenderer.removeListener(IPC.menu.toggleScrollToResize, handler);
   },
   onSwitchCharacter: (callback: (filename: string) => void) => {
     const handler = (_event: any, filename: string) => callback(filename);
-    ipcRenderer.on('switch-character', handler);
-    return () => ipcRenderer.removeListener('switch-character', handler);
+    ipcRenderer.on(IPC.menu.switchCharacter, handler);
+    return () => ipcRenderer.removeListener(IPC.menu.switchCharacter, handler);
   },
   setMode: (mode: 'window' | 'pet') => {
-    ipcRenderer.send('pre-mode-changed', mode);
+    ipcRenderer.send(IPC.window.preModeChanged, mode);
   },
-  getConfigFiles: () => ipcRenderer.invoke('get-config-files'),
+  getConfigFiles: () => ipcRenderer.invoke(IPC.config.getConfigFiles),
   // THA 立绘上传：打开选图框，返回本地绝对路径（renderer 再经 thaDriver 发 setImage）
-  pickThaImage: (): Promise<{ path: string }> => ipcRenderer.invoke('tha:pickImage'),
+  pickThaImage: (): Promise<{ path: string }> => ipcRenderer.invoke(IPC.tha.pickImage),
   updateConfigFiles: (files: ConfigFile[]) => {
-    ipcRenderer.send('update-config-files', files);
+    ipcRenderer.send(IPC.config.updateConfigFiles, files);
   },
   // 首帧同步获取「是否需要首启引导」，让覆盖层第一帧即可决定是否显示，避免闪桌宠。
   needOnboardingSync: (): boolean => {
     try {
-      return ipcRenderer.sendSync('onboarding:need-sync') === true;
+      return ipcRenderer.sendSync(IPC.onboarding.needSync) === true;
     } catch {
       return false;
     }

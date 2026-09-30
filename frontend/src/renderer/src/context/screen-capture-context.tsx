@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toaster } from "@/components/ui/toaster";
+import { IPC } from '@proto/ipc';
 
 interface ScreenCaptureContextType {
   stream: MediaStream | null;
@@ -23,7 +24,7 @@ export function ScreenCaptureProvider({ children }: { children: ReactNode }) {
       let mediaStream: MediaStream;
 
       if (window.electron) {
-        const sourceId = await window.electron.ipcRenderer.invoke('get-screen-capture');
+        const sourceId = await window.electron.ipcRenderer.invoke(IPC.config.getScreenCapture);
 
         const displayMediaOptions: DisplayMediaStreamOptions = {
           video: {

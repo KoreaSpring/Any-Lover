@@ -116,6 +116,9 @@ screen-sampler 定时截屏 → screen-gate 黑名单/去重门控
 | `core/` | 基础设施：settings-store（设置持久化+API Key 加密）/ gpu-fix |
 | `agent/` | **Agent 中枢**（五层，见该目录 README） |
 
+> 另有 `frontend/src/proto/`（与 main/ 平级）：跨边界通信协议的 TS 侧单一事实源。当前含 `ipc.ts`
+> （全部 Electron IPC 通道名常量），main/preload/renderer 三处统一引用。见该目录 README。
+
 > 详细分组见 `frontend/src/main/README.md`。
 
 ---

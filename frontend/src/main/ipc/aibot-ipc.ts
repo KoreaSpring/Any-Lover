@@ -16,6 +16,7 @@ import {
   OLLAMA_MIRRORS,
 } from '../sidecar/ollama-installer';
 import { recommendModel, MODEL_OPTIONS } from '../sidecar/model-recommender';
+import { IPC } from '../../proto/ipc';
 
 interface Deps {
   backend: BackendManager;
@@ -70,7 +71,7 @@ export function registerAibotIpc(deps: Deps): void {
   const { backend, ollama, log, onLaunch, getSettingsWindow } = deps;
   void backend;
 
-  ipcMain.handle('settings:get', () => {
+  ipcMain.handle(IPC.settings.get, () => {
     const s = readSettings();
     return {
       provider: s.provider || 'openai',
@@ -86,7 +87,7 @@ export function registerAibotIpc(deps: Deps): void {
     };
   });
 
-  ipcMain.handle('settings:save', (_evt, payload: any) => {
+  ipcMain.handle(IPC.settings.save, (_evt, payload: any) => {
     const provider = payload.provider === 'ollama' ? 'ollama' : 'openai';
     let temperature = Number(payload.temperature);
     if (!Number.isFinite(temperature)) temperature = 1.0;
@@ -110,7 +111,7 @@ export function registerAibotIpc(deps: Deps): void {
     return { ok: true, hasApiKey: hasApiKey() };
   });
 
-  ipcMain.handle('ollama:detect', async (_evt, payload: any) => {
+  ipcMain.handle(IPC.ollama.detect, async (_evt, payload: any) => {
     const ollamaPath = String((payload && payload.ollamaPath) || '').trim();
     const ollamaHost = String((payload && payload.ollamaHost) || '').trim();
     let execMsg = '';
@@ -127,7 +128,7 @@ export function registerAibotIpc(deps: Deps): void {
     return { ok: list.ok, message: [execMsg, list.message].filter(Boolean).join('；'), models: list.models || [] };
   });
 
-  ipcMain.handle('llm:test', async (_evt, payload: any) => {
+  ipcMain.handle(IPC.llm.test, async (_evt, payload: any) => {
     const s = readSettings();
     const baseUrl = String((payload && payload.baseUrl) || s.baseUrl || '').trim();
     const model = String((payload && payload.model) || s.model || '').trim();
@@ -140,7 +141,7 @@ export function registerAibotIpc(deps: Deps): void {
     }
   });
 
-  ipcMain.handle('pet:launch', async () => {
+  ipcMain.handle(IPC.pet.launch, async () => {
     try {
       const url = await onLaunch();
       return { ok: true, url };
@@ -149,13 +150,13 @@ export function registerAibotIpc(deps: Deps): void {
     }
   });
 
-  ipcMain.handle('settings:close', () => {
+  ipcMain.handle(IPC.settings.close, () => {
     const w = getSettingsWindow();
     if (w) w.close();
     return { ok: true };
   });
 
-  ipcMain.handle('ollama:browse', async () => {
+  ipcMain.handle(IPC.ollama.browse, async () => {
     const win = getSettingsWindow() || BrowserWindow.getFocusedWindow() || undefined;
     const result = await dialog.showOpenDialog(win as BrowserWindow, {
       title: '选择 ollama 可执行文件',
@@ -170,12 +171,12 @@ export function registerAibotIpc(deps: Deps): void {
   });
 
   // 设置面板的点击穿透开关：仅持久化（实际穿透由前端外壳的 Pet 模式管理）
-  ipcMain.handle('pet:clickThrough', (_evt, enabled: boolean) => {
+  ipcMain.handle(IPC.pet.clickThrough, (_evt, enabled: boolean) => {
     writeSettings({ clickThrough: !!enabled });
     return { ok: true };
   });
 
-  ipcMain.handle('app:quit', () => {
+  ipcMain.handle(IPC.app.quit, () => {
     app.quit();
     return { ok: true };
   });
@@ -185,12 +186,12 @@ export function registerAibotIpc(deps: Deps): void {
   // 把进度事件推送给所有窗口（主窗覆盖层 + 独立设置窗都监听 'ollama:progress'）。
   const sendProgress = (p: OllamaProgress): void => {
     for (const w of BrowserWindow.getAllWindows()) {
-      if (!w.isDestroyed()) w.webContents.send('ollama:progress', p);
+      if (!w.isDestroyed()) w.webContents.send(IPC.ollama.progress, p);
     }
   };
 
   // 选择 Ollama 安装目录（免安装解压落点）。
-  ipcMain.handle('ollama:chooseDir', async () => {
+  ipcMain.handle(IPC.ollama.chooseDir, async () => {
     const win = getSettingsWindow() || BrowserWindow.getFocusedWindow() || undefined;
     const result = await dialog.showOpenDialog(win as BrowserWindow, {
       title: '选择 Ollama 安装位置',
@@ -201,7 +202,7 @@ export function registerAibotIpc(deps: Deps): void {
   });
 
   // 返回下载/安装状态：是否已就绪、可选镜像、目标模型等。
-  ipcMain.handle('ollama:status', async () => {
+  ipcMain.handle(IPC.ollama.status, async () => {
     const s = readSettings();
     const resolved = resolveAnyOllama(s.ollamaDir);
     const installDir = String(s.ollamaDir || '').trim() || defaultInstallDir(app.getPath('userData'));
@@ -240,7 +241,7 @@ export function registerAibotIpc(deps: Deps): void {
   });
 
   // 下载并安装 Ollama（免安装解压到用户选择目录），随后确保 serve，再拉取目标模型。
-  ipcMain.handle('ollama:install', async (_evt, payload: any) => {
+  ipcMain.handle(IPC.ollama.install, async (_evt, payload: any) => {
     const s = readSettings();
     const chosenDir = String((payload && payload.installDir) || s.ollamaDir || '').trim();
     const installDir = chosenDir || defaultInstallDir(app.getPath('userData'));
@@ -315,7 +316,7 @@ export function registerAibotIpc(deps: Deps): void {
   });
 
   // 仅拉取模型（Ollama 已就绪时用）。
-  ipcMain.handle('ollama:pull', async (_evt, payload: any) => {
+  ipcMain.handle(IPC.ollama.pull, async (_evt, payload: any) => {
     const s = readSettings();
     const host = s.ollamaHost || 'http://127.0.0.1:11434';
     const model = String((payload && payload.model) || s.ollamaModel || '').trim() || recommendModel().recommended.id;
@@ -331,7 +332,7 @@ export function registerAibotIpc(deps: Deps): void {
   });
 
   // 硬件检测 + 推荐模型清单（对齐 AnythingLLM「设置选项/最佳匹配」）。
-  ipcMain.handle('ollama:recommend', () => {
+  ipcMain.handle(IPC.ollama.recommend, () => {
     const r = recommendModel();
     return {
       hardware: r.hardware,
@@ -342,7 +343,7 @@ export function registerAibotIpc(deps: Deps): void {
 
   // 确保目标模型就绪：已存在则跳过；否则静默 pull（进度经 ollama:progress 推送）。
   // 供首启进入主界面后的后台静默下载使用。
-  ipcMain.handle('ollama:ensureModel', async (_evt, payload: any) => {
+  ipcMain.handle(IPC.ollama.ensureModel, async (_evt, payload: any) => {
     const s = readSettings();
     const host = s.ollamaHost || 'http://127.0.0.1:11434';
     const model = String((payload && payload.model) || s.ollamaModel || '').trim() || recommendModel().recommended.id;

@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { toaster } from '../components/ui/toaster';
+import { IPC } from '@proto/ipc';
 
 export type ModeType = 'window' | 'pet';
 
@@ -42,7 +43,7 @@ export const ModeProvider: React.FC<{ children: React.ReactNode }> = ({ children
         requestAnimationFrame(() => {
           requestAnimationFrame(() => {
             // Tell main process we're ready for the actual mode change
-            window.electron?.ipcRenderer.send('renderer-ready-for-mode-change', newMode);
+            window.electron?.ipcRenderer.send(IPC.window.rendererReadyForModeChange, newMode);
           });
         });
       };
@@ -52,19 +53,19 @@ export const ModeProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // After mode is set, tell main process the UI has been updated
         requestAnimationFrame(() => {
           requestAnimationFrame(() => {
-            window.electron?.ipcRenderer.send('mode-change-rendered');
+            window.electron?.ipcRenderer.send(IPC.window.modeChangeRendered);
           });
         });
       };
 
       // Listen for pre-mode-changed and mode-changed events
-      window.electron.ipcRenderer.on('pre-mode-changed', handlePreModeChange);
-      window.electron.ipcRenderer.on('mode-changed', handleModeChanged);
+      window.electron.ipcRenderer.on(IPC.window.preModeChanged, handlePreModeChange);
+      window.electron.ipcRenderer.on(IPC.window.modeChanged, handleModeChanged);
 
       return () => {
         if (window.electron) {
-          window.electron.ipcRenderer.removeListener('pre-mode-changed', handlePreModeChange);
-          window.electron.ipcRenderer.removeListener('mode-changed', handleModeChanged);
+          window.electron.ipcRenderer.removeListener(IPC.window.preModeChanged, handlePreModeChange);
+          window.electron.ipcRenderer.removeListener(IPC.window.modeChanged, handleModeChanged);
         }
       };
     }

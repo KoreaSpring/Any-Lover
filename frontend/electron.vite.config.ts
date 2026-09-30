@@ -31,6 +31,7 @@ export default defineConfig({
     resolve: {
       alias: {
         '@': resolve('src/renderer/src'),
+        '@proto': resolve('src/proto'),
         "@framework": resolve("src/renderer/WebSDK/Framework/src"),
         "@cubismsdksamples": resolve("src/renderer/WebSDK/src"),
         "@motionsyncframework": resolve(
