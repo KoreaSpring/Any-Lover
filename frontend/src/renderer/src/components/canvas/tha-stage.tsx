@@ -50,7 +50,7 @@ export const ThaStage = memo(({ showSidebar: _showSidebar }: ThaStageProps): JSX
   // 转发给 THA 服务（follow 优先于对话状态的程序化 gaze，超时自动回落）。
   // 无摄像头/未开启时主进程不会广播，自然回落到上面的 mode 驱动，优雅降级。
   useEffect(() => {
-    const api = (window as any).electron?.ipcRenderer;
+    const api = window.electron?.ipcRenderer;
     if (!api) return undefined;
     const handler = (_e: unknown, payload: { yaw: number; pitch: number }): void => {
       if (!payload) return;
@@ -68,7 +68,7 @@ export const ThaStage = memo(({ showSidebar: _showSidebar }: ThaStageProps): JSX
 
   // 共情表情：订阅主进程按用户情绪下发的桌宠共情表情（agent:express-emotion）→ 驱动 THA。
   useEffect(() => {
-    const api = (window as any).electron?.ipcRenderer;
+    const api = window.electron?.ipcRenderer;
     if (!api) return undefined;
     const handler = (_e: unknown, payload: { name?: string }): void => {
       if (payload?.name) thaDriver.sendExpression(payload.name);
@@ -101,7 +101,7 @@ export const ThaStage = memo(({ showSidebar: _showSidebar }: ThaStageProps): JSX
     ox: 0,
     oy: 0,
   });
-  const electronApi = (window as any).electron;
+  const electronApi = window.electron;
   const hoverRef = useRef(false);
 
   // 命中检测：鼠标是否落在角色的非透明像素上。canvas 内部 512×512，

@@ -20,7 +20,7 @@ const RenderModeContext = createContext<RenderModeContextType | undefined>(undef
 // 是否 Windows（THA 仅 Windows 可用）。preload 通过 contextBridge 暴露了 process.platform。
 function isWindows(): boolean {
   try {
-    return (window as any).electron?.process?.platform === 'win32';
+    return window.electron?.process?.platform === 'win32';
   } catch {
     return false;
   }
