@@ -38,6 +38,10 @@ import { openSettingsWindow, getSettingsWindow } from './window/settings-window'
 import { readSettings, writeSettings, hasApiKey } from './core/settings-store';
 import { recommendModel } from './sidecar/model-recommender';
 import { pullModel } from './sidecar/ollama-installer';
+import { SidecarRegistry } from './sidecar/registry';
+import { BackendPlugin } from './sidecar/plugins/backend-plugin';
+import { OllamaPlugin } from './sidecar/plugins/ollama-plugin';
+import { ThaPlugin } from './sidecar/plugins/tha-plugin';
 import { IPC } from '../proto/ipc';
 
 // 单例锁：防止用户重复启动多个应用实例（会导致端口 12393/11434 冲突、
@@ -82,6 +86,16 @@ const gazeBridge = new GazeBridge(logToFile);
 // 桌面采样源（默认关，由 agent:screen IPC 显式启停）。P1 只做采样+门控骨架，
 // 命中发 perception.screen 占位事件；本地 VLM 摘要在后续步骤接入。
 const screenSampler = new ScreenSampler(logToFile);
+
+// Sidecar 注册表（见 docs/roadmap/sidecar-plugin-architecture.md）：统一各 sidecar 的退出清理。
+// 说明：启动仍由各自编排（backend 走 startBackend、tha 走资源协调器、openSeeFace 走 agent:camera IPC），
+//   registry 这里主要负责「注册 + 统一 stopAll/killAll」，消除退出路径上重复的 try/catch 样板。
+const sidecars = new SidecarRegistry(logToFile);
+sidecars.register(new OllamaPlugin(ollama));
+sidecars.register(new BackendPlugin(backend));
+sidecars.register(new ThaPlugin(tha));
+sidecars.register(openSeeFace); // OpenSeeFaceManager 本身即 SidecarPlugin（perception 基类）
+
 // 屏幕记忆：本地存储 + 桥（订阅 perception.screen 写入记忆）。桥常驻订阅，与采样开关解耦
 // （采样关则无 perception.screen 事件，桥自然不写入）。
 const memoryStore = new MemoryStore('screen-memory.jsonl', logToFile);
@@ -723,26 +737,9 @@ let cleanedUp = false;
 function cleanupAll(): void {
   if (cleanedUp) return;
   cleanedUp = true;
-  try {
-    backend.killAll();
-  } catch (e) {
-    logToFile(`[shutdown] backend.killAll 异常：${String((e as any)?.message || e)}`);
-  }
-  try {
-    ollama.killAll();
-  } catch (e) {
-    logToFile(`[shutdown] ollama.killAll 异常：${String((e as any)?.message || e)}`);
-  }
-  try {
-    tha.killAll();
-  } catch (e) {
-    logToFile(`[shutdown] tha.killAll 异常：${String((e as any)?.message || e)}`);
-  }
-  try {
-    openSeeFace.killAll();
-  } catch (e) {
-    logToFile(`[shutdown] openSeeFace.killAll 异常：${String((e as any)?.message || e)}`);
-  }
+  // 各 sidecar（backend / ollama / tha / openSeeFace）的进程树强杀：统一交给注册表，
+  // 内部已逐个 try/catch 隔离（见 SidecarRegistry.killAll）。
+  sidecars.killAll();
   try {
     screenSampler.stop();
   } catch (e) {
@@ -781,14 +778,8 @@ function cleanupAll(): void {
 
 // before-quit：尝试优雅停止（异步，尽力而为）
 app.on('before-quit', () => {
-  try {
-    if (backend.isRunning()) void backend.stop();
-    if (ollama.isServing()) void ollama.stop();
-    if (tha.isRunning()) void tha.stop();
-    if (openSeeFace.isRunning()) void openSeeFace.stop();
-  } catch {
-    /* ignore */
-  }
+  // 各 sidecar 的优雅停止统一交给注册表（反序、逐个 try/catch、仅停在运行的）。
+  void sidecars.stopAll();
 });
 
 // will-quit：进程真正退出前的同步兜底，强杀所有相关进程树。

@@ -1,7 +1,13 @@
 # Sidecar 插件化架构设计（提案）
 
-> 状态：**设计提案，尚未实施**。本文给出一套让各 sidecar「像插件一样可插拔」的统一契约与落地路径，
-> 供评审。落地是独立任务，需分批 + 每步 `npm run build` 验证，风险中等（改动 bootstrap 接线与各 manager）。
+> 状态：**已实施（首期）**。契约 `SidecarPlugin`、`SidecarRegistry`、各 manager 薄适配器已落地并接入 bootstrap。
+>
+> **实际落地范围（与原提案的差异，重要）**：调查 bootstrap 后发现各 sidecar 的**启动**逻辑各有真实编排约束
+> （backend 交织在 `startBackend()` 且被设置窗 onLaunch 复用；ollama 条件化 ensureServe + 模型下载副作用；
+> tha 走 `ResourceCoordinator.acquire` + 可见性驱动按需加载/卸载；感知源走 `agent:camera` IPC 开关），
+> 硬套 `registry.startAll` 会破坏这些约束、违反零回归。故首期 **registry 只统一「注册 + 退出清理」**
+> （`stopAll`/`killAll`，替代 bootstrap 里 4 段重复的 try/catch 样板），**启动保留各自编排**。
+> `startAll` 接口仍保留在 registry 里，供将来启动逻辑理顺后使用。
 
 ## 1. 背景与目标
 
@@ -88,13 +94,17 @@ export class SidecarRegistry {
 `bootstrap.ts` 从「逐个 new + 手动接线 + 分散在多个生命周期回调里 killAll」收敛为：
 `registry.register(new BackendPlugin()); ...; await registry.startAll(ctx);`，退出时 `registry.stopAll()/killAll()`。
 
-## 5. 落地路径（分批，每步 build）
+## 5. 落地路径（分批，每步 build）—— 已完成
 
-1. **加契约与注册表**（新增 `plugin.ts` / `registry.ts`），不改任何现有 manager——纯新增，零风险。
-2. **让 `SidecarPerceptionSource implements SidecarPlugin`**（补 displayName、放宽 start 返回），openseeface 先纳入。build。
-3. **给 backend/tha/ollama 各写一个薄适配器**（`BackendPlugin` 包住 `BackendManager`，委托现有方法），逐个注册、逐个 build。不改 manager 内部实现，只加适配层——可回退。
-4. **bootstrap 改用 registry 编排**，把散落的 start/stop/killAll 收敛。这步改动面最大，最后做，充分 build + 手测。
-5. **文档**：更新 `main/README.md` 与 `docs/ARCHITECTURE.md`，说明插件契约与「新增一个 sidecar」的步骤。
+1. ✅ **加契约与注册表**（`plugin.ts` / `registry.ts`），纯新增。
+2. ✅ **`SidecarPerceptionSource implements SidecarPlugin`**（补 displayName getter，start/canStart 结构兼容）。
+3. ✅ **backend/tha/ollama 薄适配器**（`sidecar/plugins/*-plugin.ts`，委托同名 manager，不改内部）。
+   ollama 适配器 `canStart` 返回 false、`start` 为 no-op（启动仍由 bootstrap 编排），仅参与退出清理。
+4. ✅ **bootstrap 接入 registry**：注册 4 个 sidecar，退出清理（cleanupAll 的 killAll、before-quit 的 stop）
+   收敛为 `sidecars.killAll()` / `sidecars.stopAll()`。**启动路径完全未改**（零回归）。
+5. ✅ **文档**：`main/README.md`（含「新增一个 sidecar」步骤）、`docs/ARCHITECTURE.md`、本文档。
+
+每步 `npm run build`（三进程）+ 关键步 `tsc --noEmit -p tsconfig.node.json` 验证通过。
 
 ## 6. 明确的边界与不做的事
 

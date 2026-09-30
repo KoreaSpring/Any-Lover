@@ -22,6 +22,17 @@ Electron 主进程：应用大脑。管理所有 sidecar（Python 后端 / Ollam
 | `tha-model-installer.ts` | THA 高画质模型包下载/解压/档位管理 |
 | `openseeface-manager.ts` | OpenSeeFace 面捕 sidecar：spawn facetracker + UDP 收包 → perception.gaze（仅 Windows，优雅降级） |
 | `screen-sampler.ts` | 桌面截屏采样：定时 + 门控/去重 + 可选本地 VLM 摘要 → perception.screen（默认关） |
+| `plugin.ts` | **SidecarPlugin 契约**：统一生命周期接口（id/displayName/canStart/start/stop/killAll/isRunning）+ SidecarPluginContext |
+| `registry.ts` | **SidecarRegistry**：注册各 sidecar，统一 `stopAll()`（反序优雅停）/ `killAll()`（进程树强杀），逐个 try/catch 隔离 |
+| `plugins/` | 现有 manager 的薄适配器：`backend-plugin.ts` / `ollama-plugin.ts` / `tha-plugin.ts`（委托同名 manager，不改其内部）。openseeface 由 perception 基类直接实现契约 |
+
+### 新增一个 sidecar 的步骤
+1. 写 manager（进程/服务的实际生命周期）放本目录。
+2. 若它是感知源，继承 `agent/perception/perception-source.ts` 的 `SidecarPerceptionSource`（已实现契约）；
+   否则在 `plugins/` 下写个薄适配器 `implements SidecarPlugin`，委托 manager 方法。
+3. 在 `bootstrap.ts` 里 `sidecars.register(new XxxPlugin(mgr))`——退出清理即自动纳入，无需再手写 killAll/stop。
+4. 启动按需接线（多数 sidecar 启动各有编排约束：backend 走 startBackend、tha 走资源协调器、
+   感知源走 IPC 开关），registry 目前统一的是**退出清理**，不强制统一启动。见 `docs/roadmap/sidecar-plugin-architecture.md`。
 
 ## ipc/ — IPC 注册汇总
 | 文件 | 职责 |
