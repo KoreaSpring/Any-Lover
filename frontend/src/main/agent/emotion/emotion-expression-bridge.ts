@@ -8,7 +8,7 @@
 //   THA 表情名（tha_server EMOTION_POSES）：neutral/happy/sad/angry 等。
 
 import { BrowserWindow } from 'electron';
-import { eventBus, EventBus, Unsubscribe } from './event-bus';
+import { eventBus, EventBus, Unsubscribe } from '../event-bus';
 import { EmotionState } from './emotion-state';
 
 export const IPC_EXPRESS_EMOTION = 'agent:express-emotion';

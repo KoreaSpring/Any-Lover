@@ -5,7 +5,7 @@
 //   收敛为中枢里显式、可切换的 provider。复用现有 AppSettings（不新增存储），apiKey 走 loadApiKey。
 //   过渡期：注册后并不接管现有对话（对话仍走 Python 后端），仅让中枢能独立发起 LLM 调用。
 
-import { readSettings, loadApiKey } from '../../settings-store';
+import { readSettings, loadApiKey } from '../../../settings-store';
 import { llmProviderRegistry, LLMProvider } from '../llm-provider';
 import { OpenAICompatibleProvider } from './openai-compatible-provider';
 import { OllamaProvider } from './ollama-provider';

@@ -8,7 +8,7 @@
 // 信号分流（设计 §4）：对话中→注入上下文；非对话→写记忆。P1 尚无对话状态判断，
 //   先一律写记忆；conversing 事件接入后再据此分流（bridge 已预留 conversing 订阅位）。
 
-import { eventBus, EventBus, Unsubscribe } from './event-bus';
+import { eventBus, EventBus, Unsubscribe } from '../event-bus';
 import { MemoryStore, MemoryEntry } from './memory-store';
 
 /** 合并窗口：与上一条同摘要且间隔在此以内，则合并而非新增。 */
