@@ -145,6 +145,7 @@ screen-sampler 定时截屏 → screen-gate 黑名单/去重门控
 | `memory-and-persona.md` | 四层记忆模型（会话/画像/关系/人格） |
 | `easyvtuber-integration.md` / `easyvtuber-windows-verify.md` | THA(EasyVtuber) 集成与验证 |
 | `avatar-alternatives.md` | 立绘/形象方案对比 |
+| `sidecar-plugin-architecture.md` | **提案**：sidecar 统一插件契约（SidecarPlugin + 注册表），让各 sidecar 可插拔 |
 
 ---
 
@@ -157,4 +158,8 @@ screen-sampler 定时截屏 → screen-gate 黑名单/去重门控
   （rollup 对相对路径更严格），需逐文件手动改相对路径 + 跑 `npm run build` 验证。
   `main/` 根目录也已按功能物理分子目录（sidecar/ipc/window/core，入口 bootstrap/index 留根），
   import 全改毕、`npm run build` 通过。
+- **协议单一事实源（`frontend/src/proto/`）**：Electron IPC（ipc.ts）、后端 WS（ws-backend.ts）、
+  THA WS（ws-tha.ts）的 TS 侧已常量化并全项目接入；`protocol.proto` 为 TS↔Python 契约文档（不做 codegen）。
+- **sidecar 插件化（提案，未实施）**：见 `docs/roadmap/sidecar-plugin-architecture.md`，统一 SidecarPlugin
+  契约 + 注册表，复用现有 PerceptionSource/ManagedResource 雏形。落地是独立任务。
 - 真机验证（需摄像头/麦克风/Ollama/在线 API 环境）：视线方向校准、屏幕摘要质量、情绪融合、中枢对话完整链路。
