@@ -8,13 +8,13 @@
 //   后端在此仅做 ASR/TTS/表情，对话生成、上下文编排、历史都在中枢（应用作为 agent 统筹的终局第一步）。
 //   语音输入/中断/多角色留 F-2。默认关闭（由开关切换中枢对话 vs 老后端对话），不回归。
 
-import { LLMProviderRegistry } from './llm-provider';
-import { MemoryStore } from './memory-store';
-import { ProfileStore } from './profile-store';
-import { RelationshipState } from './relationship-state';
-import { EmotionState } from './emotion-state';
-import { eventBus, EventBus } from './event-bus';
-import { readSettings } from '../settings-store';
+import { LLMProviderRegistry } from '../llm/llm-provider';
+import { MemoryStore } from '../memory/memory-store';
+import { ProfileStore } from '../memory/profile-store';
+import { RelationshipState } from '../memory/relationship-state';
+import { EmotionState } from '../emotion/emotion-state';
+import { eventBus, EventBus } from '../event-bus';
+import { readSettings } from '../../settings-store';
 
 /** 一轮对话的句子交付回调：start(轮开始) / say(每句) / end(轮结束) / error。 */
 export interface DialogueSink {

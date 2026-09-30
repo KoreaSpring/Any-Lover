@@ -151,7 +151,9 @@ screen-sampler 定时截屏 → screen-gate 黑名单/去重门控
 ## 7. 待办与演进方向（记录，勿丢）
 
 - **中枢对话 F-2 之后**：多角色切换时中枢历史/人设同步；最终关掉后端老对话链路；中枢会话历史持久化。
-- **物理重构（方案 Y，后续慢活）**：把 `main/` 与 `agent/` 按本文分组物理分子目录。
-  注意：smart_relocate 在本项目不自动改 import，需逐文件手动改相对路径 + 每步 build 验证，风险较高，
-  当前以本文档 + 各 README 的「逻辑分组」达成可读性，物理分目录留作独立任务。
+- **物理重构（方案 Y）**：`agent/` 已按功能物理分子目录（memory/emotion/perception/dialogue/
+  llm/vlm/render，core 三文件留 `agent/` 根），import 全改毕、`npm run build` 通过。
+  经验：smart_relocate 在本项目不自动改 import，且 `tsc --noEmit` 通过不代表 vite/rollup 通过
+  （rollup 对相对路径更严格），需逐文件手动改相对路径 + 跑 `npm run build` 验证。
+  `main/` 根目录（backend/llm/render/perception/core/ipc 分组）尚未物理分目录，留作独立任务。
 - 真机验证（需摄像头/麦克风/Ollama/在线 API 环境）：视线方向校准、屏幕摘要质量、情绪融合、中枢对话完整链路。

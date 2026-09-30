@@ -5,7 +5,7 @@
 //   融合出当前 valence/arousal，再离散化为一个情绪名供表情/语气使用。
 //   时间衰减：情绪会随时间回落到中性（避免一次判定长期锁定表情）。
 
-import { eventBus, EventBus, Unsubscribe } from './event-bus';
+import { eventBus, EventBus, Unsubscribe } from '../event-bus';
 
 export type EmotionSourceKind = 'text' | 'voice' | 'face';
 

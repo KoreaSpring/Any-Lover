@@ -12,10 +12,10 @@
 
 import { desktopCapturer } from 'electron';
 import { eventBus, EventBus } from './agent/event-bus';
-import { isBlocked, perceptualHash, isNearDuplicate, DEFAULT_BLOCKLIST } from './agent/screen-gate';
+import { isBlocked, perceptualHash, isNearDuplicate, DEFAULT_BLOCKLIST } from './agent/perception/screen-gate';
 import type { ResourceCoordinator } from './agent/resource-coordinator';
-import type { VlmClient } from './agent/vlm-client';
-import { VLM_RESOURCE_ID } from './agent/vlm-resource';
+import type { VlmClient } from './agent/vlm/vlm-client';
+import { VLM_RESOURCE_ID } from './agent/vlm/vlm-resource';
 
 export interface ScreenSamplerConfig {
   /** 采样间隔（毫秒）。默认 3 分钟。 */

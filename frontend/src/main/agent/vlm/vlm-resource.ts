@@ -7,7 +7,7 @@
 //   - unload= 标记未加载；真正的显存释放由 Ollama 的 keep_alive 控制（摘要请求带 keep_alive:0 用完即卸）。
 //   本资源更多是「占位记账」——让协调器知道 VLM 要用显存了，从而调度 THA 让位。
 
-import type { ManagedResource } from './resource-coordinator';
+import type { ManagedResource } from '../resource-coordinator';
 import type { VlmClient } from './vlm-client';
 
 export const VLM_RESOURCE_ID = 'screen-vlm';

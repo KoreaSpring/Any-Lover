@@ -11,7 +11,7 @@
 import fs from 'fs';
 import path from 'path';
 import { app } from 'electron';
-import { eventBus, EventBus, Unsubscribe } from './event-bus';
+import { eventBus, EventBus, Unsubscribe } from '../event-bus';
 
 export interface RelationshipData {
   firstMetTs: number; // 首次相遇

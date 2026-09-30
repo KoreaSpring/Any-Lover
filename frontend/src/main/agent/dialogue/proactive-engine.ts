@@ -13,13 +13,13 @@
 //
 //   默认关闭：主动打扰是敏感行为，需用户在面板显式开启（agent:proactive）。
 
-import { eventBus, EventBus, Unsubscribe } from './event-bus';
-import { MemoryStore } from './memory-store';
-import { LLMProviderRegistry } from './llm-provider';
-import { readSettings } from '../settings-store';
-import type { EmotionState } from './emotion-state';
-import type { RelationshipState } from './relationship-state';
-import type { ProfileStore } from './profile-store';
+import { eventBus, EventBus, Unsubscribe } from '../event-bus';
+import { MemoryStore } from '../memory/memory-store';
+import { LLMProviderRegistry } from '../llm/llm-provider';
+import { readSettings } from '../../settings-store';
+import type { EmotionState } from '../emotion/emotion-state';
+import type { RelationshipState } from '../memory/relationship-state';
+import type { ProfileStore } from '../memory/profile-store';
 
 export interface ProactiveConfig {
   /** 检查周期（毫秒）。 */
