@@ -9,6 +9,7 @@
 //   骨架抽到 SidecarPerceptionSource 抽象基类，子类（如 OpenSeeFaceManager）只填差异钩子。
 
 import { spawn, spawnSync, ChildProcess, SpawnOptions } from 'child_process';
+import type { SidecarPlugin } from '../../sidecar/plugin';
 
 /** 感知源统一契约。 */
 export interface PerceptionSource {
@@ -41,7 +42,7 @@ export interface SidecarSpawnSpec {
  * waitForReady（默认立即就绪，子类可覆盖为「收到首个有效数据」等）。
  * 子类必须实现 id/canStart/buildSpawn；按需覆盖 onStdout/waitForReady/onExit。
  */
-export abstract class SidecarPerceptionSource implements PerceptionSource {
+export abstract class SidecarPerceptionSource implements PerceptionSource, SidecarPlugin {
   protected child: ChildProcess | null = null;
 
   private starting: Promise<void> | null = null;
@@ -54,6 +55,11 @@ export abstract class SidecarPerceptionSource implements PerceptionSource {
 
   abstract get id(): string;
   abstract canStart(): boolean;
+
+  /** SidecarPlugin：可读名。默认取 id，子类可覆盖为更友好的名字。 */
+  get displayName(): string {
+    return this.id;
+  }
 
   /** 子类实现：如何拉起 sidecar 进程。 */
   protected abstract buildSpawn(): SidecarSpawnSpec;

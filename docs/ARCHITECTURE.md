@@ -110,7 +110,7 @@ screen-sampler 定时截屏 → screen-gate 黑名单/去重门控
 | --- | --- |
 | `bootstrap.ts`（根） | **入口**：electron-vite main 入口。实例化并接线所有 sidecar/中枢组件、注册 IPC、生命周期清理 |
 | `index.ts`（根） | 原版前端外壳（窗口/托盘/菜单），bootstrap 末尾 import，保持不变 |
-| `sidecar/` | 外部进程/资源生命周期：backend-manager / ollama-manager / ollama-installer / model-recommender / tha-manager / tha-model-installer / openseeface-manager / screen-sampler |
+| `sidecar/` | 外部进程/资源生命周期：各 manager（backend / ollama(+installer) / model-recommender / tha(+model-installer) / openseeface / screen-sampler）+ **插件契约层**（`plugin.ts` SidecarPlugin、`registry.ts` SidecarRegistry、`plugins/` 薄适配器）统一退出清理 |
 | `ipc/` | IPC 注册汇总：aibot-ipc（设置/Ollama/LLM 测试）/ tha-ipc（立绘/模型/下载） |
 | `window/` | 窗口层：window-manager（pet/window 模式）/ settings-window / menu-manager |
 | `core/` | 基础设施：settings-store（设置持久化+API Key 加密）/ gpu-fix |
@@ -160,6 +160,7 @@ screen-sampler 定时截屏 → screen-gate 黑名单/去重门控
   import 全改毕、`npm run build` 通过。
 - **协议单一事实源（`frontend/src/proto/`）**：Electron IPC（ipc.ts）、后端 WS（ws-backend.ts）、
   THA WS（ws-tha.ts）的 TS 侧已常量化并全项目接入；`protocol.proto` 为 TS↔Python 契约文档（不做 codegen）。
-- **sidecar 插件化（提案，未实施）**：见 `docs/roadmap/sidecar-plugin-architecture.md`，统一 SidecarPlugin
-  契约 + 注册表，复用现有 PerceptionSource/ManagedResource 雏形。落地是独立任务。
+- **sidecar 插件化（已实施首期）**：`SidecarPlugin` 契约 + `SidecarRegistry` + 各 manager 薄适配器已落地，
+  bootstrap 的退出清理（stopAll/killAll）已收敛到注册表；启动仍保留各自编排（见
+  `docs/roadmap/sidecar-plugin-architecture.md` 的实际落地范围说明）。后续可在启动逻辑理顺后启用 startAll。
 - 真机验证（需摄像头/麦克风/Ollama/在线 API 环境）：视线方向校准、屏幕摘要质量、情绪融合、中枢对话完整链路。
