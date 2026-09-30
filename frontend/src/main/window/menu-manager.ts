@@ -3,7 +3,7 @@ import {
   Tray, nativeImage, Menu, BrowserWindow, ipcMain, screen, MenuItemConstructorOptions, app,
 } from 'electron';
 // @ts-expect-error
-import trayIcon from '../../resources/icon.png?asset';
+import trayIcon from '../../../resources/icon.png?asset';
 
 export interface ConfigFile {
   filename: string;

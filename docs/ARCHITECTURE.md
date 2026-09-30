@@ -108,15 +108,12 @@ screen-sampler 定时截屏 → screen-gate 黑名单/去重门控
 
 | 目录/文件 | 职责 |
 | --- | --- |
-| `bootstrap.ts` | **入口**：electron-vite main 入口。实例化并接线所有 sidecar/中枢组件、注册 IPC、生命周期清理 |
-| `index.ts` | 原版前端外壳（窗口/托盘/菜单），bootstrap 末尾 import，保持不变 |
-| `backend-manager.ts` | Python 后端 sidecar 管理（spawn/就绪探测/清理/写 conf.yaml） |
-| `ollama-manager.ts` / `ollama-installer.ts` / `model-recommender.ts` | Ollama 服务管理 / 下载安装 / 按硬件推荐模型 |
-| `tha-manager.ts` / `tha-model-installer.ts` / `tha-ipc.ts` | THA 渲染 sidecar / 高画质模型下载 / THA 相关 IPC |
-| `openseeface-manager.ts` / `screen-sampler.ts` | 摄像头面捕 sidecar / 桌面截屏采样 |
-| `settings-store.ts` / `settings-window.ts` / `menu-manager.ts` / `window-manager.ts` | 设置持久化 / 设置窗 / 菜单 / 窗口(pet/window 模式) |
-| `aibot-ipc.ts` | 设置/Ollama/LLM 测试等 IPC 汇总 |
-| `gpu-fix.ts` | GPU 兼容性修正 |
+| `bootstrap.ts`（根） | **入口**：electron-vite main 入口。实例化并接线所有 sidecar/中枢组件、注册 IPC、生命周期清理 |
+| `index.ts`（根） | 原版前端外壳（窗口/托盘/菜单），bootstrap 末尾 import，保持不变 |
+| `sidecar/` | 外部进程/资源生命周期：backend-manager / ollama-manager / ollama-installer / model-recommender / tha-manager / tha-model-installer / openseeface-manager / screen-sampler |
+| `ipc/` | IPC 注册汇总：aibot-ipc（设置/Ollama/LLM 测试）/ tha-ipc（立绘/模型/下载） |
+| `window/` | 窗口层：window-manager（pet/window 模式）/ settings-window / menu-manager |
+| `core/` | 基础设施：settings-store（设置持久化+API Key 加密）/ gpu-fix |
 | `agent/` | **Agent 中枢**（五层，见该目录 README） |
 
 > 详细分组见 `frontend/src/main/README.md`。
@@ -155,5 +152,6 @@ screen-sampler 定时截屏 → screen-gate 黑名单/去重门控
   llm/vlm/render，core 三文件留 `agent/` 根），import 全改毕、`npm run build` 通过。
   经验：smart_relocate 在本项目不自动改 import，且 `tsc --noEmit` 通过不代表 vite/rollup 通过
   （rollup 对相对路径更严格），需逐文件手动改相对路径 + 跑 `npm run build` 验证。
-  `main/` 根目录（backend/llm/render/perception/core/ipc 分组）尚未物理分目录，留作独立任务。
+  `main/` 根目录也已按功能物理分子目录（sidecar/ipc/window/core，入口 bootstrap/index 留根），
+  import 全改毕、`npm run build` 通过。
 - 真机验证（需摄像头/麦克风/Ollama/在线 API 环境）：视线方向校准、屏幕摘要质量、情绪融合、中枢对话完整链路。

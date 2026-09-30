@@ -1,8 +1,8 @@
 /* eslint-disable no-shadow */
 import { app, ipcMain, globalShortcut, desktopCapturer } from "electron";
 import { electronApp, optimizer, is } from "@electron-toolkit/utils";
-import { WindowManager } from "./window-manager";
-import { MenuManager } from "./menu-manager";
+import { WindowManager } from "./window/window-manager";
+import { MenuManager } from "./window/menu-manager";
 
 let windowManager: WindowManager;
 let menuManager: MenuManager;

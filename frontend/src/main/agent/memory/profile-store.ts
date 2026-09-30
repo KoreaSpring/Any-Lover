@@ -11,7 +11,7 @@ import path from 'path';
 import { app } from 'electron';
 import { MemoryStore } from './memory-store';
 import { LLMProviderRegistry } from '../llm/llm-provider';
-import { readSettings } from '../../settings-store';
+import { readSettings } from '../../core/settings-store';
 
 /** 一条画像事实。 */
 export interface ProfileFact {

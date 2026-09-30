@@ -5,17 +5,17 @@ import path from 'path';
 import http from 'http';
 import https from 'https';
 import { ipcMain, dialog, BrowserWindow, app } from 'electron';
-import { readSettings, writeSettings, saveApiKey, loadApiKey, hasApiKey } from './settings-store';
-import { OllamaManager, resolveAnyOllama } from './ollama-manager';
-import { BackendManager } from './backend-manager';
+import { readSettings, writeSettings, saveApiKey, loadApiKey, hasApiKey } from '../core/settings-store';
+import { OllamaManager, resolveAnyOllama } from '../sidecar/ollama-manager';
+import { BackendManager } from '../sidecar/backend-manager';
 import {
   installOllama,
   pullModel,
   defaultInstallDir,
   OllamaProgress,
   OLLAMA_MIRRORS,
-} from './ollama-installer';
-import { recommendModel, MODEL_OPTIONS } from './model-recommender';
+} from '../sidecar/ollama-installer';
+import { recommendModel, MODEL_OPTIONS } from '../sidecar/model-recommender';
 
 interface Deps {
   backend: BackendManager;

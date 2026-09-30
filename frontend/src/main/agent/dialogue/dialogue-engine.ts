@@ -14,7 +14,7 @@ import { ProfileStore } from '../memory/profile-store';
 import { RelationshipState } from '../memory/relationship-state';
 import { EmotionState } from '../emotion/emotion-state';
 import { eventBus, EventBus } from '../event-bus';
-import { readSettings } from '../../settings-store';
+import { readSettings } from '../../core/settings-store';
 
 /** 一轮对话的句子交付回调：start(轮开始) / say(每句) / end(轮结束) / error。 */
 export interface DialogueSink {

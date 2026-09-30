@@ -8,13 +8,13 @@
 
 import { app, globalShortcut, BrowserWindow, ipcMain } from 'electron';
 import log from 'electron-log/main';
-import { BackendManager } from './backend-manager';
-import { ThaManager } from './tha-manager';
-import { registerThaIpc, ensureHqDownload } from './tha-ipc';
-import { OpenSeeFaceManager } from './openseeface-manager';
+import { BackendManager } from './sidecar/backend-manager';
+import { ThaManager } from './sidecar/tha-manager';
+import { registerThaIpc, ensureHqDownload } from './ipc/tha-ipc';
+import { OpenSeeFaceManager } from './sidecar/openseeface-manager';
 import { eventBus } from './agent/event-bus';
 import { GazeBridge } from './agent/perception/gaze-bridge';
-import { ScreenSampler } from './screen-sampler';
+import { ScreenSampler } from './sidecar/screen-sampler';
 import { MemoryStore } from './agent/memory/memory-store';
 import { ScreenMemoryBridge } from './agent/memory/screen-memory-bridge';
 import { ResourceCoordinator } from './agent/resource-coordinator';
@@ -31,13 +31,13 @@ import { RelationshipState } from './agent/memory/relationship-state';
 import { ProfileStore, ProfileExtractor } from './agent/memory/profile-store';
 import { LocalEmbeddingClient } from './agent/memory/embedding-client';
 import { DialogueEngine } from './agent/dialogue/dialogue-engine';
-import './gpu-fix';
-import { OllamaManager, resolveBundledOllama, resolveAnyOllama } from './ollama-manager';
-import { registerAibotIpc } from './aibot-ipc';
-import { openSettingsWindow, getSettingsWindow } from './settings-window';
-import { readSettings, writeSettings, hasApiKey } from './settings-store';
-import { recommendModel } from './model-recommender';
-import { pullModel } from './ollama-installer';
+import './core/gpu-fix';
+import { OllamaManager, resolveBundledOllama, resolveAnyOllama } from './sidecar/ollama-manager';
+import { registerAibotIpc } from './ipc/aibot-ipc';
+import { openSettingsWindow, getSettingsWindow } from './window/settings-window';
+import { readSettings, writeSettings, hasApiKey } from './core/settings-store';
+import { recommendModel } from './sidecar/model-recommender';
+import { pullModel } from './sidecar/ollama-installer';
 
 // 单例锁：防止用户重复启动多个应用实例（会导致端口 12393/11434 冲突、
 // 多个后端/Ollama 进程互相抢占）。拿不到锁说明已有实例在运行，直接退出，

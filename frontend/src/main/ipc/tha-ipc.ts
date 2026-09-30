@@ -1,7 +1,7 @@
 // THA 相关 IPC：立绘上传选图、高画质模型下载与状态查询。
 import { ipcMain, dialog, BrowserWindow } from 'electron';
-import { ThaManager } from './tha-manager';
-import { installedHqTiers, hqAllInstalled, ensureHqModels, ThaModelProgress } from './tha-model-installer';
+import { ThaManager } from '../sidecar/tha-manager';
+import { installedHqTiers, hqAllInstalled, ensureHqModels, ThaModelProgress } from '../sidecar/tha-model-installer';
 
 function broadcastThaProgress(p: ThaModelProgress): void {
   for (const w of BrowserWindow.getAllWindows()) {
