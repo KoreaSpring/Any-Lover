@@ -5,7 +5,7 @@ import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { wsService, MessageEvent } from '@/services/websocket-service';
 import { IPC } from '@proto/ipc';
-import { WS_OUT } from '@proto/ws-backend';
+import { WS_OUT, WS_IN, WS_CONTROL } from '@proto/ws-backend';
 import { isHubDialogueEnabled } from '@/utils/hub-dialogue';
 import {
   WebSocketContext, HistoryInfo, defaultWsUrl, defaultBaseUrl,
@@ -86,22 +86,22 @@ function WebSocketHandler({ children }: { children: React.ReactNode }) {
 
   const handleControlMessage = useCallback((controlText: string) => {
     switch (controlText) {
-      case 'start-mic':
+      case WS_CONTROL.startMic:
         console.log('Starting microphone...');
         startMic();
         break;
-      case 'stop-mic':
+      case WS_CONTROL.stopMic:
         console.log('Stopping microphone...');
         stopMic();
         break;
-      case 'conversation-chain-start':
+      case WS_CONTROL.conversationChainStart:
         setAiState('thinking-speaking');
         audioTaskQueue.clearQueue();
         clearResponse();
         partialTextRef.current = ''; // 新一轮对话开始，清空流式文本累积
         llmErrorNotifiedRef.current = false; // 允许本轮再次提示 LLM 未就绪
         break;
-      case 'conversation-chain-end':
+      case WS_CONTROL.conversationChainEnd:
         audioTaskQueue.addTask(() => new Promise<void>((resolve) => {
           setAiState((currentState: AiState) => {
             if (currentState === 'thinking-speaking') {
@@ -124,12 +124,12 @@ function WebSocketHandler({ children }: { children: React.ReactNode }) {
   const handleWebSocketMessage = useCallback((message: MessageEvent) => {
     console.log('Received message from server:', message);
     switch (message.type) {
-      case 'control':
+      case WS_IN.control:
         if (message.text) {
           handleControlMessage(message.text);
         }
         break;
-      case 'set-model-and-conf':
+      case WS_IN.setModelAndConf:
         setAiState('loading');
         if (message.conf_name) {
           setConfName(message.conf_name);
@@ -152,14 +152,14 @@ function WebSocketHandler({ children }: { children: React.ReactNode }) {
 
         setAiState('idle');
         break;
-      case 'full-text':
+      case WS_IN.fullText:
         if (message.text) {
           // 后端把 LLM 连接错误当作回复吐出时，替换为可读的中文提示，不显示英文堆栈。
           if (handleLlmErrorText(message.text)) break;
           setSubtitleText(message.text);
         }
         break;
-      case 'partial-text':
+      case WS_IN.partialText:
         // token 级流式文本：增量累积并实时刷新字幕，实现逐字显示效果。
         // 后续该句对应的 audio 消息会用整句 display_text 覆盖字幕，自然收敛。
         if (message.text) {
@@ -169,12 +169,12 @@ function WebSocketHandler({ children }: { children: React.ReactNode }) {
           setSubtitleText(partialTextRef.current);
         }
         break;
-      case 'config-files':
+      case WS_IN.configFiles:
         if (message.configs) {
           setConfigFiles(message.configs);
         }
         break;
-      case 'config-switched':
+      case WS_IN.configSwitched:
         setAiState('idle');
         setSubtitleText(t('notification.characterLoaded'));
 
@@ -189,12 +189,12 @@ function WebSocketHandler({ children }: { children: React.ReactNode }) {
         wsService.sendMessage({ type: WS_OUT.fetchHistoryList });
         wsService.sendMessage({ type: WS_OUT.createNewHistory });
         break;
-      case 'background-files':
+      case WS_IN.backgroundFiles:
         if (message.files) {
           bgUrlContext?.setBackgroundFiles(message.files);
         }
         break;
-      case 'audio':
+      case WS_IN.audio:
         if (aiState === 'interrupted' || aiState === 'listening') {
           console.log('Audio playback intercepted. Sentence:', message.display_text?.text);
         } else if (handleLlmErrorText(message.display_text?.text)) {
@@ -212,7 +212,7 @@ function WebSocketHandler({ children }: { children: React.ReactNode }) {
           });
         }
         break;
-      case 'history-data':
+      case WS_IN.historyData:
         if (message.messages) {
           setMessages(message.messages);
         }
@@ -222,7 +222,7 @@ function WebSocketHandler({ children }: { children: React.ReactNode }) {
           duration: 2000,
         });
         break;
-      case 'new-history-created':
+      case WS_IN.newHistoryCreated:
         setAiState('idle');
         setSubtitleText(t('notification.newConversation'));
         // No need to open mic here
@@ -242,7 +242,7 @@ function WebSocketHandler({ children }: { children: React.ReactNode }) {
           });
         }
         break;
-      case 'history-deleted':
+      case WS_IN.historyDeleted:
         toaster.create({
           title: message.success
             ? t('notification.historyDeleteSuccess')
@@ -251,7 +251,7 @@ function WebSocketHandler({ children }: { children: React.ReactNode }) {
           duration: 2000,
         });
         break;
-      case 'history-list':
+      case WS_IN.historyList:
         if (message.histories) {
           setHistoryList(message.histories);
           if (message.histories.length > 0) {
@@ -259,7 +259,7 @@ function WebSocketHandler({ children }: { children: React.ReactNode }) {
           }
         }
         break;
-      case 'user-input-transcription':
+      case WS_IN.userInputTranscription:
         console.log('user-input-transcription: ', message.text);
         if (message.text) {
           appendHumanMessage(message.text);
@@ -271,14 +271,14 @@ function WebSocketHandler({ children }: { children: React.ReactNode }) {
           }
         }
         break;
-      case 'error':
+      case WS_IN.error:
         toaster.create({
           title: message.message,
           type: 'error',
           duration: 2000,
         });
         break;
-      case 'group-update':
+      case WS_IN.groupUpdate:
         console.log('Received group-update:', message.members);
         if (message.members) {
           setGroupMembers(message.members);
@@ -287,17 +287,17 @@ function WebSocketHandler({ children }: { children: React.ReactNode }) {
           setIsOwner(message.is_owner);
         }
         break;
-      case 'group-operation-result':
+      case WS_IN.groupOperationResult:
         toaster.create({
           title: message.message,
           type: message.success ? 'success' : 'error',
           duration: 2000,
         });
         break;
-      case 'backend-synth-complete':
+      case WS_IN.backendSynthComplete:
         setBackendSynthComplete(true);
         break;
-      case 'conversation-chain-end':
+      case WS_IN.conversationChainEnd:
         if (!audioTaskQueue.hasTask()) {
           setAiState((currentState: AiState) => {
             if (currentState === 'thinking-speaking') {
@@ -307,14 +307,14 @@ function WebSocketHandler({ children }: { children: React.ReactNode }) {
           });
         }
         break;
-      case 'force-new-message':
+      case WS_IN.forceNewMessage:
         setForceNewMessage(true);
         break;
-      case 'interrupt-signal':
+      case WS_IN.interruptSignal:
         // Handle forwarded interrupt
         interrupt(false); // do not send interrupt signal to server
         break;
-      case 'tool_call_status':
+      case WS_IN.toolCallStatus:
         if (message.tool_id && message.tool_name && message.status) {
           // If there's browser view data included, store it in the browser context
           if (message.browser_view) {
