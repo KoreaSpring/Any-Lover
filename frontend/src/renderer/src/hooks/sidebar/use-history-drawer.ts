@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useChatHistory } from '@/context/chat-history-context';
 import { useWebSocket, HistoryInfo } from '@/context/websocket-context';
+import { WS_OUT } from '@proto/ws-backend';
 import { toaster } from '@/components/ui/toaster';
 
 export const useHistoryDrawer = () => {
@@ -27,7 +28,7 @@ export const useHistoryDrawer = () => {
 
     setCurrentHistoryUid(uid);
     sendMessage({
-      type: 'fetch-and-set-history',
+      type: WS_OUT.fetchAndSetHistory,
       history_uid: uid,
     });
   };
@@ -43,7 +44,7 @@ export const useHistoryDrawer = () => {
     }
 
     sendMessage({
-      type: 'delete-history',
+      type: WS_OUT.deleteHistory,
       history_uid: uid,
     });
     setHistoryList(historyList.filter((history) => history.uid !== uid));

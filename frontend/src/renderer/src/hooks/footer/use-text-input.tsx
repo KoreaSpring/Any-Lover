@@ -5,6 +5,9 @@ import { useInterrupt } from '@/components/canvas/live2d';
 import { useChatHistory } from '@/context/chat-history-context';
 import { useVAD } from '@/context/vad-context';
 import { useMediaCapture } from '@/hooks/utils/use-media-capture';
+import { IPC } from '@proto/ipc';
+import { WS_OUT } from '@proto/ws-backend';
+import { isHubDialogueEnabled } from '@/utils/hub-dialogue';
 
 export function useTextInput() {
   const [inputText, setInputText] = useState('');
@@ -33,24 +36,19 @@ export function useTextInput() {
 
     // 中枢对话（F-1）：开启后文字对话走中枢（注入记忆/画像/关系/情绪），不发老后端 text-input。
     // 中枢生成的句子会经 IPC → renderer 转发后端 hub-speak 做 TTS+表情。默认关（走老后端）。
-    let hubDialogue = false;
-    try {
-      hubDialogue = window.localStorage.getItem('anylover_hub_dialogue') === '1';
-    } catch {
-      /* ignore */
-    }
-    const ipc = (window as any).electron?.ipcRenderer;
+    const hubDialogue = isHubDialogueEnabled();
+    const ipc = window.electron?.ipcRenderer;
     if (hubDialogue && ipc) {
-      ipc.invoke('agent:dialogue', { text }).then((res: any) => {
+      ipc.invoke(IPC.agent.dialogue, { text }).then((res: any) => {
         // 中枢不可用（未配主模型）时回退老后端，保证不"哑火"。
         if (!res?.ok) {
           wsContext.sendMessage({ type: 'text-input', text, images });
         }
       }).catch(() => {
-        wsContext.sendMessage({ type: 'text-input', text, images });
+        wsContext.sendMessage({ type: WS_OUT.textInput, text, images });
       });
     } else {
-      wsContext.sendMessage({ type: 'text-input', text, images });
+      wsContext.sendMessage({ type: WS_OUT.textInput, text, images });
     }
 
     if (autoStopMic) stopMic();

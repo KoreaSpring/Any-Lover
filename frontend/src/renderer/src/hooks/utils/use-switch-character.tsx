@@ -1,5 +1,6 @@
 import { useCallback } from 'react';
 import { useWebSocket } from '@/context/websocket-context';
+import { WS_OUT } from '@proto/ws-backend';
 import { useConfig } from '@/context/character-config-context';
 import { useInterrupt } from '@/components/canvas/live2d';
 import { useVAD } from '@/context/vad-context';
@@ -29,7 +30,7 @@ export function useSwitchCharacter() {
     setAiState('loading');
     setModelInfo(undefined);
     sendMessage({
-      type: 'switch-config',
+      type: WS_OUT.switchConfig,
       file: fileName,
     });
     console.log('Switch Character fileName: ', fileName);

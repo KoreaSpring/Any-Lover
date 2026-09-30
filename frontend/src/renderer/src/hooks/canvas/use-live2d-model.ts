@@ -102,7 +102,7 @@ export const useLive2DModel = ({
   const modelPositionRef = useRef<Position>({ x: 0, y: 0 });
   const prevModelUrlRef = useRef<string | null>(null);
   const isHoveringModelRef = useRef(false);
-  const electronApi = (window as any).electron;
+  const electronApi = window.electron;
 
   // --- State for Tap vs Drag ---
   const mouseDownTimeRef = useRef<number>(0);

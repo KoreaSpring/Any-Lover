@@ -6,17 +6,16 @@ import { ModelInfo } from '@/context/live2d-config-context';
 import { HistoryInfo } from '@/context/websocket-context';
 import { ConfigFile } from '@/context/character-config-context';
 import { toaster } from '@/components/ui/toaster';
+import {
+  WS_OUT,
+  DisplayText, BackgroundFile, Actions, Message, BrowserViewData,
+} from '@proto/ws-backend';
 
-export interface DisplayText {
-  text: string;
-  name: string;
-  avatar: string;
-}
-
-interface BackgroundFile {
-  name: string;
-  url: string;
-}
+// wire 数据形状统一定义在 proto/ws-backend.ts（协议单一事实源），此处 re-export
+// 以保持既有消费方 `import { DisplayText, Message, Actions } from '@/services/websocket-service'` 不变。
+export type {
+  DisplayText, Actions, Message,
+} from '@proto/ws-backend';
 
 export interface AudioPayload {
   type: 'audio';
@@ -27,27 +26,7 @@ export interface AudioPayload {
   actions?: Actions;
 }
 
-export interface Message {
-  id: string;
-  content: string;
-  role: "ai" | "human";
-  timestamp: string;
-  name?: string;
-  avatar?: string;
-
-  // Fields for different message types (make optional)
-  type?: 'text' | 'tool_call_status'; // Add possible types, default to 'text' if omitted
-  tool_id?: string; // Specific to tool calls
-  tool_name?: string; // Specific to tool calls
-  status?: 'running' | 'completed' | 'error'; // Specific to tool calls
-}
-
-export interface Actions {
-  expressions?: string[] | number [];
-  pictures?: string[];
-  sounds?: string[];
-}
-
+/** 入站消息胖 interface：涵盖后端可能发来的所有字段（type 见 proto/ws-backend WS_IN）。 */
 export interface MessageEvent {
   tool_id: any;
   tool_name: any;
@@ -78,20 +57,7 @@ export interface MessageEvent {
   forwarded?: boolean;
   display_text?: DisplayText;
   live2d_model?: string;
-  browser_view?: {
-    debuggerFullscreenUrl: string;
-    debuggerUrl: string;
-    pages: {
-      id: string;
-      url: string;
-      faviconUrl: string;
-      title: string;
-      debuggerUrl: string;
-      debuggerFullscreenUrl: string;
-    }[];
-    wsUrl: string;
-    sessionId?: string;
-  };
+  browser_view?: BrowserViewData;
 }
 
 // Get translation function for error messages
@@ -136,18 +102,10 @@ class WebSocketService {
   }
 
   private initializeConnection() {
-    this.sendMessage({
-      type: 'fetch-backgrounds',
-    });
-    this.sendMessage({
-      type: 'fetch-configs',
-    });
-    this.sendMessage({
-      type: 'fetch-history-list',
-    });
-    this.sendMessage({
-      type: 'create-new-history',
-    });
+    this.sendMessage({ type: WS_OUT.fetchBackgrounds });
+    this.sendMessage({ type: WS_OUT.fetchConfigs });
+    this.sendMessage({ type: WS_OUT.fetchHistoryList });
+    this.sendMessage({ type: WS_OUT.createNewHistory });
   }
 
   /**

@@ -8,6 +8,7 @@ import { toaster } from '@/components/ui/toaster';
 import { FaceEmotionRunner } from '@/utils/face-emotion';
 import { VoiceEmotionRunner } from '@/utils/voice-emotion';
 import { IPC } from '@proto/ipc';
+import { isHubDialogueEnabled, setHubDialogueEnabled } from '@/utils/hub-dialogue';
 
 // THA 参数侧边面板（Windows / THA 模式）。展开态占满左侧一列（对标截图蓝圈），
 // 含：立绘上传 + 抠图模型选择（动漫/写实）+ 当前立绘 + 性能预设 + 提示。
@@ -46,7 +47,7 @@ export const ThaSettingsPanel = memo((): JSX.Element => {
   const faceRunnerRef = useRef<FaceEmotionRunner | null>(null);
 
   const toggleFace = async (): Promise<void> => {
-    const r = (window as any).electron?.ipcRenderer;
+    const r = window.electron?.ipcRenderer;
     const next = !faceOn;
     setFaceBusy(true);
     try {
@@ -86,7 +87,7 @@ export const ThaSettingsPanel = memo((): JSX.Element => {
   const voiceRunnerRef = useRef<VoiceEmotionRunner | null>(null);
 
   const toggleVoice = async (): Promise<void> => {
-    const r = (window as any).electron?.ipcRenderer;
+    const r = window.electron?.ipcRenderer;
     const next = !voiceOn;
     setVoiceBusy(true);
     try {
@@ -120,7 +121,7 @@ export const ThaSettingsPanel = memo((): JSX.Element => {
   };
 
   const toggleEmotion = async (): Promise<void> => {
-    const r = (window as any).electron?.ipcRenderer;
+    const r = window.electron?.ipcRenderer;
     if (!r) return;
     const next = !emotionOn;
     setEmotionBusy(true);
@@ -151,21 +152,11 @@ export const ThaSettingsPanel = memo((): JSX.Element => {
   };
 
   // 中枢对话（F-1）：开启后文字对话走中枢(注入记忆/画像/关系/情绪),默认关(走老后端)。纯本地开关。
-  const [hubDialogueOn, setHubDialogueOn] = useState(() => {
-    try {
-      return window.localStorage.getItem('anylover_hub_dialogue') === '1';
-    } catch {
-      return false;
-    }
-  });
+  const [hubDialogueOn, setHubDialogueOn] = useState(isHubDialogueEnabled);
   const toggleHubDialogue = (): void => {
     const next = !hubDialogueOn;
     setHubDialogueOn(next);
-    try {
-      window.localStorage.setItem('anylover_hub_dialogue', next ? '1' : '0');
-    } catch {
-      /* ignore */
-    }
+    setHubDialogueEnabled(next);
     toaster.create({
       title: next ? '已切换到中枢对话' : '已切换回后端对话',
       description: next ? '文字对话将结合记忆/画像/关系/情绪（需配好主模型）' : undefined,
@@ -179,7 +170,7 @@ export const ThaSettingsPanel = memo((): JSX.Element => {
   const [proactiveBusy, setProactiveBusy] = useState(false);
 
   const toggleProactive = async (): Promise<void> => {
-    const r = (window as any).electron?.ipcRenderer;
+    const r = window.electron?.ipcRenderer;
     if (!r) return;
     const next = !proactiveOn;
     setProactiveBusy(true);
@@ -216,7 +207,7 @@ export const ThaSettingsPanel = memo((): JSX.Element => {
   const [memLoading, setMemLoading] = useState(false);
 
   const loadMemory = async (): Promise<void> => {
-    const r = (window as any).electron?.ipcRenderer;
+    const r = window.electron?.ipcRenderer;
     if (!r) return;
     setMemLoading(true);
     try {
@@ -236,7 +227,7 @@ export const ThaSettingsPanel = memo((): JSX.Element => {
   };
 
   const clearMemory = async (): Promise<void> => {
-    const r = (window as any).electron?.ipcRenderer;
+    const r = window.electron?.ipcRenderer;
     if (!r) return;
     // 二次确认，避免误清。
     // eslint-disable-next-line no-alert
@@ -258,7 +249,7 @@ export const ThaSettingsPanel = memo((): JSX.Element => {
   const [profile, setProfile] = useState<ProfileFact[]>([]);
 
   const loadRelationship = async (): Promise<void> => {
-    const r = (window as any).electron?.ipcRenderer;
+    const r = window.electron?.ipcRenderer;
     if (!r) return;
     try {
       const res = await r.invoke('agent:relationship:get');
@@ -278,7 +269,7 @@ export const ThaSettingsPanel = memo((): JSX.Element => {
   };
 
   const toggleScreen = async (): Promise<void> => {
-    const r = (window as any).electron?.ipcRenderer;
+    const r = window.electron?.ipcRenderer;
     if (!r) return;
     const next = !screenOn;
     setScreenBusy(true);
@@ -309,7 +300,7 @@ export const ThaSettingsPanel = memo((): JSX.Element => {
   };
 
   const toggleCamera = async (): Promise<void> => {
-    const r = (window as any).electron?.ipcRenderer;
+    const r = window.electron?.ipcRenderer;
     if (!r) return;
     const next = !cameraOn;
     setCameraBusy(true);
@@ -385,7 +376,7 @@ export const ThaSettingsPanel = memo((): JSX.Element => {
   // 切换性能预设：low 随包可用；medium/high/ultra 需高画质模型包，未下载则提示去首启页下载。
   const handlePreset = async (p: ThaPerfPreset): Promise<void> => {
     setPerfPreset(p);
-    const r = (window as any).electron?.ipcRenderer;
+    const r = window.electron?.ipcRenderer;
     if (p !== 'low' && r) {
       try {
         const st = await r.invoke('tha:modelStatus');

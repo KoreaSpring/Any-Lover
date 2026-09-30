@@ -4,6 +4,9 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { wsService, MessageEvent } from '@/services/websocket-service';
+import { IPC } from '@proto/ipc';
+import { WS_OUT } from '@proto/ws-backend';
+import { isHubDialogueEnabled } from '@/utils/hub-dialogue';
 import {
   WebSocketContext, HistoryInfo, defaultWsUrl, defaultBaseUrl,
 } from '@/context/websocket-context';
@@ -183,8 +186,8 @@ function WebSocketHandler({ children }: { children: React.ReactNode }) {
 
         // setModelInfo(undefined);
 
-        wsService.sendMessage({ type: 'fetch-history-list' });
-        wsService.sendMessage({ type: 'create-new-history' });
+        wsService.sendMessage({ type: WS_OUT.fetchHistoryList });
+        wsService.sendMessage({ type: WS_OUT.createNewHistory });
         break;
       case 'background-files':
         if (message.files) {
@@ -262,13 +265,9 @@ function WebSocketHandler({ children }: { children: React.ReactNode }) {
           appendHumanMessage(message.text);
           // 中枢对话（F-2）语音路径：转录文本回来后交中枢生成（后端已只做 ASR 未生成）。
           // 仅中枢对话模式转发；老对话模式后端会自行生成，不转发。
-          try {
-            if (window.localStorage.getItem('anylover_hub_dialogue') === '1') {
-              const api = (window as any).electron?.ipcRenderer;
-              api?.invoke('agent:dialogue', { text: message.text });
-            }
-          } catch {
-            /* ignore */
+          if (isHubDialogueEnabled()) {
+            const api = window.electron?.ipcRenderer;
+            api?.invoke(IPC.agent.dialogue, { text: message.text });
           }
         }
         break;
@@ -362,15 +361,15 @@ function WebSocketHandler({ children }: { children: React.ReactNode }) {
   // 主动搭话：订阅主进程广播（agent:proactive-say），把桌宠主动说的一句显示为字幕。
   // 不经 Python 后端对话链路，是中枢决策层直接产出的表达。
   useEffect(() => {
-    const api = (window as any).electron?.ipcRenderer;
+    const api = window.electron?.ipcRenderer;
     if (!api) return undefined;
     const handler = (_e: unknown, payload: { text?: string }): void => {
       if (payload?.text) setSubtitleText(payload.text);
     };
-    api.on('agent:proactive-say', handler);
+    api.on(IPC.agent.proactiveSay, handler);
     return () => {
       try {
-        api.removeListener('agent:proactive-say', handler);
+        api.removeListener(IPC.agent.proactiveSay, handler);
       } catch {
         /* ignore */
       }
@@ -380,31 +379,31 @@ function WebSocketHandler({ children }: { children: React.ReactNode }) {
   // 中枢对话（F-1）：中枢生成的回复经这些 IPC 到达，renderer 转发后端 hub-speak 做 TTS+表情，
   // 后端把 audio 消息发回来，走现有 audio 链路(字幕/口型/表情)播放。renderer 是"转发者"。
   useEffect(() => {
-    const api = (window as any).electron?.ipcRenderer;
+    const api = window.electron?.ipcRenderer;
     if (!api) return undefined;
     const onStart = (): void => {
-      wsService.sendMessage({ type: 'hub-speak-start' });
+      wsService.sendMessage({ type: WS_OUT.hubSpeakStart });
     };
     const onSay = (_e: unknown, payload: { text?: string }): void => {
-      if (payload?.text) wsService.sendMessage({ type: 'hub-speak', text: payload.text });
+      if (payload?.text) wsService.sendMessage({ type: WS_OUT.hubSpeak, text: payload.text });
     };
     const onEnd = (): void => {
-      wsService.sendMessage({ type: 'hub-speak-end' });
+      wsService.sendMessage({ type: WS_OUT.hubSpeakEnd });
     };
     const onError = (_e: unknown, payload: { message?: string }): void => {
       setSubtitleText(payload?.message || '（对话出错了）');
-      wsService.sendMessage({ type: 'hub-speak-end' });
+      wsService.sendMessage({ type: WS_OUT.hubSpeakEnd });
     };
-    api.on('agent:dialogue-start', onStart);
-    api.on('agent:dialogue-say', onSay);
-    api.on('agent:dialogue-end', onEnd);
-    api.on('agent:dialogue-error', onError);
+    api.on(IPC.agent.dialogueStart, onStart);
+    api.on(IPC.agent.dialogueSay, onSay);
+    api.on(IPC.agent.dialogueEnd, onEnd);
+    api.on(IPC.agent.dialogueError, onError);
     return () => {
       try {
-        api.removeListener('agent:dialogue-start', onStart);
-        api.removeListener('agent:dialogue-say', onSay);
-        api.removeListener('agent:dialogue-end', onEnd);
-        api.removeListener('agent:dialogue-error', onError);
+        api.removeListener(IPC.agent.dialogueStart, onStart);
+        api.removeListener(IPC.agent.dialogueSay, onSay);
+        api.removeListener(IPC.agent.dialogueEnd, onEnd);
+        api.removeListener(IPC.agent.dialogueError, onError);
       } catch {
         /* ignore */
       }

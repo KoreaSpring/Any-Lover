@@ -1,5 +1,6 @@
 import { useCallback } from 'react';
 import { useWebSocket } from '@/context/websocket-context';
+import { WS_OUT } from '@proto/ws-backend';
 import { useMediaCapture } from './use-media-capture';
 
 export function useTriggerSpeak() {
@@ -10,7 +11,7 @@ export function useTriggerSpeak() {
     async (actualIdleTime: number) => {
       const images = await captureAllMedia();
       sendMessage({
-        type: "ai-speak-signal",
+        type: WS_OUT.aiSpeakSignal,
         idle_time: actualIdleTime,
         images,
       });

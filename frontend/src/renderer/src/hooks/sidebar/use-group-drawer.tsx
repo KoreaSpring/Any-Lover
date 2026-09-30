@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useWebSocket } from '@/context/websocket-context';
+import { WS_OUT } from '@proto/ws-backend';
 import { toaster } from '@/components/ui/toaster';
 
 export const useGroupDrawer = () => {
@@ -12,7 +13,7 @@ export const useGroupDrawer = () => {
   // Request latest group information to update the display
   const requestGroupInfo = useCallback(() => {
     sendMessage({
-      type: 'request-group-info',
+      type: WS_OUT.requestGroupInfo,
     });
   }, [sendMessage]);
 
@@ -27,7 +28,7 @@ export const useGroupDrawer = () => {
     }
 
     sendMessage({
-      type: 'add-client-to-group',
+      type: WS_OUT.addClientToGroup,
       invitee_uid: inviteUid.trim(),
     });
     setInviteUid('');
@@ -38,7 +39,7 @@ export const useGroupDrawer = () => {
 
   const handleRemove = useCallback((targetUid: string) => {
     sendMessage({
-      type: 'remove-client-from-group',
+      type: WS_OUT.removeClientFromGroup,
       target_uid: targetUid,
     });
 
@@ -48,7 +49,7 @@ export const useGroupDrawer = () => {
 
   const handleLeaveGroup = useCallback((selfUid: string) => {
     sendMessage({
-      type: 'remove-client-from-group',
+      type: WS_OUT.removeClientFromGroup,
       target_uid: selfUid,
     });
 
