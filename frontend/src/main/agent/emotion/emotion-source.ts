@@ -9,7 +9,7 @@
 
 import { eventBus, EventBus, Unsubscribe } from '../event-bus';
 import { LLMProviderRegistry } from '../llm/llm-provider';
-import { readSettings } from '../../settings-store';
+import { readSettings } from '../../core/settings-store';
 
 /** 最小判定间隔：此间隔内的用户消息不重复判情绪（合并为最近一次）。 */
 const MIN_INTERVAL_MS = 15 * 1000;

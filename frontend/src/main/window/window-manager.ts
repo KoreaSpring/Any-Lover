@@ -4,6 +4,7 @@ import {
 import { join } from 'path';
 import fs from 'fs';
 import { is } from '@electron-toolkit/utils';
+import { IPC } from '../../proto/ipc';
 
 const isMac = process.platform === 'darwin';
 
@@ -46,7 +47,7 @@ export class WindowManager {
   private forceIgnoreMouse = false;
 
   constructor() {
-    ipcMain.on('renderer-ready-for-mode-change', (_event, newMode) => {
+    ipcMain.on(IPC.window.rendererReadyForModeChange, (_event, newMode) => {
       console.log(`[WindowManager] renderer-ready-for-mode-change received, newMode=${newMode}, hoveringComponents(before)=${JSON.stringify(Array.from(this.hoveringComponents))}`);
       if (newMode === 'pet') {
         setTimeout(() => {
@@ -61,11 +62,11 @@ export class WindowManager {
       }
     });
 
-    ipcMain.on('mode-change-rendered', () => {
+    ipcMain.on(IPC.window.modeChangeRendered, () => {
       this.window?.setOpacity(1);
     });
 
-    ipcMain.on('window-unfullscreen', () => {
+    ipcMain.on(IPC.window.unfullscreen, () => {
       const window = this.getWindow();
       if (window && window.isFullScreen()) {
         window.setFullScreen(false);
@@ -73,7 +74,7 @@ export class WindowManager {
     });
 
     // Handle toggle force ignore mouse events from renderer
-    ipcMain.on('toggle-force-ignore-mouse', () => {
+    ipcMain.on(IPC.window.toggleForceIgnoreMouse, () => {
       console.log(`[WindowManager] toggle-force-ignore-mouse received, current forceIgnoreMouse=${this.forceIgnoreMouse}`);
       this.toggleForceIgnoreMouse();
     });
@@ -107,11 +108,11 @@ export class WindowManager {
     this.loadContent();
 
     this.window.on('enter-full-screen', () => {
-      this.window?.webContents.send('window-fullscreen-change', true);
+      this.window?.webContents.send(IPC.window.fullscreenChange, true);
     });
 
     this.window.on('leave-full-screen', () => {
-      this.window?.webContents.send('window-fullscreen-change', false);
+      this.window?.webContents.send(IPC.window.fullscreenChange, false);
     });
 
     return this.window;
@@ -123,17 +124,17 @@ export class WindowManager {
     this.window.on('ready-to-show', () => {
       this.window?.show();
       this.window?.webContents.send(
-        'window-maximized-change',
+        IPC.window.maximizedChange,
         this.window.isMaximized(),
       );
     });
 
     this.window.on('maximize', () => {
-      this.window?.webContents.send('window-maximized-change', true);
+      this.window?.webContents.send(IPC.window.maximizedChange, true);
     });
 
     this.window.on('unmaximize', () => {
-      this.window?.webContents.send('window-maximized-change', false);
+      this.window?.webContents.send(IPC.window.maximizedChange, false);
     });
 
     this.window.on('resize', () => {
@@ -142,7 +143,7 @@ export class WindowManager {
         const bounds = window.getBounds();
         const { width, height } = screen.getPrimaryDisplay().workArea;
         const isMaximized = bounds.width >= width && bounds.height >= height;
-        window.webContents.send('window-maximized-change', isMaximized);
+        window.webContents.send(IPC.window.maximizedChange, isMaximized);
       }
     });
 
@@ -192,7 +193,7 @@ export class WindowManager {
     this.window.setAlwaysOnTop(false);
 
     this.window.setBackgroundColor('#ffffff');
-    this.window.webContents.send('pre-mode-changed', 'window');
+    this.window.webContents.send(IPC.window.preModeChanged, 'window');
   }
 
   private continueSetWindowModeWindow(): void {
@@ -214,7 +215,7 @@ export class WindowManager {
     this.window?.setIgnoreMouseEvents(false, { forward: true });
     console.log('[WindowManager] continueSetWindowModeWindow: setIgnoreMouseEvents(false), mode-changed -> window');
 
-    this.window.webContents.send('mode-changed', 'window');
+    this.window.webContents.send(IPC.window.modeChanged, 'window');
   }
 
   private setWindowModePet(): void {
@@ -231,7 +232,7 @@ export class WindowManager {
     this.window.setAlwaysOnTop(true, 'screen-saver');
     this.window.setPosition(0, 0);
 
-    this.window.webContents.send('pre-mode-changed', 'pet');
+    this.window.webContents.send(IPC.window.preModeChanged, 'pet');
   }
 
   private continueSetWindowModePet(): void {
@@ -271,7 +272,7 @@ export class WindowManager {
     }
     console.log(`[WindowManager] continueSetWindowModePet: bounds set to ${JSON.stringify({ x: minX, y: minY, width: combinedWidth, height: combinedHeight })}, setIgnoreMouseEvents(true) applied, mode-changed -> pet`);
 
-    this.window.webContents.send('mode-changed', 'pet');
+    this.window.webContents.send(IPC.window.modeChanged, 'pet');
   }
   
   getWindow(): BrowserWindow | null {
@@ -296,7 +297,7 @@ export class WindowManager {
       if (this.windowedBounds) {
         this.window.setBounds(this.windowedBounds);
         this.windowedBounds = null;
-        this.window.webContents.send('window-maximized-change', false);
+        this.window.webContents.send(IPC.window.maximizedChange, false);
       }
     } else {
       this.windowedBounds = this.window.getBounds();
@@ -304,7 +305,7 @@ export class WindowManager {
       this.window.setBounds({
         x: 0, y: 0, width, height,
       });
-      this.window.webContents.send('window-maximized-change', true);
+      this.window.webContents.send(IPC.window.maximizedChange, true);
     }
   }
 
@@ -376,7 +377,7 @@ export class WindowManager {
     }
 
     // Notify renderer about the change
-    this.window?.webContents.send('force-ignore-mouse-changed', this.forceIgnoreMouse);
+    this.window?.webContents.send(IPC.window.forceIgnoreMouseChanged, this.forceIgnoreMouse);
   }
 
   // Get current force ignore state

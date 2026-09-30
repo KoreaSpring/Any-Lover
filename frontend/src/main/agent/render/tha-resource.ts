@@ -11,7 +11,7 @@
 //   前端 ThaStage 有「桌宠加载中…」占位覆盖。
 
 import type { ManagedResource } from '../resource-coordinator';
-import type { ThaManager } from '../../tha-manager';
+import type { ThaManager } from '../../sidecar/tha-manager';
 
 export const THA_RESOURCE_ID = 'tha';
 

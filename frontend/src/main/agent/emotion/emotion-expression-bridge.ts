@@ -10,8 +10,10 @@
 import { BrowserWindow } from 'electron';
 import { eventBus, EventBus, Unsubscribe } from '../event-bus';
 import { EmotionState } from './emotion-state';
+import { IPC } from '../../../proto/ipc';
 
-export const IPC_EXPRESS_EMOTION = 'agent:express-emotion';
+/** 单一事实源见 proto/ipc.ts；此处 re-export 保持既有消费方 import 不变。 */
+export const IPC_EXPRESS_EMOTION = IPC.agent.expressEmotion;
 
 /** 用户情绪 label → 桌宠共情表情名（THA）。共情：难过→关切(sad基底)，焦虑→温柔安抚。 */
 const EMPATHY_MAP: Record<string, string> = {

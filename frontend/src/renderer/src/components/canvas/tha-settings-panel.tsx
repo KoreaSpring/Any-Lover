@@ -7,6 +7,7 @@ import { thaDriver } from '@/utils/tha-driver';
 import { toaster } from '@/components/ui/toaster';
 import { FaceEmotionRunner } from '@/utils/face-emotion';
 import { VoiceEmotionRunner } from '@/utils/voice-emotion';
+import { IPC } from '@proto/ipc';
 
 // THA 参数侧边面板（Windows / THA 模式）。展开态占满左侧一列（对标截图蓝圈），
 // 含：立绘上传 + 抠图模型选择（动漫/写实）+ 当前立绘 + 性能预设 + 提示。
@@ -52,7 +53,7 @@ export const ThaSettingsPanel = memo((): JSX.Element => {
       if (next) {
         const runner = new FaceEmotionRunner((reading) => {
           // 上报主进程 → perception.emotion(source:'face') → EmotionState 融合。
-          r?.send('agent:face-emotion', reading);
+          r?.send(IPC.agent.faceEmotion, reading);
         });
         await runner.start(); // 无摄像头/加载失败会抛错
         faceRunnerRef.current = runner;
@@ -91,7 +92,7 @@ export const ThaSettingsPanel = memo((): JSX.Element => {
     try {
       if (next) {
         const runner = new VoiceEmotionRunner((reading) => {
-          r?.send('agent:voice-emotion', reading);
+          r?.send(IPC.agent.voiceEmotion, reading);
         });
         await runner.start(); // 无麦克风/拒绝会抛错
         voiceRunnerRef.current = runner;

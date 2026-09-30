@@ -6,6 +6,7 @@
 // @ts-nocheck
 import { useEffect, useRef, useCallback, useState, RefObject } from "react";
 import { ModelInfo } from "@/context/live2d-config-context";
+import { IPC } from "@proto/ipc";
 import { updateModelConfig } from '../../../WebSDK/src/lappdefine';
 import { LAppDelegate } from '../../../WebSDK/src/lappdelegate';
 import { initializeLive2D } from '@cubismsdksamples/main';
@@ -337,7 +338,7 @@ export const useLive2DModel = ({
       if (currentHitState !== isHoveringModelRef.current) {
         console.log(`[Live2D][hover] state change: ${isHoveringModelRef.current} -> ${currentHitState} at model=(${modelX.toFixed(3)},${modelY.toFixed(3)}), notifying main process via update-component-hover`);
         isHoveringModelRef.current = currentHitState;
-        electronApi.ipcRenderer.send('update-component-hover', 'live2d-model', currentHitState);
+        electronApi.ipcRenderer.send(IPC.window.updateComponentHover, 'live2d-model', currentHitState);
       }
     }
     // --- End Pet Hover Logic ---
@@ -416,7 +417,7 @@ export const useLive2DModel = ({
     if (isPet && electronApi && isHoveringModelRef.current) {
       console.log('[Live2D][mouseleave] clearing hover state, notifying main process');
       isHoveringModelRef.current = false;
-      electronApi.ipcRenderer.send('update-component-hover', 'live2d-model', false);
+      electronApi.ipcRenderer.send(IPC.window.updateComponentHover, 'live2d-model', false);
     }
   }, [isPet, isDragging, electronApi, handleMouseUp]);
 
@@ -429,7 +430,7 @@ export const useLive2DModel = ({
     console.log(`[Live2D][mode-effect] mode switched, isPet=${isPet}, resetting isHoveringModelRef (was=${isHoveringModelRef.current}) and notifying main process`);
     isHoveringModelRef.current = false;
     if (isPet && electronApi) {
-      electronApi.ipcRenderer.send('update-component-hover', 'live2d-model', false);
+      electronApi.ipcRenderer.send(IPC.window.updateComponentHover, 'live2d-model', false);
     }
   }, [isPet, electronApi]);
 

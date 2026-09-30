@@ -4,6 +4,7 @@ import { useChatHistory } from '@/context/chat-history-context';
 import { audioTaskQueue } from '@/utils/task-queue';
 import { useSubtitle } from '@/context/subtitle-context';
 import { useAudioTask } from './use-audio-task';
+import { IPC } from '@proto/ipc';
 import { thaDriver } from '@/utils/tha-driver';
 
 export const useInterrupt = () => {
@@ -37,7 +38,7 @@ export const useInterrupt = () => {
     }
     if (hubDialogue) {
       try {
-        (window as any).electron?.ipcRenderer?.send('agent:dialogue-interrupt');
+        (window as any).electron?.ipcRenderer?.send(IPC.agent.dialogueInterrupt);
       } catch {
         /* ignore */
       }

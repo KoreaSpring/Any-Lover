@@ -17,9 +17,9 @@ import fs from 'fs';
 import path from 'path';
 import dgram from 'dgram';
 import { app } from 'electron';
-import { SidecarPerceptionSource, SidecarSpawnSpec } from './agent/perception/perception-source';
-import { eventBus, EventBus } from './agent/event-bus';
-import { parseOpenSeeFacePacket, OPENSEEFACE_DEFAULT_PORT } from './agent/perception/openseeface-protocol';
+import { SidecarPerceptionSource, SidecarSpawnSpec } from '../agent/perception/perception-source';
+import { eventBus, EventBus } from '../agent/event-bus';
+import { parseOpenSeeFacePacket, OPENSEEFACE_DEFAULT_PORT } from '../agent/perception/openseeface-protocol';
 
 const HOST = '127.0.0.1';
 

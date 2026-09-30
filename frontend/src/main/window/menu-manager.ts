@@ -3,7 +3,8 @@ import {
   Tray, nativeImage, Menu, BrowserWindow, ipcMain, screen, MenuItemConstructorOptions, app,
 } from 'electron';
 // @ts-expect-error
-import trayIcon from '../../resources/icon.png?asset';
+import trayIcon from '../../../resources/icon.png?asset';
+import { IPC } from '../../proto/ipc';
 
 export interface ConfigFile {
   filename: string;
@@ -69,7 +70,7 @@ export class MenuManager {
             click: () => {
               const windows = BrowserWindow.getAllWindows();
               windows.forEach((window) => {
-                window.webContents.send('toggle-force-ignore-mouse');
+                window.webContents.send(IPC.window.toggleForceIgnoreMouse);
               });
             },
           },
@@ -111,13 +112,13 @@ export class MenuManager {
       {
         label: 'Toggle Microphone',
         click: () => {
-          event.sender.send('mic-toggle');
+          event.sender.send(IPC.menu.micToggle);
         },
       },
       {
         label: 'Interrupt',
         click: () => {
-          event.sender.send('interrupt');
+          event.sender.send(IPC.menu.interrupt);
         },
       },
       { type: 'separator' as const },
@@ -127,7 +128,7 @@ export class MenuManager {
           {
             label: 'Toggle Mouse Passthrough',
             click: () => {
-              event.sender.send('toggle-force-ignore-mouse');
+              event.sender.send(IPC.window.toggleForceIgnoreMouse);
             },
           },
         ]
@@ -135,7 +136,7 @@ export class MenuManager {
       {
         label: 'Toggle Scrolling to Resize',
         click: () => {
-          event.sender.send('toggle-scroll-to-resize');
+          event.sender.send(IPC.menu.toggleScrollToResize);
         },
       },
       // Only show this item in pet mode
@@ -144,7 +145,7 @@ export class MenuManager {
           {
             label: 'Toggle InputBox and Subtitle',
             click: () => {
-              event.sender.send('toggle-input-subtitle');
+              event.sender.send(IPC.menu.toggleInputSubtitle);
             },
           },
         ]
@@ -158,7 +159,7 @@ export class MenuManager {
         submenu: this.configFiles.map((config) => ({
           label: config.name,
           click: () => {
-            event.sender.send('switch-character', config.filename);
+            event.sender.send(IPC.menu.switchCharacter, config.filename);
           },
         })),
       },
@@ -183,7 +184,7 @@ export class MenuManager {
   }
 
   private setupContextMenu(): void {
-    ipcMain.on('show-context-menu', (event) => {
+    ipcMain.on(IPC.menu.showContextMenu, (event) => {
       const win = BrowserWindow.fromWebContents(event.sender);
       if (win) {
         const screenPoint = screen.getCursorScreenPoint();

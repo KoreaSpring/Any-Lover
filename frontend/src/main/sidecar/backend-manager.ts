@@ -7,7 +7,7 @@ import path from 'path';
 import http from 'http';
 import { spawn, spawnSync, ChildProcess } from 'child_process';
 import { app } from 'electron';
-import { readSettings, loadApiKey } from './settings-store';
+import { readSettings, loadApiKey } from '../core/settings-store';
 
 const HOST = '127.0.0.1';
 const PORT = 12393;

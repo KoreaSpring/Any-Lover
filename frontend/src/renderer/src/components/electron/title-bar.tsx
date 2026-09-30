@@ -4,6 +4,7 @@ import {
   FiMinus, FiMaximize2, FiMinimize2, FiX, FiChevronsDown,
 } from 'react-icons/fi';
 import { layoutStyles } from '@/layout';
+import { IPC } from '@proto/ipc';
 
 function TitleBar(): JSX.Element {
   const [isMaximized, setIsMaximized] = useState(false);
@@ -19,20 +20,20 @@ function TitleBar(): JSX.Element {
       setIsFullScreen(fullScreen);
     };
 
-    window.electron?.ipcRenderer.on('window-maximized-change', handleMaximizeChange);
-    window.electron?.ipcRenderer.on('window-fullscreen-change', handleFullScreenChange);
+    window.electron?.ipcRenderer.on(IPC.window.maximizedChange, handleMaximizeChange);
+    window.electron?.ipcRenderer.on(IPC.window.fullscreenChange, handleFullScreenChange);
 
     return () => {
-      window.electron?.ipcRenderer.removeAllListeners('window-maximized-change');
-      window.electron?.ipcRenderer.removeAllListeners('window-fullscreen-change');
+      window.electron?.ipcRenderer.removeAllListeners(IPC.window.maximizedChange);
+      window.electron?.ipcRenderer.removeAllListeners(IPC.window.fullscreenChange);
     };
   }, []);
 
   const handleMaximizeClick = () => {
     if (isFullScreen) {
-      window.electron?.ipcRenderer.send('window-unfullscreen');
+      window.electron?.ipcRenderer.send(IPC.window.unfullscreen);
     } else {
-      window.electron?.ipcRenderer.send('window-maximize');
+      window.electron?.ipcRenderer.send(IPC.window.maximize);
     }
   };
 
@@ -66,7 +67,7 @@ function TitleBar(): JSX.Element {
       <Box {...layoutStyles.titleBarButtons}>
         <IconButton
           {...layoutStyles.titleBarButton}
-          onClick={() => window.electron?.ipcRenderer.send('window-minimize')}
+          onClick={() => window.electron?.ipcRenderer.send(IPC.window.minimize)}
           aria-label="Minimize"
         >
           <FiMinus />
@@ -80,7 +81,7 @@ function TitleBar(): JSX.Element {
         </IconButton>
         <IconButton
           {...layoutStyles.closeButton}
-          onClick={() => window.electron?.ipcRenderer.send('window-close')}
+          onClick={() => window.electron?.ipcRenderer.send(IPC.window.close)}
           aria-label="Close"
         >
           <FiX />

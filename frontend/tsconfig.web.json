@@ -6,6 +6,7 @@
     "baseUrl": ".",
     "paths": {
       "@/*": ["src/renderer/src/*"],
+      "@proto/*": ["src/proto/*"],
       "@framework/*": ["src/renderer/WebSDK/Framework/src/*"],
       "@cubismsdksamples/*": ["src/renderer/WebSDK/src/*"],
       "@motionsyncframework/*": ["src/renderer/WebSDK/src/Framework/src/*"],
@@ -16,6 +17,7 @@
     "src/renderer/**/*.ts",
     "src/renderer/**/*.tsx",
     "src/renderer/**/*.d.ts",
-    "src/renderer/WebSDK/src/**/*"
+    "src/renderer/WebSDK/src/**/*",
+    "src/proto/**/*.ts"
   ]
 }

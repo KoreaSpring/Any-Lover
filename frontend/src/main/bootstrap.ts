@@ -8,13 +8,13 @@
 
 import { app, globalShortcut, BrowserWindow, ipcMain } from 'electron';
 import log from 'electron-log/main';
-import { BackendManager } from './backend-manager';
-import { ThaManager } from './tha-manager';
-import { registerThaIpc, ensureHqDownload } from './tha-ipc';
-import { OpenSeeFaceManager } from './openseeface-manager';
+import { BackendManager } from './sidecar/backend-manager';
+import { ThaManager } from './sidecar/tha-manager';
+import { registerThaIpc, ensureHqDownload } from './ipc/tha-ipc';
+import { OpenSeeFaceManager } from './sidecar/openseeface-manager';
 import { eventBus } from './agent/event-bus';
 import { GazeBridge } from './agent/perception/gaze-bridge';
-import { ScreenSampler } from './screen-sampler';
+import { ScreenSampler } from './sidecar/screen-sampler';
 import { MemoryStore } from './agent/memory/memory-store';
 import { ScreenMemoryBridge } from './agent/memory/screen-memory-bridge';
 import { ResourceCoordinator } from './agent/resource-coordinator';
@@ -31,13 +31,14 @@ import { RelationshipState } from './agent/memory/relationship-state';
 import { ProfileStore, ProfileExtractor } from './agent/memory/profile-store';
 import { LocalEmbeddingClient } from './agent/memory/embedding-client';
 import { DialogueEngine } from './agent/dialogue/dialogue-engine';
-import './gpu-fix';
-import { OllamaManager, resolveBundledOllama, resolveAnyOllama } from './ollama-manager';
-import { registerAibotIpc } from './aibot-ipc';
-import { openSettingsWindow, getSettingsWindow } from './settings-window';
-import { readSettings, writeSettings, hasApiKey } from './settings-store';
-import { recommendModel } from './model-recommender';
-import { pullModel } from './ollama-installer';
+import './core/gpu-fix';
+import { OllamaManager, resolveBundledOllama, resolveAnyOllama } from './sidecar/ollama-manager';
+import { registerAibotIpc } from './ipc/aibot-ipc';
+import { openSettingsWindow, getSettingsWindow } from './window/settings-window';
+import { readSettings, writeSettings, hasApiKey } from './core/settings-store';
+import { recommendModel } from './sidecar/model-recommender';
+import { pullModel } from './sidecar/ollama-installer';
+import { IPC } from '../proto/ipc';
 
 // 单例锁：防止用户重复启动多个应用实例（会导致端口 12393/11434 冲突、
 // 多个后端/Ollama 进程互相抢占）。拿不到锁说明已有实例在运行，直接退出，
@@ -108,7 +109,7 @@ screenSampler.setVlm(resourceCoordinator, vlmClient);
 const proactiveEngine = new ProactiveEngine(memoryStore, llmProviderRegistry, logToFile);
 proactiveEngine.setDeliver((text: string) => {
   for (const w of BrowserWindow.getAllWindows()) {
-    if (!w.isDestroyed()) w.webContents.send('agent:proactive-say', { text });
+    if (!w.isDestroyed()) w.webContents.send(IPC.agent.proactiveSay, { text });
   }
 });
 
@@ -230,9 +231,9 @@ function ollamaAvailable(): boolean {
 // 把 Ollama 进度事件推送给设置窗口 + 主窗口角落。
 function broadcastOllamaProgress(p: unknown): void {
   const sw = getSettingsWindow();
-  if (sw && !sw.isDestroyed()) sw.webContents.send('ollama:progress', p);
+  if (sw && !sw.isDestroyed()) sw.webContents.send(IPC.ollama.progress, p);
   for (const w of BrowserWindow.getAllWindows()) {
-    if (w !== sw && !w.isDestroyed()) w.webContents.send('ollama:progress', p);
+    if (w !== sw && !w.isDestroyed()) w.webContents.send(IPC.ollama.progress, p);
   }
 }
 
@@ -370,7 +371,7 @@ app.whenReady().then(() => {
   registerThaIpc(tha, logToFile);
 
   // 覆盖层「手动设置」入口：打开独立设置窗（云端 API 等高级配置）。
-  ipcMain.handle('settings:openWindow', () => {
+  ipcMain.handle(IPC.settings.openWindow, () => {
     openSettingsWindow();
     return { ok: true };
   });
@@ -378,7 +379,7 @@ app.whenReady().then(() => {
   // 摄像头视线跟随开关（默认关闭，敏感能力需用户显式开启）。
   //   { enabled: true }  → 启动 OpenSeeFace 感知源 + 视线桥（无 facetracker/非 Windows 时优雅失败）
   //   { enabled: false } → 停止并回中视线
-  ipcMain.handle('agent:camera', async (_evt, payload: { enabled?: boolean }) => {
+  ipcMain.handle(IPC.agent.camera, async (_evt, payload: { enabled?: boolean }) => {
     const enabled = !!(payload && payload.enabled);
     try {
       if (enabled) {
@@ -411,7 +412,7 @@ app.whenReady().then(() => {
   // 桌面观察开关（默认关，敏感能力需用户显式开启）。
   //   { enabled: true }  → 开始定期截屏采样（门控/去重后发 perception.screen）
   //   { enabled: false } → 停止采样
-  ipcMain.handle('agent:screen', (_evt, payload: { enabled?: boolean }) => {
+  ipcMain.handle(IPC.agent.screen, (_evt, payload: { enabled?: boolean }) => {
     const enabled = !!(payload && payload.enabled);
     try {
       if (enabled) screenSampler.start();
@@ -429,21 +430,21 @@ app.whenReady().then(() => {
   screenMemoryBridge.start();
 
   // 记忆查询/清空 IPC（供将来对话注入与面板查看用；先做 API，未接对话）。
-  ipcMain.handle('agent:memory:recent', (_evt, payload: { limit?: number }) => {
+  ipcMain.handle(IPC.agent.memoryRecent, (_evt, payload: { limit?: number }) => {
     try {
       return { ok: true, items: memoryStore.recent(payload?.limit ?? 20) };
     } catch (e: any) {
       return { ok: false, message: String((e && e.message) || e), items: [] };
     }
   });
-  ipcMain.handle('agent:memory:query', (_evt, q: Record<string, unknown>) => {
+  ipcMain.handle(IPC.agent.memoryQuery, (_evt, q: Record<string, unknown>) => {
     try {
       return { ok: true, items: memoryStore.query((q as any) || {}) };
     } catch (e: any) {
       return { ok: false, message: String((e && e.message) || e), items: [] };
     }
   });
-  ipcMain.handle('agent:memory:clear', () => {
+  ipcMain.handle(IPC.agent.memoryClear, () => {
     try {
       memoryStore.clear();
       return { ok: true };
@@ -453,7 +454,7 @@ app.whenReady().then(() => {
   });
 
   // 记忆语义检索（有本地 embedding 则语义排序，否则回退关键词）。供将来对话注入/面板搜索。
-  ipcMain.handle('agent:memory:search', async (_evt, payload: { query?: string; limit?: number }) => {
+  ipcMain.handle(IPC.agent.memorySearch, async (_evt, payload: { query?: string; limit?: number }) => {
     try {
       const q = String(payload?.query || '').trim();
       if (!q) return { ok: true, items: [] };
@@ -471,7 +472,7 @@ app.whenReady().then(() => {
       if (!w.isDestroyed()) w.webContents.send(channel, payload);
     }
   };
-  ipcMain.handle('agent:dialogue', async (_evt, payload: { text?: string }) => {
+  ipcMain.handle(IPC.agent.dialogue, async (_evt, payload: { text?: string }) => {
     const text = String(payload?.text || '').trim();
     if (!text) return { ok: false, message: '空消息' };
     rebuildProvidersFromSettings(logToFile);
@@ -480,16 +481,16 @@ app.whenReady().then(() => {
     }
     // 即发即忘地跑一轮：句子经 sink 广播给 renderer 转发 hub-speak。返回 ok 表示已受理。
     void dialogueEngine.handle(text, {
-      start: () => dialogueBroadcast('agent:dialogue-start'),
-      say: (sentence) => dialogueBroadcast('agent:dialogue-say', { text: sentence }),
-      end: (fullText) => dialogueBroadcast('agent:dialogue-end', { text: fullText }),
-      error: (message) => dialogueBroadcast('agent:dialogue-error', { message }),
+      start: () => dialogueBroadcast(IPC.agent.dialogueStart),
+      say: (sentence) => dialogueBroadcast(IPC.agent.dialogueSay, { text: sentence }),
+      end: (fullText) => dialogueBroadcast(IPC.agent.dialogueEnd, { text: fullText }),
+      error: (message) => dialogueBroadcast(IPC.agent.dialogueError, { message }),
     });
     return { ok: true };
   });
 
   // 中枢对话中断（F-2）：前端 interrupt 时若处于中枢对话，停止中枢生成（AbortController）。
-  ipcMain.on('agent:dialogue-interrupt', () => {
+  ipcMain.on(IPC.agent.dialogueInterrupt, () => {
     try {
       dialogueEngine.interrupt();
     } catch {
@@ -502,7 +503,7 @@ app.whenReady().then(() => {
   rebuildProvidersFromSettings(logToFile);
 
   // 探测当前激活 provider 连通性。
-  ipcMain.handle('agent:llm:probe', async () => {
+  ipcMain.handle(IPC.agent.llmProbe, async () => {
     try {
       rebuildProvidersFromSettings(logToFile); // 反映最新设置
       const p = llmProviderRegistry.active();
@@ -517,7 +518,7 @@ app.whenReady().then(() => {
 
   // 一次性对话（收集完整流式回复后返回）：验证 provider 抽象独立于 Python 后端工作。
   // 注意：这不接管桌宠对话（桌宠仍走 12393），仅供中枢/测试直连主模型用。
-  ipcMain.handle('agent:llm:chat', async (_evt, payload: { messages?: any[]; model?: string }) => {
+  ipcMain.handle(IPC.agent.llmChat, async (_evt, payload: { messages?: any[]; model?: string }) => {
     try {
       const p = llmProviderRegistry.active();
       if (!p) return { ok: false, message: '未配置可用的主模型 provider' };
@@ -540,14 +541,14 @@ app.whenReady().then(() => {
 
   // renderer 上报用户消息 → 注入 agent 中枢事件总线（供情绪识别/主动搭话交互时间）。
   // 不改 Python 后端对话链路，只是把「用户说了什么」旁路一份给中枢感知。
-  ipcMain.on('agent:user-msg', (_evt, payload: { text?: string }) => {
+  ipcMain.on(IPC.agent.userMsg, (_evt, payload: { text?: string }) => {
     const text = String(payload?.text || '').trim();
     if (text) eventBus.emit({ kind: 'user.msg', ts: Date.now(), text });
   });
 
   // renderer 上报面部情绪（MediaPipe 出的 valence/arousal）→ 注入 perception.emotion(source:'face')。
   // 与文字/语音情绪一起由 EmotionState late-fusion。renderer 侧只在有摄像头且用户开启时上报。
-  ipcMain.on('agent:face-emotion', (_evt, payload: { valence?: number; arousal?: number }) => {
+  ipcMain.on(IPC.agent.faceEmotion, (_evt, payload: { valence?: number; arousal?: number }) => {
     const valence = Number(payload?.valence);
     const arousal = Number(payload?.arousal);
     if (Number.isFinite(valence) && Number.isFinite(arousal)) {
@@ -557,7 +558,7 @@ app.whenReady().then(() => {
 
   // renderer 上报语音情绪（声学特征启发式出的 valence/arousal）→ perception.emotion(source:'voice')。
   // 语音主给 arousal，与文字(valence准)/面部一起由 EmotionState late-fusion。
-  ipcMain.on('agent:voice-emotion', (_evt, payload: { valence?: number; arousal?: number }) => {
+  ipcMain.on(IPC.agent.voiceEmotion, (_evt, payload: { valence?: number; arousal?: number }) => {
     const valence = Number(payload?.valence);
     const arousal = Number(payload?.arousal);
     if (Number.isFinite(valence) && Number.isFinite(arousal)) {
@@ -566,7 +567,7 @@ app.whenReady().then(() => {
   });
 
   // 主动搭话开关（默认关，主动打扰是敏感行为需显式开启）。
-  ipcMain.handle('agent:proactive', (_evt, payload: { enabled?: boolean }) => {
+  ipcMain.handle(IPC.agent.proactive, (_evt, payload: { enabled?: boolean }) => {
     const enabled = !!(payload && payload.enabled);
     try {
       if (enabled) {
@@ -595,14 +596,14 @@ app.whenReady().then(() => {
   relationshipState.start();
 
   // 关系/画像查询与清空 IPC（面板查看用）。
-  ipcMain.handle('agent:relationship:get', () => {
+  ipcMain.handle(IPC.agent.relationshipGet, () => {
     try {
       return { ok: true, relationship: relationshipState.current(), profile: profileStore.all() };
     } catch (e: any) {
       return { ok: false, message: String((e && e.message) || e) };
     }
   });
-  ipcMain.handle('agent:relationship:clear', () => {
+  ipcMain.handle(IPC.agent.relationshipClear, () => {
     try {
       relationshipState.clear();
       profileStore.clear();
@@ -613,7 +614,7 @@ app.whenReady().then(() => {
   });
 
   // 情绪识别开关（默认关；开启后每条用户消息节流后调一次 LLM 判情绪 → 共情表情 + 语气）。
-  ipcMain.handle('agent:emotion', (_evt, payload: { enabled?: boolean }) => {
+  ipcMain.handle(IPC.agent.emotion, (_evt, payload: { enabled?: boolean }) => {
     const enabled = !!(payload && payload.enabled);
     try {
       if (enabled) {
@@ -635,7 +636,7 @@ app.whenReady().then(() => {
 
   // 首帧同步返回「是否需要首启引导」：让主窗覆盖层第一帧就决定是否显示，
   // 避免先渲染出桌宠、再异步弹出覆盖层导致的「闪一下」。
-  ipcMain.on('onboarding:need-sync', (evt) => {
+  ipcMain.on(IPC.onboarding.needSync, (evt) => {
     const st = readSettings();
     // 首帧同步口径：未 onboarded（首次）或模型未就绪（onboarded 但下载未完成、需恢复下载）时都要盖。
     // 关键补强：同步不能做网络探测，但可用 resolveAnyOllama（纯文件系统检查，很快）判断

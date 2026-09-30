@@ -11,11 +11,11 @@
 // P1 不落任何图像、不出机。
 
 import { desktopCapturer } from 'electron';
-import { eventBus, EventBus } from './agent/event-bus';
-import { isBlocked, perceptualHash, isNearDuplicate, DEFAULT_BLOCKLIST } from './agent/perception/screen-gate';
-import type { ResourceCoordinator } from './agent/resource-coordinator';
-import type { VlmClient } from './agent/vlm/vlm-client';
-import { VLM_RESOURCE_ID } from './agent/vlm/vlm-resource';
+import { eventBus, EventBus } from '../agent/event-bus';
+import { isBlocked, perceptualHash, isNearDuplicate, DEFAULT_BLOCKLIST } from '../agent/perception/screen-gate';
+import type { ResourceCoordinator } from '../agent/resource-coordinator';
+import type { VlmClient } from '../agent/vlm/vlm-client';
+import { VLM_RESOURCE_ID } from '../agent/vlm/vlm-resource';
 
 export interface ScreenSamplerConfig {
   /** 采样间隔（毫秒）。默认 3 分钟。 */

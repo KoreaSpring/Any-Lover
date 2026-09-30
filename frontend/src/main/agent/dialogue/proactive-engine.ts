@@ -16,7 +16,7 @@
 import { eventBus, EventBus, Unsubscribe } from '../event-bus';
 import { MemoryStore } from '../memory/memory-store';
 import { LLMProviderRegistry } from '../llm/llm-provider';
-import { readSettings } from '../../settings-store';
+import { readSettings } from '../../core/settings-store';
 import type { EmotionState } from '../emotion/emotion-state';
 import type { RelationshipState } from '../memory/relationship-state';
 import type { ProfileStore } from '../memory/profile-store';

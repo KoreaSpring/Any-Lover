@@ -8,6 +8,7 @@ import { useInterrupt } from '@/hooks/utils/use-interrupt';
 import { useIpcHandlers } from '@/hooks/utils/use-ipc-handlers';
 import { useAiState, AiStateEnum } from '@/context/ai-state-context';
 import { thaDriver } from '@/utils/tha-driver';
+import { IPC } from '@proto/ipc';
 
 interface ThaStageProps {
   showSidebar?: boolean;
@@ -55,10 +56,10 @@ export const ThaStage = memo(({ showSidebar: _showSidebar }: ThaStageProps): JSX
       if (!payload) return;
       thaDriver.sendGazeTarget(payload.yaw, payload.pitch);
     };
-    api.on('agent:express-gaze', handler);
+    api.on(IPC.agent.expressGaze, handler);
     return () => {
       try {
-        api.removeListener('agent:express-gaze', handler);
+        api.removeListener(IPC.agent.expressGaze, handler);
       } catch {
         /* ignore */
       }
@@ -72,10 +73,10 @@ export const ThaStage = memo(({ showSidebar: _showSidebar }: ThaStageProps): JSX
     const handler = (_e: unknown, payload: { name?: string }): void => {
       if (payload?.name) thaDriver.sendExpression(payload.name);
     };
-    api.on('agent:express-emotion', handler);
+    api.on(IPC.agent.expressEmotion, handler);
     return () => {
       try {
-        api.removeListener('agent:express-emotion', handler);
+        api.removeListener(IPC.agent.expressEmotion, handler);
       } catch {
         /* ignore */
       }
@@ -128,7 +129,7 @@ export const ThaStage = memo(({ showSidebar: _showSidebar }: ThaStageProps): JSX
     if (!isPet || !electronApi) return;
     if (hit === hoverRef.current) return;
     hoverRef.current = hit;
-    electronApi.ipcRenderer.send('update-component-hover', 'tha-model', hit);
+    electronApi.ipcRenderer.send(IPC.window.updateComponentHover, 'tha-model', hit);
   };
 
   const handlePointerDown = (e: React.PointerEvent): void => {
@@ -163,7 +164,7 @@ export const ThaStage = memo(({ showSidebar: _showSidebar }: ThaStageProps): JSX
   useEffect(() => {
     hoverRef.current = false;
     if (isPet && electronApi) {
-      electronApi.ipcRenderer.send('update-component-hover', 'tha-model', false);
+      electronApi.ipcRenderer.send(IPC.window.updateComponentHover, 'tha-model', false);
     }
   }, [isPet, electronApi]);
 
