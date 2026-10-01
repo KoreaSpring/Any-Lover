@@ -35,7 +35,9 @@ function WebSocketHandler({ children }: { children: React.ReactNode }) {
   const { aiState, setAiState, backendSynthComplete, setBackendSynthComplete } = useAiState();
   const { setModelInfo } = useLive2DConfig();
   const { setSubtitleText } = useSubtitle();
-  const { clearResponse, setForceNewMessage, appendHumanMessage, appendOrUpdateToolCallMessage } = useChatHistory();
+  const {
+    clearResponse, setForceNewMessage, appendHumanMessage, appendAIMessage, appendOrUpdateToolCallMessage,
+  } = useChatHistory();
   const { addAudioTask } = useAudioTask();
   const bgUrlContext = useBgUrl();
   const { confUid, setConfName, setConfUid, setConfigFiles } = useConfig();
@@ -402,7 +404,10 @@ function WebSocketHandler({ children }: { children: React.ReactNode }) {
     const onSay = (_e: unknown, payload: { text?: string }): void => {
       if (payload?.text) wsService.sendMessage({ type: WS_OUT.hubSpeak, text: payload.text });
     };
-    const onEnd = (): void => {
+    const onEnd = (_e: unknown, payload: { text?: string }): void => {
+      // 中枢对话的 AI 整轮回复回填聊天面板（后端 hub-speak 只做 TTS 不入聊天记录，故中枢自己填）。
+      const full = (payload?.text || '').trim();
+      if (full) appendAIMessage(full);
       wsService.sendMessage({ type: WS_OUT.hubSpeakEnd });
     };
     const onError = (_e: unknown, payload: { message?: string }): void => {
@@ -423,7 +428,7 @@ function WebSocketHandler({ children }: { children: React.ReactNode }) {
         /* ignore */
       }
     };
-  }, [setSubtitleText]);
+  }, [setSubtitleText, appendAIMessage]);
 
   // MCP 工具调用（路线 A）：中枢经 IPC 请求 → renderer 转发 WS hub-tool-* → 后端执行。
   // 后端响应 hub-tool-info / hub-tool-result 在 handleWebSocketMessage 的 switch 里转成 IPC 回中枢。
