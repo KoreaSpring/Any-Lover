@@ -187,16 +187,17 @@ export class MemoryStore {
    * 语义检索：注入了本地 embedding 且可用时，用向量余弦相似度排序（懒计算缺失向量并缓存）；
    * 否则回退到 search() 的关键词检索。
    */
-  async searchSemantic(queryText: string, limit = 8, now = Date.now()): Promise<MemoryHit[]> {
+  async searchSemantic(queryText: string, limit = 8, now = Date.now(), lazyBudget = 20): Promise<MemoryHit[]> {
     this.load();
     if (!this.embedder) return this.search(queryText, limit, now);
     const qvec = await this.embedder.embed(queryText);
     if (!qvec) return this.search(queryText, limit, now); // Ollama/模型不可用 → 回退
 
     // 懒计算：为参与检索的条目补齐缺失向量（限量，避免一次算太多卡顿）。
+    // lazyBudget=0 时跳过补算（对话关键路径用，避免串行 embed 拖累首句延迟），只用已有向量。
     let computed = 0;
     for (const e of this.entries) {
-      if (!e.embedding && computed < 20) {
+      if (!e.embedding && computed < lazyBudget) {
         // eslint-disable-next-line no-await-in-loop
         const v = await this.embedder.embed(e.note);
         if (v) {

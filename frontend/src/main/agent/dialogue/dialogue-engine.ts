@@ -181,12 +181,17 @@ export class DialogueEngine {
     }
 
     // 语义相关记忆 → 结合近况。
+    // 首句延迟保护：记忆注入是「锦上添花」，不该拖慢第一句响应。给检索加短超时，
+    //   超时则跳过（降级，不报错）；并用 lazyBudget=0 避免在对话关键路径上串行补算向量
+    //   （Ollama embedding 每条一次调用，补算 N 条会在首句前阻塞数百 ms~秒级）。
     try {
-      const hits = await this.memory.searchSemantic(userText, 4);
-      const notes = hits.map((h) => h.entry.note).filter(Boolean);
-      if (notes.length) parts.push(`你最近观察到用户：${notes.map((n) => `「${n}」`).join('，')}`);
+      const hits = await withTimeout(this.memory.searchSemantic(userText, 4, Date.now(), 0), 1200);
+      if (hits) {
+        const notes = hits.map((h) => h.entry.note).filter(Boolean);
+        if (notes.length) parts.push(`你最近观察到用户：${notes.map((n) => `「${n}」`).join('，')}`);
+      }
     } catch {
-      /* ignore */
+      /* ignore：检索超时/失败则不注入记忆，优先保证首句响应 */
     }
 
     const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
@@ -211,4 +216,36 @@ export class DialogueEngine {
   clearHistory(): void {
     this.history = [];
   }
+}
+
+/**
+ * 给 Promise 加超时：超时返回 null（而非抛错），用于「可降级」的非关键附加操作
+ * （如首句前的记忆检索）。原 Promise 仍会继续跑完（其副作用如向量缓存不浪费）。
+ */
+export function withTimeout<T>(p: Promise<T>, ms: number): Promise<T | null> {
+  return new Promise<T | null>((resolve) => {
+    let settled = false;
+    const timer = setTimeout(() => {
+      if (!settled) {
+        settled = true;
+        resolve(null);
+      }
+    }, ms);
+    p.then(
+      (v) => {
+        if (!settled) {
+          settled = true;
+          clearTimeout(timer);
+          resolve(v);
+        }
+      },
+      () => {
+        if (!settled) {
+          settled = true;
+          clearTimeout(timer);
+          resolve(null);
+        }
+      },
+    );
+  });
 }
