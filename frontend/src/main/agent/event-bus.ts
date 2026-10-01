@@ -48,9 +48,11 @@ export class EventBus {
       this.listeners.set(kind, bucket);
     }
     // 内部按 AgentEventKind 存储，调用点已通过泛型保证类型安全。
-    bucket.add(listener as Listener<AgentEventKind>);
+    // Listener<K> 与 Listener<AgentEventKind> 参数逆变、不可直接互转，需经 unknown。
+    const stored = listener as unknown as Listener<AgentEventKind>;
+    bucket.add(stored);
     return () => {
-      bucket?.delete(listener as Listener<AgentEventKind>);
+      bucket?.delete(stored);
     };
   }
 

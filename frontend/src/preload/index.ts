@@ -108,6 +108,8 @@ if (process.contextIsolated) {
     console.error(error);
   }
 } else {
-  window.electron = electronAPI;
-  (window as any).api = api;
+  // 未开启 contextIsolation 时 preload 与页面共享全局对象，globalThis 即 window。
+  // 用 globalThis 而非 window：preload 按 Node 侧 tsconfig 检查，不引入 DOM 类型。
+  (globalThis as any).electron = electronAPI;
+  (globalThis as any).api = api;
 }

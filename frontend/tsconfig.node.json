@@ -28,8 +28,16 @@
     // "noUncheckedIndexedAccess": false,
     // "exactOptionalPropertyTypes": false,
     // "noImplicitOverride": false
+    /* node 全局类型 + electron-vite 的 `?asset` 等导入声明 */
+    "types": ["node", "electron-vite/node"]
   },
+  // 主进程、preload、协议层都跑在 Node/Electron 侧，必须纳入类型检查
+  //（此前只 include 了 vite.config.ts，main/preload 实际从未被 tsc 检查过）。
   "include": [
-    "vite.config.ts"
+    "electron.vite.config.ts",
+    "vite.config.ts",
+    "src/main/**/*.ts",
+    "src/preload/**/*.ts",
+    "src/proto/**/*.ts"
   ]
 }

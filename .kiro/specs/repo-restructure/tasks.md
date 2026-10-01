@@ -28,10 +28,13 @@
   - [x] 4.1 渲染层没有引用的文件：canvas/canvas.tsx、sidebar/chat-bubble.tsx（以及只被它用到的 ui/avatar）、use-background.ts、use-chat-history-panel.ts、assets/react.svg、未使用的 Chakra 封装组件（每个都先 grep 确认没有引用再删）
   - [x] 4.2 嵌套的 `frontend/.github/`；根 .gitignore 里 `apps/` 的死规则、拼错的 `verdor/`、空目录规则；本地空目录 `.tmp-site-review/`、`release/`、`runtime/`
 - [ ] 5. 让类型检查真正覆盖 main 和 preload
-  - [ ] 5.1 `tsconfig.node.json` 纳入 `src/main`、`src/preload`、`src/proto`，统计报错数量（超过 30 个就按目录拆成子任务）
-  - [ ] 5.2 修复 typecheck 报错
+  - [x] 5.1 `tsconfig.node.json` 纳入 `src/main`、`src/preload`、`src/proto`，统计报错数量（超过 30 个就按目录拆成子任务）
+    - 结果：Node 侧 5 个错误；渲染层 `typecheck:web` 原本就有 593 个，其中 582 个在第三方 WebSDK
+  - [x] 5.2 修复 Node 侧报错
+    - 验证：`npm run typecheck:node` 通过
   - [ ] 5.3 修正 `preload/index.d.ts` 并纳入类型检查范围，去掉 preload 里重复的 `declare global`
-    - 验证：`npm run typecheck` 通过
+  - [ ] 5.4 修复渲染层自有代码的 11 个类型错误
+  - WebSDK 的 582 个错误不在 P0 处理：P4 把它移到 third_party 后单独配置。在那之前 CI 只跑 `typecheck:node`
 - [ ] 6. CI 增加 typecheck 和 lint（如果本地 lint 报错太多，先只加 typecheck，lint 另开任务）
 - [ ] 7. 引入 dependency-cruiser（锁定版本，装在 frontend 下）
   - 首批规则：禁止循环依赖；renderer 不能 import main 或 preload；preload 不能 import main；agent 不能 import electron
