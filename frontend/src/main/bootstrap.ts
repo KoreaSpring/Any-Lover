@@ -32,6 +32,7 @@ import { RelationshipState } from './agent/memory/relationship-state';
 import { ProfileStore, ProfileExtractor } from './agent/memory/profile-store';
 import { LocalEmbeddingClient } from './agent/memory/embedding-client';
 import { LlmMemoryJudge } from './agent/memory/llm-memory-judge';
+import { McpHub } from './agent/tools/mcp-hub';
 import { DialogueEngine } from './agent/dialogue/dialogue-engine';
 import { DialogueHistoryStore } from './agent/dialogue/dialogue-history';
 import './core/gpu-fix';
@@ -145,6 +146,16 @@ const profileStore = new ProfileStore(logToFile);
 const profileExtractor = new ProfileExtractor(profileStore, memoryStore, llmProviderRegistry, logToFile);
 // 记忆写入走 mem0 式语义合并：本地 embedding 找近邻，中等相似度交 LLM 判 ADD/UPDATE/DELETE/NOOP。
 screenMemoryBridge.setConsolidation(embeddingClient, new LlmMemoryJudge(llmProviderRegistry, logToFile));
+
+// 中枢 MCP 客户端：与后端同一份 mcp_servers.json（打包：resources/runtime；开发：backend/）。
+const mcpHub = new McpHub(
+  {
+    configPath: app.isPackaged
+      ? path.join(process.resourcesPath, 'runtime', 'mcp_servers.json')
+      : path.join(app.getAppPath(), '..', 'backend', 'mcp_servers.json'),
+  },
+  logToFile,
+);
 proactiveEngine.setRelationship(relationshipState);
 proactiveEngine.setProfile(profileStore);
 // 每次写入屏幕记忆后，尝试低频提炼画像（内部有冷却与 provider 守卫）。
@@ -504,42 +515,9 @@ app.whenReady().then(() => {
       if (!w.isDestroyed()) w.webContents.send(channel, payload);
     }
   };
-  // MCP 工具调用桥（路线 A）：中枢委托 renderer 转发到后端 hub-tool-* 执行，callId 配对请求/响应。
-  // enableTools 由 renderer 按用户开关（默认关）在 agent:dialogue 载荷里带上，main 不自持开关。
-  const pendingToolInfo: Array<(v: { prompt: string; names: string[] }) => void> = [];
-  const pendingToolResults = new Map<string, (v: Array<{ id: string; content: string; isError: boolean }>) => void>();
-  ipcMain.on(IPC.agent.toolInfo, (_e, payload: { prompt?: string; names?: string[] }) => {
-    const cb = pendingToolInfo.shift();
-    if (cb) cb({ prompt: String(payload?.prompt || ''), names: Array.isArray(payload?.names) ? payload!.names! : [] });
-  });
-  ipcMain.on(IPC.agent.toolResult, (_e, payload: { callId?: string; results?: Array<{ id: string; content: string; isError: boolean }> }) => {
-    const cb = payload?.callId ? pendingToolResults.get(payload.callId) : undefined;
-    if (cb) {
-      pendingToolResults.delete(payload!.callId!);
-      cb(Array.isArray(payload?.results) ? payload!.results! : []);
-    }
-  });
-  const TOOL_RPC_TIMEOUT = 20000;
-  dialogueEngine.setToolBridge({
-    list: () => new Promise((resolve) => {
-      const timer = setTimeout(() => {
-        const i = pendingToolInfo.indexOf(resolve as never);
-        if (i >= 0) pendingToolInfo.splice(i, 1);
-        resolve({ prompt: '', names: [] }); // 超时降级为无工具
-      }, 5000);
-      pendingToolInfo.push((v) => { clearTimeout(timer); resolve(v); });
-      dialogueBroadcast(IPC.agent.toolList);
-    }),
-    run: (calls) => new Promise((resolve) => {
-      const callId = `tc_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-      const timer = setTimeout(() => {
-        pendingToolResults.delete(callId);
-        resolve(calls.map((c) => ({ id: c.id, content: '工具调用超时', isError: true })));
-      }, TOOL_RPC_TIMEOUT);
-      pendingToolResults.set(callId, (v) => { clearTimeout(timer); resolve(v); });
-      dialogueBroadcast(IPC.agent.toolCall, { callId, toolCalls: calls });
-    }),
-  });
+  // MCP 工具调用：中枢用官方 TS SDK 直连（内置 get_current_time + mcp_servers.json 里可执行的 server，白名单只读）。
+  // 取代旧的「renderer → WS hub-tool-* → 后端 mcpp」转发链路。enableTools 仍由 renderer 开关（默认关）带上。
+  dialogueEngine.setToolBridge(mcpHub);
 
   ipcMain.handle(IPC.agent.dialogue, async (_evt, payload: { text?: string; enableTools?: boolean }) => {
     const text = String(payload?.text || '').trim();
@@ -837,6 +815,7 @@ function cleanupAll(): void {
   try {
     screenMemoryBridge.stop();
     memoryStore.flushNow(); // 退出前把记忆落盘
+    void mcpHub.close(); // 结束 MCP server 子进程
   } catch (e) {
     logToFile(`[shutdown] memory flush 异常：${String((e as any)?.message || e)}`);
   }

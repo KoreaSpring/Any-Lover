@@ -104,9 +104,16 @@
 - [x] 7.5 测试：`memory-consolidator.test.ts` 10 项（NOOP/UPDATE/DELETE/ADD、防误删、judge 异常、kind 隔离、输出解析），vitest 91 项全过
 
 ## P8 中枢直连 MCP（官方 TS SDK）
-- [ ] 8.1 读 hub-tool-list / hub-tool-call 现有链路与授权门控设计
-- [ ] 8.2 主进程接 `@modelcontextprotocol/sdk` 客户端（stdio），读同一份 `mcp_servers.json`
-- [ ] 8.3 工具白名单/授权 UI；验证后移除对后端 mcpp 的依赖
+- [x] 8.1 读现有链路：DialogueEngine → ToolBridge（bootstrap）→ IPC → renderer → WS hub-tool-* → 后端 mcpp。
+  prompt 模式；**打包版 conf 里 `use_mcpp: False`，旧链路在安装包中从未返回过工具**；无白名单/授权 UI；开关 `anylover_tool_calling` 默认关
+- [x] 8.2 `agent/tools/mcp-hub.ts` 实现 ToolBridge：官方 `@modelcontextprotocol/sdk@1.31.0`（+ `zod@3.25.76`）stdio 直连，
+  读同一份 `mcp_servers.json`，命令不在 PATH 就跳过；内置 `get_current_time`（零依赖，用户机器无 uv 也可用）；
+  惰性连接、单次调用超时、退出时 close。bootstrap 换成 `setToolBridge(mcpHub)`
+  - 本机联调：uvx 启动 mcp-server-time 与 duckduckgo-mcp-server，convert_time / search 均返回正确结果
+- [x] 8.3 主进程白名单 `DEFAULT_ALLOW_TOOLS`（只读：时间、搜索），非白名单调用拒绝并记日志；`mcp-hub.test.ts` 7 项
+  - 未做：逐次授权 UI（当前只有只读工具，按决策 5 无需逐次确认；加有副作用工具时再做）
+  - 遗留：renderer / 后端的 hub-tool-* 转发代码已无调用方，后端 `mcp` 包因 service_context 顶层导入暂保留；
+    下次同步上游时一并清理
 
 ## P9 Live2D 渲染库评估 🔍
 - [ ] 9.1 对比现用 Cubism WebSDK 封装 vs pixi-live2d-display(-advanced)：口型、表情、动作、Pixi 版本兼容
