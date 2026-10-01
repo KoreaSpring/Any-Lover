@@ -12,6 +12,7 @@ import fs from 'fs';
 import path from 'path';
 import { app } from 'electron';
 import { LocalEmbeddingClient, cosineSimilarity } from './embedding-client';
+import { recencyWeight } from './memory-time';
 
 /** 检索结果：记忆条目 + 相关度得分。 */
 export interface MemoryHit {
@@ -38,6 +39,8 @@ export interface MemoryQuery {
   kind?: string;
   /** 时间下限（ms），只返回 ts >= sinceTs。 */
   sinceTs?: number;
+  /** 时间上限（ms），只返回 ts <= untilTs。与 sinceTs 配合表示一个时间段。 */
+  untilTs?: number;
   /** 标签任一命中。 */
   tags?: string[];
   /** 关键词（在 note 中包含，忽略大小写）。 */
@@ -143,6 +146,7 @@ export class MemoryStore {
     const res = this.entries.filter((e) => {
       if (q.kind && e.kind !== q.kind) return false;
       if (q.sinceTs && e.ts < q.sinceTs) return false;
+      if (q.untilTs && e.ts > q.untilTs) return false;
       if (q.tags && q.tags.length && !q.tags.some((t) => e.tags.includes(t))) return false;
       if (kw && !e.note.toLowerCase().includes(kw)) return false;
       return true;
@@ -170,8 +174,7 @@ export class MemoryStore {
       let hit = 0;
       for (const t of terms) if (hay.includes(t)) hit += 1;
       if (hit === 0) continue;
-      const ageDays = (now - e.ts) / (24 * 3600 * 1000);
-      const recency = Math.pow(0.5, ageDays / 14); // 两周半衰
+      const recency = recencyWeight(e.ts, now, 14); // 两周半衰
       const countBoost = 1 + Math.log(1 + (e.count || 1)) * 0.1;
       const score = (hit / terms.length) * recency * countBoost;
       hits.push({ entry: e, score });
@@ -184,11 +187,11 @@ export class MemoryStore {
    * 语义检索：注入了本地 embedding 且可用时，用向量余弦相似度排序（懒计算缺失向量并缓存）；
    * 否则回退到 search() 的关键词检索。
    */
-  async searchSemantic(queryText: string, limit = 8): Promise<MemoryHit[]> {
+  async searchSemantic(queryText: string, limit = 8, now = Date.now()): Promise<MemoryHit[]> {
     this.load();
-    if (!this.embedder) return this.search(queryText, limit);
+    if (!this.embedder) return this.search(queryText, limit, now);
     const qvec = await this.embedder.embed(queryText);
-    if (!qvec) return this.search(queryText, limit); // Ollama/模型不可用 → 回退
+    if (!qvec) return this.search(queryText, limit, now); // Ollama/模型不可用 → 回退
 
     // 懒计算：为参与检索的条目补齐缺失向量（限量，避免一次算太多卡顿）。
     let computed = 0;
@@ -204,12 +207,16 @@ export class MemoryStore {
     }
     if (computed > 0) this.scheduleFlush();
 
+    // 时间感知：最终分 = 语义相似度 × 新近度权重（两周半衰），让「又相关又近」的记忆优先，
+    // 避免语义相关但很旧的记忆压过近期记忆（对标 Mem0 / LongMemEval 的时间感知检索）。
     const hits: MemoryHit[] = [];
     for (const e of this.entries) {
       if (!e.embedding) continue;
-      hits.push({ entry: e, score: cosineSimilarity(qvec, e.embedding) });
+      const sim = cosineSimilarity(qvec, e.embedding);
+      const recency = recencyWeight(e.ts, now, 14);
+      hits.push({ entry: e, score: sim * recency });
     }
-    if (!hits.length) return this.search(queryText, limit); // 都没向量 → 回退
+    if (!hits.length) return this.search(queryText, limit, now); // 都没向量 → 回退
     hits.sort((a, b) => b.score - a.score);
     return hits.slice(0, limit);
   }
