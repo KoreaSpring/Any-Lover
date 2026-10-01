@@ -84,9 +84,65 @@ Electron 会自动拉起并管理 Python 后端（`127.0.0.1:12393`）和 Ollama
 
 产物输出到 `frontend/release/dist/`。打完安装包会自动切成 < 100MB 的分片放到 `split/`（附 `manifest.json`，含整包和每片的 SHA-256），并校验拼接后与原安装包一致；加 `--no-split` 可跳过。
 
-**发布**：推送 `v*` 标签会触发 `.github/workflows/release-windows.yml`：构建安装包，上传到 GitHub Releases（含 `latest.yml`，供应用内自动更新），并把分片推到 `downloads` 分支，官网从这里下载分片并在浏览器里组装（Release 资产不支持跨域下载，所以分片放在仓库分支里）。安装包暂未做代码签名，安装时 Windows 会弹 SmartScreen 提示。
-
 打包前先拉取 ffmpeg（固定版本，SHA-256 校验，只保留 ffmpeg / ffprobe）：`node build/scripts/fetch-ffmpeg.js`。
+
+### 发布新版本
+
+新版本请继续用 **本地 `npm run dist:win` 打包，再 `gh release create` 上传** 的方式发布。云端工作流目前不准备 THA 形象运行时和 OpenSeeFace，打出的包会缺这两项功能，暂不用于正式发布。
+
+每次发布的产物有三处，必须来自**同一次打包**：GitHub Release 上的安装包和 `latest.yml`（应用内自动更新读它），以及 `downloads` 分支上的分片（官网分片下载用）。
+
+```powershell
+Set-Location D:\friends\any-lover
+
+# 1. 改版本号（安装包文件名和 latest.yml 里的版本都取自这里），提交并推到 main
+npm --prefix frontend version 0.2.0 --no-git-tag-version
+git add frontend/package.json frontend/package-lock.json
+git commit -m "chore: 发布 v0.2.0"
+git push origin main
+
+# 2. 本地打包：ANYLOVER_UPDATE_INFO=1 才会生成 latest.yml 和内嵌的 app-update.yml，缺了自动更新不生效
+$env:AIBOT_PYTHON = (Resolve-Path ".\.venv-pack\Scripts\python.exe").Path
+$env:ANYLOVER_UPDATE_INFO = '1'
+npm run dist:win    # 组装运行时 → 冻结后端 → 打安装包 → 切 <100MB 分片并校验
+```
+
+打包日志最后会打印「产物目录」。通常是 `frontend/release/dist/`，目录被占用时会改用 `frontend/release/build-<时间戳>/`，以日志为准。目录里应有 `any-lover-<版本>-setup.exe`、`latest.yml` 和 `split/`。
+
+```powershell
+$out = "D:\friends\any-lover\frontend\release\dist"   # 换成日志里的产物目录
+$ver = "0.2.0"
+
+# 3. 把分片强推到 downloads 分支（官网从 raw.githubusercontent.com 拉取）。
+#    这个分支只放当前版本的分片，每次用一个新提交覆盖；只强推 downloads，不影响其它分支。
+$work = Join-Path $env:TEMP "anylover-downloads"
+Remove-Item -Recurse -Force $work -ErrorAction SilentlyContinue
+New-Item -ItemType Directory $work | Out-Null
+Copy-Item "$out\split\*" $work
+Push-Location $work
+git init -q -b downloads
+git add -A
+git commit -q -m "downloads: v$ver"
+git remote add origin git@github.com:KoreaSpring/Any-Lover.git
+git push --force origin downloads
+Pop-Location
+Remove-Item -Recurse -Force $work
+
+# 4. 创建 Release 并上传安装包和 latest.yml（会同时创建 v$ver 标签）
+#    发布说明先写到 release-notes.md（临时文件，不用提交）；安装包约 1GB，上传需要几分钟
+gh release create "v$ver" -R KoreaSpring/Any-Lover --target main --title "Any-Lover v$ver" `
+  --notes-file .\release-notes.md "$out\any-lover-$ver-setup.exe" "$out\latest.yml"
+```
+
+`gh release create` 创建标签时会触发 `release-windows.yml`。工作流开头的 `check` 作业发现 Release 已存在，会跳过云端构建，不会覆盖刚上传的文件和分片。
+
+发布后核对：
+
+- `https://github.com/KoreaSpring/Any-Lover/releases/latest` 跳转到新版本；
+- `https://github.com/KoreaSpring/Any-Lover/releases/latest/download/latest.yml` 里的版本号是新版本；
+- 官网点「下载 Windows 版」能下载并拼出安装包（分片 SHA-256 由 `manifest.json` 逐片校验）。
+
+安装包暂未做代码签名，安装时 Windows 会弹 SmartScreen 提示，选「仍要运行」即可。
 
 ### 完整重建整合版（推荐）
 
