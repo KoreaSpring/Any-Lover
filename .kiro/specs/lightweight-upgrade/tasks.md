@@ -116,18 +116,40 @@
     下次同步上游时一并清理
 
 ## P9 Live2D 渲染库评估 🔍
-- [ ] 9.1 对比现用 Cubism WebSDK 封装 vs pixi-live2d-display(-advanced)：口型、表情、动作、Pixi 版本兼容
-- [ ] 9.2 结论为值得替换时再拆实现任务
+- [x] 9.1 对比：现用官方 Cubism WebSDK 示例（`renderer/WebSDK/src/lapp*` + Framework 源码），口型在
+  `use-audio-task.ts`、缩放在 `use-live2d-resize.ts`、加载在 `use-live2d-model.ts`、全局入口 `LAppAdapter`，深度耦合。
+  pixi-live2d-display 需额外引入 pixi.js（v6/v7，不支持 v8），原仓库多年未更新，-advanced 分支维护者少。
+- [x] 9.2 **结论：不替换**。体积不降反增（+pixi.js），功能上现有 SDK 已覆盖口型/表情/动作，迁移需重写上述 hook，
+  回归面大而收益只是 API 更好写。待做 Web/移动端共享渲染（P11）时再重新评估。
 
 ## P10 去掉 Python sidecar ⚠️ 🔍（架构变更）
-- [ ] 10.1 原型：sherpa-onnx Node 绑定在 Electron Worker 里跑 SenseVoice + Kokoro，测 CPU/延迟
-- [ ] 10.2 原型：edge-tts mp3 由 WebAudio 解码，验证可去 ffmpeg
-- [ ] 10.3 盘点后端仍承担的职责（表情提取、句子切分、中枢协议），出迁移设计
-- [ ] 10.4 用户确认后再拆实现任务
+- [x] 10.1 原型：`sherpa-onnx-node@1.13.8`（k2-fsa 官方，N-API，Windows 预编译包）在 **Electron 44.5.1 自带 Node**
+  （`ELECTRON_RUN_AS_NODE=1`）里跑通：
+  - Kokoro TTS：初始化 1.65s，合成 6.8s 音频耗时 2.27s（RTF≈0.33，比 Python 版略快）
+  - SenseVoice ASR：初始化 1.25s，识别 206ms，闭环文本与原文完全一致；两模型常驻内存约 +850MB（与 Python 版同量级）
+  - 原生包仅 **23.5MB**（对比冻结 Python 后端 301MB）
+  - ⚠️ 坑：Electron 开启 V8 内存沙箱，`tts.generate` 必须传 `enableExternalBuffer: false`，否则报
+    "External buffers are not allowed"（ASR / VAD 接口同理）
+- [x] 10.2 mp3 解码：Chromium 的 `AudioContext.decodeAudioData` 原生支持 mp3，edge-tts 结果可在 renderer 直接解码；
+  若默认离线 Kokoro 在主进程合成，音频本就是 PCM，ffmpeg 可整体去掉（未单独做原型，属平台已知能力）
+- [x] 10.3 后端仍承担的职责（迁移清单）：
+  1. ASR / TTS（→ sherpa-onnx-node，已验证）
+  2. 句子切分 pysbd 与 `faster_first_response` 首句提速（→ TS 实现，中枢 DialogueEngine 已有逐句交付）
+  3. Live2D 表情标签提取 `[joy]` 等（→ TS 正则，逻辑简单）
+  4. 非中枢模式的整套 WebSocket 对话协议（renderer 的 websocket-handler 依赖它）→ 需先把中枢对话设为默认并删旧链路
+  5. Live2D 模型信息 / 背景等静态资源服务（→ Electron 自定义协议或 file://）
+  6. 后端 MCP（P8 已迁到中枢）
+  - 迁移后可去掉：冻结 Python 后端（约 301MB）、ffmpeg（约 175MB）、端口 12393、上游同步负担
+- [ ] 10.4 ⏸️ **待用户确认后再拆实现任务**：属架构变更，涉及 renderer 对话链路重写，建议单独开分支分阶段做
+  （先中枢对话默认开 → TTS/ASR 迁主进程 Worker → 删后端）
 
 ## P11 Web / 移动端共享底座 🔍
-- [ ] 11.1 原型：sherpa-onnx WASM 在浏览器跑 Kokoro 中文 TTS + ASR，测体积与速度
-- [ ] 11.2 对照 `docs/roadmap/web-version-plan.md`、`android-version-plan.md` 更新方案
+- [ ] 11.1 ⏸️ 浏览器 WASM 原型**未做**：需单独搭 COOP/COEP 静态站点与 sherpa-onnx WASM 构建产物，超出本轮范围。
+  桌面评估结论（基于 P4/P10 实测数据）：
+  - 桌面用的 Kokoro fp32（约 400MB）不适合 Web/移动端首装；Web 端应选更小的模型（Kokoro int8 约 170MB 但 CPU 慢于实时，
+    或在 WASM 里实测 Melo/Matcha 等小模型），ASR 用 SenseVoice int8（239MB）也偏大，可考虑流式 zipformer 小模型
+  - Android 可直接用 sherpa-onnx 的 Kotlin/JNI 预编译库，不必走 WASM
+- [ ] 11.2 待 P10 决策后再更新 `web-version-plan.md` / `android-version-plan.md`（共享底座取决于是否去掉 Python 后端）
 
 ## 参考资料（不单独成任务）
 - moeru-ai/AIRI：记忆、插件、多平台设计，P7/P10/P11 设计时对照
