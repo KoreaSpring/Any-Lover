@@ -131,8 +131,9 @@ class ThaDriver {
 
   // 方向级注视跟随：yaw/pitch(度)，来自摄像头感知（主进程规则化后经 IPC 下发）。
   // 服务端 follow 优先级高于 mode，超时自动回落程序化游移。
-  sendGazeTarget(yaw: number, pitch: number): void {
-    this.send({ type: THA_OUT.gazeTarget, yaw, pitch });
+  // blink（可选）：[右,左] 眼开合 0..1，来自 OpenSeeFace model 4，驱动真人单眼 wink。
+  sendGazeTarget(yaw: number, pitch: number, blink?: [number, number]): void {
+    this.send({ type: THA_OUT.gazeTarget, yaw, pitch, blink });
   }
 
   // 预连接（进入 THA 模式时可调用，减少首句延迟）

@@ -40,7 +40,9 @@ export class GazeBridge {
       const now = Date.now();
       // 发到总线（供其它订阅者/日志），并广播给 renderer 驱动 THA。
       this.bus.emit({ kind: 'express.gaze', ts: now, yaw: target.yaw, pitch: target.pitch });
-      this.broadcast(target.yaw, target.pitch);
+      // blink [右,左] 眼开合随 gaze 一起下发（OpenSeeFace model 4 支持单眼 wink）；
+      // 置信不足时不发（与 gaze 同步），避免误 wink。
+      this.broadcast(target.yaw, target.pitch, e.blink);
     });
     this.log('[gaze-bridge] started');
   }
@@ -62,9 +64,9 @@ export class GazeBridge {
     this.pipeline.setConfig(patch);
   }
 
-  private broadcast(yaw: number, pitch: number): void {
+  private broadcast(yaw: number, pitch: number, blink?: [number, number]): void {
     for (const w of BrowserWindow.getAllWindows()) {
-      if (!w.isDestroyed()) w.webContents.send(IPC_EXPRESS_GAZE, { yaw, pitch });
+      if (!w.isDestroyed()) w.webContents.send(IPC_EXPRESS_GAZE, { yaw, pitch, blink });
     }
   }
 }
