@@ -41,6 +41,9 @@ const mock = {
   async quit() {
     return { ok: true };
   },
+  async checkUpdate() {
+    return { ok: false, message: '（mock）开发环境不检查更新' };
+  },
   async ollamaStatus() {
     return {
       installed: false,

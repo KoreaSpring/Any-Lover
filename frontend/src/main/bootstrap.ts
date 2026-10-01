@@ -38,6 +38,7 @@ import { OllamaManager, resolveBundledOllama, resolveAnyOllama } from './sidecar
 import { registerAibotIpc } from './ipc/aibot-ipc';
 import { openSettingsWindow, getSettingsWindow } from './window/settings-window';
 import { readSettings, writeSettings, hasApiKey } from './core/settings-store';
+import { checkForUpdates, scheduleStartupCheck } from './core/auto-updater';
 import { recommendModel } from './sidecar/model-recommender';
 import { pullModel } from './sidecar/ollama-installer';
 import { SidecarRegistry } from './sidecar/registry';
@@ -393,6 +394,10 @@ app.whenReady().then(() => {
 
   // THA 立绘上传 + 高画质模型下载 IPC（仅 Windows THA 模式用到；注册无副作用，其它平台不触发）
   registerThaIpc(tha, logToFile);
+
+  // 自动更新：设置窗口「检查更新」按钮 + 启动后延迟静默检查一次（仅打包且配置了更新源时生效）。
+  ipcMain.handle(IPC.app.checkUpdate, () => checkForUpdates(logToFile, true));
+  scheduleStartupCheck(logToFile);
 
   // 覆盖层「手动设置」入口：打开独立设置窗（云端 API 等高级配置）。
   ipcMain.handle(IPC.settings.openWindow, () => {

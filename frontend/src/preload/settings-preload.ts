@@ -12,6 +12,7 @@ contextBridge.exposeInMainWorld('aibot', {
   closeSettings: () => ipcRenderer.invoke(IPC.settings.close),
   setClickThrough: (enabled: boolean) => ipcRenderer.invoke(IPC.pet.clickThrough, enabled),
   quit: () => ipcRenderer.invoke(IPC.app.quit),
+  checkUpdate: () => ipcRenderer.invoke(IPC.app.checkUpdate),
 
   // 运行时下载 Ollama + 模型
   ollamaStatus: () => ipcRenderer.invoke(IPC.ollama.status),

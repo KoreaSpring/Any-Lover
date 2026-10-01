@@ -76,11 +76,18 @@
 - [ ] ~~5.3 实现流式识别~~ 放弃。替代：若嫌响应慢，优先调小设置里的「验证帧数」（redemptionFrames），零开发成本。
 
 ## P6 Electron 升级 + 自动更新 + Windows 发布 ⚠️
-- [ ] 6.1 确认 Electron 当前主线版本，列出 31→目标的破坏性变更与本项目受影响点
-- [ ] 6.2 升级 electron / electron-vite / electron-builder，`vitest` + `build` 通过
-- [ ] 6.3 接入 electron-updater（GitHub Releases 作为更新源），设置里加「检查更新」
-- [ ] 6.4 新增 `.github/workflows/release-windows.yml`（tag 触发，构建并上传 NSIS + latest.yml）
-  - ⚠️ 涉及签名证书与仓库 secrets，需用户提供/确认
+- [x] 6.1 确认 Electron 当前主线版本，列出 31→目标的破坏性变更与本项目受影响点
+  - 目标 44.5.1（npm latest）。逐条核对 32-44 破坏性变更（File.path、renderer clipboard、console-message、
+    postinstall 不再下载二进制等），本项目无受影响调用（clipboard 只是 Chakra 组件 / 浏览器 API）。
+- [x] 6.2 升级 electron（electron-vite 2.3 / electron-builder 24 不变即可），typecheck:node + vitest + build 通过；
+  `npx electron .` 整机启动，后端 Kokoro 合成、THA、Ollama 对话均正常
+- [x] 6.3 接入 electron-updater：`main/core/auto-updater.ts`（不静默下载，弹窗确认；无 app-update.yml 时安全跳过），
+  启动 60s 后检查一次 + 设置窗口「检查更新」按钮；`electron-builder.yml` publish 补 owner/repo
+- [x] 6.4 新增 `.github/workflows/release-windows.yml`：`v*` 标签触发 → 版本号同步 → fetch-ffmpeg →
+  prepare-runtime → 冻结后端 → vitest → pack（轻量版，无 Ollama/THA）→ gh release 上传 exe + latest.yml
+  - 新增 `build/scripts/fetch-ffmpeg.js`：固定 GyanD/codexffmpeg 7.1.1 essentials，SHA-256 固定值校验，只取 ffmpeg/ffprobe
+  - **未做代码签名**（需证书）：安装时会出现 SmartScreen 提示；有证书后在 workflow 加 CSC_LINK / CSC_KEY_PASSWORD secrets 即可
+  - workflow 本身未在 GitHub 上实跑（需推送标签），本地已验证其中各脚本
 
 ## P7 长期记忆（sqlite-vec + mem0 式抽取）
 - [ ] 7.1 读现有 `agent/memory/*`（memory-store、embedding-client），确定存储接口边界

@@ -61,6 +61,8 @@ export const IPC = {
   },
   app: {
     quit: 'app:quit',
+    /** 手动检查更新（GitHub Releases，electron-updater） */
+    checkUpdate: 'app:check-update',
   },
   pet: {
     launch: 'pet:launch',

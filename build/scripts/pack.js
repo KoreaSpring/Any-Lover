@@ -197,7 +197,14 @@ function runBuilder() {
   // 且本地打包不需要 latest.yml。置 null 彻底跳过该阶段（NSIS 产物本身已生成）。
   // 注意：electron-builder 24 的配置 schema 没有 publishAutoUpdate 顶级项，
   // 写入会触发 "unknown property" 校验失败。跳过更新信息只需 publish=null + 命令行 --publish never。
-  baseConfig.publish = null;
+  // 发布构建（CI 设 ANYLOVER_UPDATE_INFO=1）保留 yml 里的 github publish 配置，
+  // 让 electron-builder 生成 latest.yml 与内嵌 app-update.yml（electron-updater 依赖它们）；
+  // 上传由 workflow 用 gh release 完成，因此命令行仍为 --publish never。
+  if (process.env.ANYLOVER_UPDATE_INFO === '1') {
+    log('发布构建：生成自动更新信息（latest.yml / app-update.yml）');
+  } else {
+    baseConfig.publish = null;
+  }
 
   // 输出到带时间戳的唯一目录，避免复用可能被占用的旧 win-unpacked
   const out = makeOutputDir();

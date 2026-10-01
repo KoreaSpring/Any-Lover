@@ -193,6 +193,12 @@ export default function App() {
     setStatus({ msg: res.message, kind: res.ok ? 'ok' : 'err' });
   }, [useOllama, baseUrl, model, collect, detectOllama]);
 
+  const onCheckUpdate = useCallback(async () => {
+    setStatus({ msg: '正在检查更新…', kind: '' });
+    const res = await aibot.checkUpdate();
+    setStatus({ msg: res.message, kind: res.ok ? 'ok' : 'err' });
+  }, []);
+
   const onSave = useCallback(async () => {
     setBusy(true);
     try {
@@ -372,6 +378,7 @@ export default function App() {
         </label>
 
         <div className="actions">
+          <button className="btn" onClick={onCheckUpdate} disabled={busy}>检查更新</button>
           <button className="btn" onClick={onTest} disabled={busy}>{useOllama ? '检测 Ollama' : '测试连接'}</button>
           <button className="btn primary" onClick={onSave} disabled={busy}>保存并启动桌宠</button>
         </div>
