@@ -1,8 +1,10 @@
 name: Release (Windows)
 
-# 推送 v* 标签（如 v0.2.0）触发：构建 Windows 轻量版安装包（不含 Ollama / THA），
+# 推送 v* 标签（如 v0.2.0）触发：构建 Windows 安装包（不含 Ollama），
 # 发布到 GitHub Releases，并上传 latest.yml 供应用内 electron-updater 检查更新。
 # 也可手动触发（workflow_dispatch）只构建、上传 artifact，不发 Release。
+# 注意：目前云端不准备 THA 形象运行时与 OpenSeeFace，产物会回退 Live2D、没有摄像头视线跟随；
+# 补齐前请在本地 `npm run dist:win` 后用 gh release create 手动发布（见下方 check 作业）。
 on:
   push:
     tags: ['v*']
@@ -16,7 +18,29 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # 防覆盖：标签对应的 Release 在工作流启动时已经存在，说明是手动发布的
+  # （如 gh release create 直接上传本地安装包，创建 Release 时会同时创建标签并触发本工作流）。
+  # 这种情况下跳过云端构建，避免用云端产物覆盖 Release 资产和 downloads 分支的分片。
+  # 正常流程（只推标签）时 Release 还不存在，由下面的 build 作业在最后创建。
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      skip: ${{ steps.release.outputs.skip }}
+    steps:
+      - id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/* ]] && gh release view "$GITHUB_REF_NAME" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release $GITHUB_REF_NAME 已存在（手动发布），跳过云端构建"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
   build:
+    needs: check
+    if: needs.check.outputs.skip != 'true'
     runs-on: windows-latest
     timeout-minutes: 120
     env:
