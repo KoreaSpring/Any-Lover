@@ -67,9 +67,13 @@
 - [x] 4.5 回归：配置 → TTSConfig 校验 → TTSEngine 合成中英数字混读正常；初始化约 2s；typecheck:node + vitest 81 项通过
 
 ## P5 流式 ASR 🔍
-- [ ] 5.1 调研：当前「VAD 分段 → 整段识别」协议，流式需要改哪些消息（前端/后端/中枢）
-- [ ] 5.2 选模型（streaming paraformer zh-en / zipformer），评估 CPU 占用
-- [ ] 5.3 后端实现流式识别 + partial 结果下发；前端显示实时字幕
+> **结论：不实施（数据不支持）**。流式 ASR 的端到端收益远小于预期，且流式模型中文准确率不如 SenseVoice。
+- [x] 5.1 调研：当前「VAD 分段 → 整段识别」协议，流式需要改哪些消息（前端/后端/中枢）
+  - 前端 `use-send-audio.tsx` 在 VAD onSpeechEnd 后才发 `mic-audio-data` + `mic-audio-end(-asr-only)`；
+    流式需改为说话中持续推帧、后端 OnlineRecognizer、新增 partial 消息，三端都要动。
+- [x] 5.2 评估：SenseVoice int8 4 线程识别 **9.3s 语音仅需约 270ms**。流式最多省这 ~0.27s；
+  而 VAD 尾静音判定（redemptionFrames=35 ≈ 1.1s）才是说完到出结果的主要等待。
+- [ ] ~~5.3 实现流式识别~~ 放弃。替代：若嫌响应慢，优先调小设置里的「验证帧数」（redemptionFrames），零开发成本。
 
 ## P6 Electron 升级 + 自动更新 + Windows 发布 ⚠️
 - [ ] 6.1 确认 Electron 当前主线版本，列出 31→目标的破坏性变更与本项目受影响点
