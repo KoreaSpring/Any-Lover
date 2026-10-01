@@ -40,10 +40,11 @@
 - [x] 6. CI 增加 typecheck 和 lint（如果本地 lint 报错太多，先只加 typecheck，lint 另开任务）
   - 结果：CI 已加 `typecheck:node`。ESLint 根本跑不起来：`.eslintrc.js` 继承了 airbnb，但 `eslint-config-airbnb` 和它要求的插件从来没装过，所以 lint 另开 6.1
   - [ ] 6.1 修好 ESLint 配置再接入 CI。建议改用已经在 devDependencies 里的 `@electron-toolkit/eslint-config-ts`，不再补装 airbnb；CI 用不带 `--fix` 的命令；规则先放宽，避免上游代码刷屏
-- [ ] 7. 引入 dependency-cruiser（锁定版本，装在 frontend 下）
+- [x] 7. 引入 dependency-cruiser（锁定版本，装在 frontend 下）
   - 首批规则：禁止循环依赖；renderer 不能 import main 或 preload；preload 不能 import main；agent 不能 import electron
   - 现有的违规记成 baseline，CI 只拦截新增违规
   - 验证：`npm run check:deps` 通过；故意加一条违规 import，确认能被拦下（验证完撤销）
+  - 结果：用 17.4.3（18.x 要求 Node 22+，本机和 CI 都是 Node 20）。baseline 共 12 条：渲染层 7 个循环依赖（live2d.tsx、use-ipc-handlers、vad-context、use-switch-character 等互相引用，另有 websocket-context 和 websocket-service 互引），以及 agent 下 5 个文件直接 import electron。前者在 P4 清零，后者在 P3 清零
 - [ ] 8. 更新 ANYLOVER_EXTENSIONS.md：修正文件数和消息类型数，补上漏记的提交，记录三个上游（Open-LLM-VTuber、Open-LLM-VTuber-Web、ezvtuber-rt）的基线版本
 - [ ] 9. 补全方案文档的 §9 决策点、§10 风险与验证、附录 A/B
 - [ ] 10. 生成打包资源树基线，供 P1、P2 比对

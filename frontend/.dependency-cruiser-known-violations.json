@@ -1,0 +1,479 @@
+[
+  {
+    "type": "dependency",
+    "from": "src/main/agent/emotion/emotion-expression-bridge.ts",
+    "to": "node_modules/electron/index.js",
+    "unresolvedTo": "electron",
+    "dependencyTypes": [
+      "npm-dev",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "agent-not-to-electron"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/main/agent/memory/memory-store.ts",
+    "to": "node_modules/electron/index.js",
+    "unresolvedTo": "electron",
+    "dependencyTypes": [
+      "npm-dev",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "agent-not-to-electron"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/main/agent/memory/profile-store.ts",
+    "to": "node_modules/electron/index.js",
+    "unresolvedTo": "electron",
+    "dependencyTypes": [
+      "npm-dev",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "agent-not-to-electron"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/main/agent/memory/relationship-state.ts",
+    "to": "node_modules/electron/index.js",
+    "unresolvedTo": "electron",
+    "dependencyTypes": [
+      "npm-dev",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "agent-not-to-electron"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/main/agent/perception/gaze-bridge.ts",
+    "to": "node_modules/electron/index.js",
+    "unresolvedTo": "electron",
+    "dependencyTypes": [
+      "npm-dev",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "agent-not-to-electron"
+    }
+  },
+  {
+    "type": "cycle",
+    "from": "src/renderer/src/components/canvas/live2d.tsx",
+    "to": "src/renderer/src/hooks/utils/use-ipc-handlers.ts",
+    "unresolvedTo": "@/hooks/utils/use-ipc-handlers",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-circular"
+    },
+    "cycle": [
+      {
+        "name": "src/renderer/src/hooks/utils/use-ipc-handlers.ts",
+        "dependencyTypes": [
+          "aliased",
+          "aliased-tsconfig",
+          "aliased-tsconfig-paths",
+          "local",
+          "import"
+        ]
+      },
+      {
+        "name": "src/renderer/src/components/canvas/live2d.tsx",
+        "dependencyTypes": [
+          "aliased",
+          "aliased-tsconfig",
+          "aliased-tsconfig-paths",
+          "local",
+          "import"
+        ]
+      }
+    ]
+  },
+  {
+    "type": "cycle",
+    "from": "src/renderer/src/context/vad-context.tsx",
+    "to": "src/renderer/src/components/canvas/live2d.tsx",
+    "unresolvedTo": "@/components/canvas/live2d",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-circular"
+    },
+    "cycle": [
+      {
+        "name": "src/renderer/src/components/canvas/live2d.tsx",
+        "dependencyTypes": [
+          "aliased",
+          "aliased-tsconfig",
+          "aliased-tsconfig-paths",
+          "local",
+          "import"
+        ]
+      },
+      {
+        "name": "src/renderer/src/hooks/utils/use-ipc-handlers.ts",
+        "dependencyTypes": [
+          "aliased",
+          "aliased-tsconfig",
+          "aliased-tsconfig-paths",
+          "local",
+          "import"
+        ]
+      },
+      {
+        "name": "src/renderer/src/hooks/utils/use-mic-toggle.ts",
+        "dependencyTypes": [
+          "local",
+          "import"
+        ]
+      },
+      {
+        "name": "src/renderer/src/context/vad-context.tsx",
+        "dependencyTypes": [
+          "aliased",
+          "aliased-tsconfig",
+          "aliased-tsconfig-paths",
+          "local",
+          "import"
+        ]
+      }
+    ]
+  },
+  {
+    "type": "cycle",
+    "from": "src/renderer/src/context/vad-context.tsx",
+    "to": "src/renderer/src/hooks/utils/use-send-audio.tsx",
+    "unresolvedTo": "@/hooks/utils/use-send-audio",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-circular"
+    },
+    "cycle": [
+      {
+        "name": "src/renderer/src/hooks/utils/use-send-audio.tsx",
+        "dependencyTypes": [
+          "aliased",
+          "aliased-tsconfig",
+          "aliased-tsconfig-paths",
+          "local",
+          "import"
+        ]
+      },
+      {
+        "name": "src/renderer/src/hooks/utils/use-media-capture.tsx",
+        "dependencyTypes": [
+          "aliased",
+          "aliased-tsconfig",
+          "aliased-tsconfig-paths",
+          "local",
+          "import"
+        ]
+      },
+      {
+        "name": "src/renderer/src/hooks/sidebar/setting/use-general-settings.ts",
+        "dependencyTypes": [
+          "aliased",
+          "aliased-tsconfig",
+          "aliased-tsconfig-paths",
+          "local",
+          "import"
+        ]
+      },
+      {
+        "name": "src/renderer/src/hooks/utils/use-switch-character.tsx",
+        "dependencyTypes": [
+          "aliased",
+          "aliased-tsconfig",
+          "aliased-tsconfig-paths",
+          "local",
+          "import"
+        ]
+      },
+      {
+        "name": "src/renderer/src/context/vad-context.tsx",
+        "dependencyTypes": [
+          "aliased",
+          "aliased-tsconfig",
+          "aliased-tsconfig-paths",
+          "local",
+          "import"
+        ]
+      }
+    ]
+  },
+  {
+    "type": "cycle",
+    "from": "src/renderer/src/context/websocket-context.tsx",
+    "to": "src/renderer/src/services/websocket-service.tsx",
+    "unresolvedTo": "@/services/websocket-service",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-circular"
+    },
+    "cycle": [
+      {
+        "name": "src/renderer/src/services/websocket-service.tsx",
+        "dependencyTypes": [
+          "aliased",
+          "aliased-tsconfig",
+          "aliased-tsconfig-paths",
+          "local",
+          "import"
+        ]
+      },
+      {
+        "name": "src/renderer/src/context/websocket-context.tsx",
+        "dependencyTypes": [
+          "aliased",
+          "aliased-tsconfig",
+          "aliased-tsconfig-paths",
+          "local",
+          "import"
+        ]
+      }
+    ]
+  },
+  {
+    "type": "cycle",
+    "from": "src/renderer/src/hooks/sidebar/setting/use-general-settings.ts",
+    "to": "src/renderer/src/hooks/utils/use-switch-character.tsx",
+    "unresolvedTo": "@/hooks/utils/use-switch-character",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-circular"
+    },
+    "cycle": [
+      {
+        "name": "src/renderer/src/hooks/utils/use-switch-character.tsx",
+        "dependencyTypes": [
+          "aliased",
+          "aliased-tsconfig",
+          "aliased-tsconfig-paths",
+          "local",
+          "import"
+        ]
+      },
+      {
+        "name": "src/renderer/src/components/canvas/live2d.tsx",
+        "dependencyTypes": [
+          "aliased",
+          "aliased-tsconfig",
+          "aliased-tsconfig-paths",
+          "local",
+          "import"
+        ]
+      },
+      {
+        "name": "src/renderer/src/hooks/utils/use-ipc-handlers.ts",
+        "dependencyTypes": [
+          "aliased",
+          "aliased-tsconfig",
+          "aliased-tsconfig-paths",
+          "local",
+          "import"
+        ]
+      },
+      {
+        "name": "src/renderer/src/hooks/utils/use-mic-toggle.ts",
+        "dependencyTypes": [
+          "local",
+          "import"
+        ]
+      },
+      {
+        "name": "src/renderer/src/context/vad-context.tsx",
+        "dependencyTypes": [
+          "aliased",
+          "aliased-tsconfig",
+          "aliased-tsconfig-paths",
+          "local",
+          "import"
+        ]
+      },
+      {
+        "name": "src/renderer/src/hooks/utils/use-send-audio.tsx",
+        "dependencyTypes": [
+          "aliased",
+          "aliased-tsconfig",
+          "aliased-tsconfig-paths",
+          "local",
+          "import"
+        ]
+      },
+      {
+        "name": "src/renderer/src/hooks/utils/use-media-capture.tsx",
+        "dependencyTypes": [
+          "aliased",
+          "aliased-tsconfig",
+          "aliased-tsconfig-paths",
+          "local",
+          "import"
+        ]
+      },
+      {
+        "name": "src/renderer/src/hooks/sidebar/setting/use-general-settings.ts",
+        "dependencyTypes": [
+          "aliased",
+          "aliased-tsconfig",
+          "aliased-tsconfig-paths",
+          "local",
+          "import"
+        ]
+      }
+    ]
+  },
+  {
+    "type": "cycle",
+    "from": "src/renderer/src/hooks/utils/use-ipc-handlers.ts",
+    "to": "src/renderer/src/hooks/utils/use-switch-character.tsx",
+    "unresolvedTo": "@/hooks/utils/use-switch-character",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-circular"
+    },
+    "cycle": [
+      {
+        "name": "src/renderer/src/hooks/utils/use-switch-character.tsx",
+        "dependencyTypes": [
+          "aliased",
+          "aliased-tsconfig",
+          "aliased-tsconfig-paths",
+          "local",
+          "import"
+        ]
+      },
+      {
+        "name": "src/renderer/src/components/canvas/live2d.tsx",
+        "dependencyTypes": [
+          "aliased",
+          "aliased-tsconfig",
+          "aliased-tsconfig-paths",
+          "local",
+          "import"
+        ]
+      },
+      {
+        "name": "src/renderer/src/hooks/utils/use-ipc-handlers.ts",
+        "dependencyTypes": [
+          "aliased",
+          "aliased-tsconfig",
+          "aliased-tsconfig-paths",
+          "local",
+          "import"
+        ]
+      }
+    ]
+  },
+  {
+    "type": "cycle",
+    "from": "src/renderer/src/hooks/utils/use-switch-character.tsx",
+    "to": "src/renderer/src/context/vad-context.tsx",
+    "unresolvedTo": "@/context/vad-context",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-circular"
+    },
+    "cycle": [
+      {
+        "name": "src/renderer/src/context/vad-context.tsx",
+        "dependencyTypes": [
+          "aliased",
+          "aliased-tsconfig",
+          "aliased-tsconfig-paths",
+          "local",
+          "import"
+        ]
+      },
+      {
+        "name": "src/renderer/src/components/canvas/live2d.tsx",
+        "dependencyTypes": [
+          "aliased",
+          "aliased-tsconfig",
+          "aliased-tsconfig-paths",
+          "local",
+          "import"
+        ]
+      },
+      {
+        "name": "src/renderer/src/hooks/utils/use-ipc-handlers.ts",
+        "dependencyTypes": [
+          "aliased",
+          "aliased-tsconfig",
+          "aliased-tsconfig-paths",
+          "local",
+          "import"
+        ]
+      },
+      {
+        "name": "src/renderer/src/hooks/utils/use-switch-character.tsx",
+        "dependencyTypes": [
+          "aliased",
+          "aliased-tsconfig",
+          "aliased-tsconfig-paths",
+          "local",
+          "import"
+        ]
+      }
+    ]
+  }
+]

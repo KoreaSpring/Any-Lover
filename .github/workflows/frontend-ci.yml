@@ -43,6 +43,11 @@ jobs:
         working-directory: frontend
         run: npm run typecheck:node
 
+      # 模块边界（dependency-cruiser）：现有违规记在 baseline，只拦截新增违规
+      - name: Module boundaries
+        working-directory: frontend
+        run: npm run check:deps
+
       # 单元测试（主进程纯逻辑：感知管道/门控/协议解析/IPC 常量契约）
       - name: Unit tests
         working-directory: frontend
