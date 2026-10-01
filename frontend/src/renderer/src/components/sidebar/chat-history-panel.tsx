@@ -2,8 +2,6 @@
 /* eslint-disable react/jsx-one-expression-per-line */
 /* eslint-disable no-trailing-spaces */
 /* eslint-disable no-nested-ternary */
-/* eslint-disable import/order */
-/* eslint-disable import/no-extraneous-dependencies */
 /* eslint-disable react/require-default-props */
 import { Box, Spinner, Flex, Text, Icon } from '@chakra-ui/react';
 import { sidebarStyles, chatPanelStyles } from './sidebar-styles';

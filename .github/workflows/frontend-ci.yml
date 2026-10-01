@@ -43,6 +43,10 @@ jobs:
         working-directory: frontend
         run: npm run typecheck:node
 
+      # ESLint（不带 --fix；规则见 .eslintrc.js，WebSDK 等第三方代码已排除）
+      - name: Lint
+        working-directory: frontend
+        run: npm run lint
       # 模块边界（dependency-cruiser）：现有违规记在 baseline，只拦截新增违规
       - name: Module boundaries
         working-directory: frontend

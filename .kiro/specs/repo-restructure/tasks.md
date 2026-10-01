@@ -39,7 +39,9 @@
   - WebSDK 的 582 个错误不在 P0 处理：P4 把它移到 third_party 后单独配置。在那之前 CI 只跑 `typecheck:node`
 - [x] 6. CI 增加 typecheck 和 lint（如果本地 lint 报错太多，先只加 typecheck，lint 另开任务）
   - 结果：CI 已加 `typecheck:node`。ESLint 根本跑不起来：`.eslintrc.js` 继承了 airbnb，但 `eslint-config-airbnb` 和它要求的插件从来没装过，所以 lint 另开 6.1
-  - [ ] 6.1 修好 ESLint 配置再接入 CI。建议改用已经在 devDependencies 里的 `@electron-toolkit/eslint-config-ts`，不再补装 airbnb；CI 用不带 `--fix` 的命令；规则先放宽，避免上游代码刷屏
+  - [x] 6.1 修好 ESLint 配置再接入 CI。建议改用已经在 devDependencies 里的 `@electron-toolkit/eslint-config-ts`，不再补装 airbnb；CI 用不带 `--fix` 的命令；规则先放宽，避免上游代码刷屏
+    - 结果：改为 `@electron-toolkit/eslint-config-ts/recommended` + `react/recommended`，未新增依赖；`.eslintignore` 并入 `ignorePatterns`（排除 WebSDK、public/libs 和产物）。关掉 `explicit-function-return-type`（276 处）后剩 18 个错误：14 条 `eslint-disable` 指向从未安装的 import / jsx-a11y / react-hooks 规则，已删除；另修了 1 处 prefer-const、1 处 JSX 未转义引号。`lint` 去掉 `--fix`，新增 `lint:fix`；CI 已加 Lint 步骤
+    - 遗留：上游代码里还有 64 条针对 airbnb 风格规则的多余 `eslint-disable`，没开 `--report-unused-disable-directives`，留到 P4 搬迁时顺手清理；react-hooks 插件没装，hooks 规则暂时不检查
 - [x] 7. 引入 dependency-cruiser（锁定版本，装在 frontend 下）
   - 首批规则：禁止循环依赖；renderer 不能 import main 或 preload；preload 不能 import main；agent 不能 import electron
   - 现有的违规记成 baseline，CI 只拦截新增违规

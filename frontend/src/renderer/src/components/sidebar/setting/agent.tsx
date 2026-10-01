@@ -1,4 +1,3 @@
-/* eslint-disable import/no-extraneous-dependencies */
 import { Stack } from '@chakra-ui/react';
 import { useTranslation } from 'react-i18next';
 import { settingStyles } from './setting-styles';

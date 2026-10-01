@@ -1,5 +1,4 @@
 /* eslint-disable no-sparse-arrays */
-/* eslint-disable react-hooks/exhaustive-deps */
 // eslint-disable-next-line object-curly-newline
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';

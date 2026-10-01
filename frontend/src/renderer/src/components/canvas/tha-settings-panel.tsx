@@ -570,7 +570,7 @@ export const ThaSettingsPanel = memo((): JSX.Element => {
           </Button>
         </Box>
         <Text fontSize="10px" color="whiteAlpha.500">
-          开启后桌宠会每隔几分钟观察一次屏幕，记住你在做什么（如"在调代码"），让陪伴更贴近你的当下。
+          开启后桌宠会每隔几分钟观察一次屏幕，记住你在做什么（如“在调代码”），让陪伴更贴近你的当下。
           画面仅在本地处理、不上传、不保存截图；密码/银行等敏感窗口自动跳过；关闭即停止。
         </Text>
       </Box>

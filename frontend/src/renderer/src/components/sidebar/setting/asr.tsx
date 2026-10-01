@@ -1,4 +1,3 @@
-/* eslint-disable import/no-extraneous-dependencies */
 /* eslint-disable react/require-default-props */
 import { Stack } from '@chakra-ui/react';
 import { useEffect } from 'react';
