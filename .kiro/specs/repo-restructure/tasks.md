@@ -16,10 +16,10 @@
     - 验证：除方案和本清单里对这个缺陷的描述外，仓库里搜不到 `--with-ollama`
   - [x] 1.2 `site:dev` / `site:build` 去掉不存在的 `sync:live2d`，同步 README 和根 package.json 的描述（官网是 React，不是 Vue）
     - 验证：`npm run site:build` 成功
-- [ ] 2. 修主进程的小缺陷
-  - [ ] 2.1 `IPC.config.getConfigFiles` 在主进程里调用 `localStorage`，一调用就会抛错。改为返回主进程缓存的配置列表
-  - [ ] 2.2 `setAppUserModelId` 改为和 appId 一致的 `com.anylover.charis`
-  - [ ] 2.3 给 `electron-builder.yml` 的 extraResources 补上和 pack.js 相同的过滤规则，避免把日志、聊天记录、conf.yaml 打进安装包
+- [x] 2. 修主进程的小缺陷
+  - [x] 2.1 `IPC.config.getConfigFiles` 在主进程里调用 `localStorage`，一调用就会抛错。改为返回主进程缓存的配置列表
+  - [x] 2.2 `setAppUserModelId` 改为和 appId 一致的 `com.anylover.charis`
+  - [x] 2.3 给 `electron-builder.yml` 的 extraResources 补上和 pack.js 相同的过滤规则，避免把日志、聊天记录、conf.yaml 打进安装包
 - [ ] 3. 删除 MCP 旧转发链（McpHub 已经直连 MCP，主进程不再收发 `agent.tool*`）
   - [ ] 3.1 TS 侧：renderer 里的转发代码、`IPC.agent.tool*`、`WS_*.hubTool*` 常量和载荷类型、对应测试
   - [ ] 3.2 Python 侧：`websocket_handler.py` 里的 hub-tool-list / hub-tool-call handler；同步更新 ANYLOVER_EXTENSIONS.md、MCP 决策文档和 requirements-pet.txt 的注释

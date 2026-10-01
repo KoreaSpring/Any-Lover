@@ -210,6 +210,10 @@ export class MenuManager {
     this.tray = null;
   }
 
+  getConfigFiles(): ConfigFile[] {
+    return this.configFiles;
+  }
+
   updateConfigFiles(files: ConfigFile[]): void {
     this.configFiles = files;
   }
