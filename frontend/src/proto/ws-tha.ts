@@ -44,7 +44,7 @@ export interface ThaSetImageMsg {
 }
 export interface ThaSetPresetMsg { type: typeof THA_OUT.setPreset; preset: ThaPreset }
 export interface ThaGazeMsg { type: typeof THA_OUT.gaze; mode: ThaGazeMode }
-export interface ThaGazeTargetMsg { type: typeof THA_OUT.gazeTarget; yaw: number; pitch: number }
+export interface ThaGazeTargetMsg { type: typeof THA_OUT.gazeTarget; yaw: number; pitch: number; blink?: [number, number] }
 
 export type ThaOutboundMsg =
   | ThaMouthMsg

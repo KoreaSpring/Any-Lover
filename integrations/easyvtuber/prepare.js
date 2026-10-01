@@ -79,11 +79,18 @@ function assembleSource() {
   log('  [copy] data/models (seperable/fp16 + rife + sr, exclude standard/fp32)');
   const modelsSrc = path.join(SRC, 'data', 'models');
   const modelsOut = path.join(OUT, 'data', 'models');
-  // 随包只带默认画质 THA v3 seperable/fp16 + 超分(小)。
-  // rife 补帧(255MB) 与 rembg 抠图模型(352MB) 改为首次使用时下载，不随包。
+  // 随包只带默认画质 THA v3 seperable/fp16 + 超分(小) + RIFE x2(插帧默认开)。
+  // rembg 抠图模型(352MB) 改为首次使用时下载，不随包。
   copyRecursive(path.join(modelsSrc, 'tha3', 'seperable', 'fp16'), path.join(modelsOut, 'tha3', 'seperable', 'fp16'));
   for (const d of ['Real-ESRGAN', 'waifu2x']) {
     copyRecursive(path.join(modelsSrc, d), path.join(modelsOut, d));
+  }
+  // 项1 RIFE：服务层只用 x2，随包 x2 的 fp16+fp32（约数十 MB），让「插帧省显卡」开箱即用。
+  // x3/x4（更大）不随包，桌宠不需要；缺失时 tha_server 自动降级为不插帧。
+  const rifeSrc = path.join(modelsSrc, 'rife');
+  const rifeOut = path.join(modelsOut, 'rife');
+  for (const f of ['rife_x2_fp16.onnx', 'rife_x2_fp32.onnx']) {
+    copyRecursive(path.join(rifeSrc, f), path.join(rifeOut, f));
   }
   log('  [copy] data/images');
   copyRecursive(path.join(SRC, 'data', 'images'), path.join(OUT, 'data', 'images'));

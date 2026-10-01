@@ -195,7 +195,28 @@ export class ThaManager {
       env.THA_PORT = String(this.port);
       env.THA_CHAR = process.env.ANYLOVER_THA_CHAR || 'lambda_00';
       env.THA_CODEC = process.env.ANYLOVER_THA_CODEC || 'png';
-      env.SC_RIFE = process.env.ANYLOVER_THA_RIFE || '0';
+      // EasyVTuber 能力开关：由 ANYLOVER_THA_* 透传到 tha_server.py 的 THA_* 环境变量。
+      // 默认值针对「常驻桌宠」优化：开 RIFE x2 省显卡 + 开缓存降低长时间占用；
+      // 超分/iFacialMocap/THA 版本默认不启（高画质或发烧友可选，经设置覆盖）。
+      // 项1 RIFE：默认 x2（模型缺失时 tha_server 自动优雅降级回退不插帧）。
+      env.THA_RIFE = process.env.ANYLOVER_THA_RIFE || '2';
+      env.THA_RIFE_FP16 = process.env.ANYLOVER_THA_RIFE_FP16 || '1';
+      // 项2 后端：auto（优先 TensorRT，不可用回退 DirectML；打包默认走 DirectML）。
+      env.THA_BACKEND = process.env.ANYLOVER_THA_BACKEND || 'auto';
+      // 项4 THA 版本：默认 v3（v4/v4_student 需另下载模型，缺失回退 v3）。
+      env.THA_VERSION = process.env.ANYLOVER_THA_VERSION || 'v3';
+      // 项5 超分：默认 off（显著增显卡占用）。可设 waifu2x/realesrgan/anime4k。
+      env.THA_SR = process.env.ANYLOVER_THA_SR || 'off';
+      env.THA_SR_FP16 = process.env.ANYLOVER_THA_SR_FP16 || '1';
+      // 项3 缓存 + 输入量化：内存缓存 1GB、显存缓存 0（可按显存上调）、量化步长 0.02
+      //（相近姿态命中同一缓存，桌宠 idle 重复度高，命中率天然高 → 长时间显著降占用）。
+      env.THA_VRAM_CACHE = process.env.ANYLOVER_THA_VRAM_CACHE || '0';
+      env.THA_RAM_CACHE = process.env.ANYLOVER_THA_RAM_CACHE || '1';
+      env.THA_QUANT = process.env.ANYLOVER_THA_QUANT || '0.02';
+      // 项6 iFacialMocap：默认空=关（需 iPhone + 购买 App + 同局域网）。设 ip:port 开启。
+      env.THA_IFM = process.env.ANYLOVER_THA_IFM || '';
+      // 兼容旧开关：若用户仍设了 ANYLOVER_THA_RIFE=0 则等价关闭（THA_RIFE 已取同值）。
+      env.SC_RIFE = process.env.ANYLOVER_THA_RIFE === '0' ? '0' : '1';
       env.PYTHONIOENCODING = 'utf-8';
       env.PYTHONUTF8 = '1';
 

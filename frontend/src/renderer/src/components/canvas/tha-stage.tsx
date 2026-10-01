@@ -52,9 +52,12 @@ export const ThaStage = memo(({ showSidebar: _showSidebar }: ThaStageProps): JSX
   useEffect(() => {
     const api = window.electron?.ipcRenderer;
     if (!api) return undefined;
-    const handler = (_e: unknown, payload: { yaw: number; pitch: number }): void => {
+    const handler = (
+      _e: unknown,
+      payload: { yaw: number; pitch: number; blink?: [number, number] },
+    ): void => {
       if (!payload) return;
-      thaDriver.sendGazeTarget(payload.yaw, payload.pitch);
+      thaDriver.sendGazeTarget(payload.yaw, payload.pitch, payload.blink);
     };
     api.on(IPC.agent.expressGaze, handler);
     return () => {

@@ -83,9 +83,12 @@ export class OpenSeeFaceManager extends SidecarPerceptionSource {
     const exe = this.resolveExe();
     if (!exe) throw new Error('facetracker 未找到');
     const custom = String(process.env.ANYLOVER_OSF_ARGS || '').trim();
+    // OpenSeeFace 模型编号：默认用 model 4（相比 model 3 支持 wink/单眼眨眼，表情更细腻）。
+    // 可用 ANYLOVER_OSF_MODEL 覆盖（如低配机想省 CPU 可回退 3）。
+    const model = String(process.env.ANYLOVER_OSF_MODEL || '4').trim();
     const args = custom
       ? custom.split(/\s+/)
-      : ['-c', this.cam, '-p', String(this.port), '-i', HOST, '--model', '3'];
+      : ['-c', this.cam, '-p', String(this.port), '-i', HOST, '--model', model];
     return { exe, args, imageName: 'facetracker.exe' };
   }
 

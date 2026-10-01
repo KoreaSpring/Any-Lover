@@ -40,6 +40,44 @@ USE_RIFE = os.environ.get("SC_RIFE", "0") == "1"
 CODEC = os.environ.get("THA_CODEC", "png").lower()
 IDLE_MOUTH = os.environ.get("THA_IDLE_MOUTH", "0") == "1"  # 无外部驱动时嘴自测张合(调试)
 
+
+def _env_flag(name, default="0"):
+    return os.environ.get(name, default).strip().lower() in ("1", "true", "yes", "on")
+
+
+def _env_float(name, default):
+    try:
+        return float(os.environ.get(name, str(default)))
+    except (TypeError, ValueError):
+        return float(default)
+
+
+def _env_int(name, default):
+    try:
+        return int(float(os.environ.get(name, str(default))))
+    except (TypeError, ValueError):
+        return int(default)
+
+
+# ---------------- EasyVTuber 能力总开关（经 tha-manager 由 ANYLOVER_THA_* 透传） ----------------
+# 后端选择：auto(优先 TensorRT，不可用回退 DirectML/ORT) / trt / ort
+THA_BACKEND = os.environ.get("THA_BACKEND", "auto").strip().lower()
+# THA 模型版本：v3 / v4 / v4_student（v4 系列需另下载模型，缺失自动回退 v3）
+THA_VERSION = os.environ.get("THA_VERSION", "v3").strip().lower()
+# 项1 RIFE 插帧倍率：0/1=关，2/3/4=对应倍率。优先于旧的 SC_RIFE(=x2)。
+RIFE_SCALE = _env_int("THA_RIFE", 2 if USE_RIFE else 0)
+RIFE_FP16 = _env_flag("THA_RIFE_FP16", "1")
+# 项5 超分：off / waifu2x / realesrgan / anime4k。默认 off（显著增显卡占用）。
+THA_SR = os.environ.get("THA_SR", "off").strip().lower()
+SR_FP16 = _env_flag("THA_SR_FP16", "1")
+# 项3 缓存：显存缓存(GB) + 内存磁盘缓存(GB) + 输入量化步长(0 关)。
+VRAM_CACHE = _env_float("THA_VRAM_CACHE", 0.0)
+RAM_CACHE = _env_float("THA_RAM_CACHE", 1.0)
+# 输入量化：把 pose 分量四舍五入到该步长的整数倍，相近姿态命中同一缓存。0=关。
+QUANT_STEP = _env_float("THA_QUANT", 0.0)
+# 项6 iFacialMocap：ip:port（默认空=关）。开启后由 UDP 面捕驱动 pose。
+IFM_ADDR = os.environ.get("THA_IFM", "").strip()
+
 # ---------------- 情绪 → pose 映射 ----------------
 # 45 维绝对索引（依据 tha4 pose_parameters.py 顺序，与 tha3/mouse_client 布局一致）：
 # eyebrow(0-11): troubled_l/r=0,1 angry=2,3 lowered=4,5 raised=6,7 happy=8,9 serious=10,11
@@ -133,10 +171,111 @@ def make_idle_pose(t, mouth=0.0, idle_mouth=False, expr_pose=None, gaze=(0.0, 0.
 
 
 # ---------------- 模型加载 ----------------
-print(f"[tha_server] loading model (char={CHAR}, fps={FPS}, rife={USE_RIFE}, codec={CODEC})")
-core = CoreORT(tha_model_version="v3", tha_model_seperable=True, tha_model_fp16=True,
-               rife_model_enable=False, sr_model_enable=False,
-               vram_cache_size=0.0, cache_max_giga=1.0, use_eyebrow=True)
+# 后端选择（项2）：auto 优先 TensorRT(CoreTRT，仅 N 卡+已装 pycuda/tensorrt)，不可用回退
+# DirectML(CoreORT，通吃 N/A/I 卡)。ezvtb_rt.__init__ 已按依赖可用性决定是否导出 CoreTRT。
+_CoreTRT = getattr(ezvtb_rt, "CoreTRT", None)
+
+
+def _resolve_backend():
+    """返回 (core_class, backend_name)。auto 时优先可用的 TRT，否则 ORT。"""
+    if THA_BACKEND == "ort":
+        return CoreORT, "ort(directml)"
+    if THA_BACKEND == "trt":
+        if _CoreTRT is None:
+            print("[tha_server] THA_BACKEND=trt 但 TensorRT 不可用，回退 DirectML/ORT")
+            return CoreORT, "ort(directml,trt-unavailable)"
+        return _CoreTRT, "trt"
+    # auto
+    if _CoreTRT is not None:
+        return _CoreTRT, "trt(auto)"
+    return CoreORT, "ort(directml,auto)"
+
+
+def _resolve_version():
+    """校验 THA 版本对应模型是否存在，缺失则回退 v3。返回 (version, seperable_default)。"""
+    md = os.path.join(HERE, "data", "models")
+    if THA_VERSION == "v4":
+        if os.path.isdir(os.path.join(md, "tha4")):
+            return "v4", False
+        print("[tha_server] THA_VERSION=v4 但未找到 tha4 模型，回退 v3")
+    elif THA_VERSION == "v4_student":
+        if os.path.isdir(os.path.join(md, "tha4_student")):
+            return "v4_student", False
+        print("[tha_server] THA_VERSION=v4_student 但未找到 tha4_student 模型，回退 v3")
+    return "v3", True
+
+
+def _rife_available(scale, fp16):
+    if scale < 2:
+        return False
+    p = os.path.join(HERE, "data", "models", "rife",
+                     f"rife_x{scale}_{'fp16' if fp16 else 'fp32'}.onnx")
+    if os.path.isfile(p):
+        return True
+    print(f"[tha_server] RIFE 模型缺失({p})，插帧禁用")
+    return False
+
+
+def _sr_config():
+    """返回 (sr_enable, sr_scale, sr_fp16, sr_a4k)。模型缺失则关闭。"""
+    md = os.path.join(HERE, "data", "models")
+    if THA_SR in ("", "off", "0", "none"):
+        return False, 2, SR_FP16, False
+    if THA_SR == "anime4k":
+        return True, 2, SR_FP16, True
+    if THA_SR == "waifu2x":
+        p = os.path.join(md, "waifu2x", f"noise0_scale2x_{'fp16' if SR_FP16 else 'fp32'}.onnx")
+        if os.path.isfile(p):
+            return True, 2, SR_FP16, False
+        print(f"[tha_server] waifu2x 模型缺失({p})，超分禁用")
+    elif THA_SR == "realesrgan":
+        # 注意：仓库里 x4 fp32 文件名为 exported_256.onnx，与代码期望的 exported_256_fp32.onnx 不符，
+        # 故 realesrgan 强制走 fp16(exported_256_fp16.onnx 存在)，避免加载失败。
+        p = os.path.join(md, "Real-ESRGAN", "exported_256_fp16.onnx")
+        if os.path.isfile(p):
+            return True, 4, True, False
+        print(f"[tha_server] Real-ESRGAN 模型缺失({p})，超分禁用")
+    else:
+        print(f"[tha_server] 未知 THA_SR={THA_SR}，超分禁用")
+    return False, 2, SR_FP16, False
+
+
+# 实际生效配置（供 producer 决定是否走多帧插帧路径）
+_backend_class, _backend_name = _resolve_backend()
+_version, _version_seperable = _resolve_version()
+_rife_scale = RIFE_SCALE if _rife_available(RIFE_SCALE, RIFE_FP16) else 0
+_sr_enable, _sr_scale, _sr_fp16, _sr_a4k = _sr_config()
+# RIFE 走服务层(producer 自管 prev_frame 调独立 rife session)，不开 core 内置 rife：
+# core 内置 rife 单帧接口历史上有 4 维 bug，服务层 3 维 uint8 接口已验证稳定。
+# core 仍负责 SR 与缓存。
+_use_core_rife = False
+
+print(f"[tha_server] config: backend={_backend_name} version={_version} "
+      f"rife=x{_rife_scale if _rife_scale else 0} sr={THA_SR if _sr_enable else 'off'} "
+      f"vram_cache={VRAM_CACHE}GB ram_cache={RAM_CACHE}GB quant={QUANT_STEP} ifm={IFM_ADDR or 'off'}")
+
+
+def build_core(seperable, fp16):
+    """按当前全局配置构建推理核心。seperable/fp16 来自性能预设(仅 v3 有意义)。"""
+    return _backend_class(
+        tha_model_version=_version,
+        tha_model_seperable=seperable,
+        tha_model_fp16=fp16,
+        rife_model_enable=_use_core_rife,
+        rife_model_scale=_rife_scale if _use_core_rife else 2,
+        rife_model_fp16=RIFE_FP16,
+        sr_model_enable=_sr_enable,
+        sr_model_scale=_sr_scale,
+        sr_model_fp16=_sr_fp16,
+        sr_a4k=_sr_a4k,
+        vram_cache_size=VRAM_CACHE,
+        cache_max_giga=RAM_CACHE,
+        use_eyebrow=True,
+    )
+
+
+print(f"[tha_server] loading model (char={CHAR}, fps={FPS}, codec={CODEC})")
+core = build_core(_version_seperable, True)
 img = cv2.imread(os.path.join(HERE, "data", "images", f"{CHAR}.png"), cv2.IMREAD_UNCHANGED)
 if img is None:
     raise SystemExit(f"character image not found: data/images/{CHAR}.png")
@@ -163,6 +302,16 @@ def _preset_model_exists(seperable, half):
     t = "seperable" if seperable else "standard"
     dt = "fp16" if half else "fp32"
     return os.path.isfile(os.path.join(HERE, "data", "models", "tha3", t, dt, "merge.onnx"))
+
+
+def quantize_pose(pose):
+    """项3 输入量化：把 pose 分量四舍五入到 QUANT_STEP 的整数倍，让相近姿态命中同一缓存，
+    提高缓存命中率、长时间使用显著降低显卡占用。QUANT_STEP=0 时原样返回（不量化）。
+    注意：量化会牺牲一点动作平滑度，步长越大命中率越高但越"顿"。"""
+    if QUANT_STEP <= 0.0:
+        return pose
+    q = np.round(np.asarray(pose, dtype=np.float32) / QUANT_STEP) * QUANT_STEP
+    return q.astype(np.float32)
 
 
 # 注视(gaze)参数：按对话状态调整视线/头部游移的换向间隔与幅度，让角色"看起来有意识"。
@@ -203,6 +352,132 @@ def set_gaze_follow(yaw_deg, pitch_deg, now):
     _gaze_follow["ts"] = now
 
 
+# ---------------- 项6 iFacialMocap（可选，发烧友）----------------
+# iPhone 结构光面捕，经 iFacialMocap App 以 UDP 文本协议发送 52 条 ARKit blendshape + 头部姿态。
+# 默认关闭（需 iPhone + 购买 App + 同局域网，门槛高）；设 THA_IFM=ip:port 开启。
+# 协议：形如 "blendShapeName-value|...=head#x,y,z|..."，value 0..100。我们只取驱动桌宠所需的少量通道。
+_ifm = {
+    "ts": -1.0,            # 最近有效包时刻(perf_counter)
+    "pose45": None,        # 由 blendshape 映射出的 45 维 pose（叠加用）
+    "head": [0.0, 0.0],    # head_x(俯仰), head_y(摇头) 归一
+    "iris": [0.0, 0.0],    # 视线 x,y 归一
+}
+_IFM_TTL = 0.5  # iFM 包有效期(秒)；超时回落程序化
+
+
+def _ifm_parse(text):
+    """解析 iFacialMocap UDP 文本，返回 (blendshapes:dict[str,float 0..1], head_deg:[pitch,yaw,roll]) 或 None。"""
+    try:
+        bs = {}
+        head = [0.0, 0.0, 0.0]
+        # 包用 '|' 分隔条目；blendshape 条目形如 name-value（value 0..100），
+        # 头部条目形如 =head#pitch,yaw,roll（不同版本略有差异，做容错）。
+        for seg in text.replace("=", "|").split("|"):
+            seg = seg.strip()
+            if not seg:
+                continue
+            if seg.lower().startswith("head#") or seg.lower().startswith("head"):
+                nums = seg.split("#")[-1].split(",")
+                try:
+                    head = [float(nums[0]), float(nums[1]), float(nums[2])]
+                except (IndexError, ValueError):
+                    pass
+                continue
+            if "-" in seg:
+                k, _, v = seg.rpartition("-")
+                try:
+                    bs[k.strip()] = max(0.0, min(1.0, float(v) / 100.0))
+                except ValueError:
+                    pass
+        return bs, head
+    except Exception:
+        return None
+
+
+def _ifm_to_pose(bs, head):
+    """把 ARKit blendshapes + 头部角度映射到 45 维 THA pose（取驱动桌宠最有感的通道）。"""
+    a = [0.0] * 45
+    g = bs.get
+    # 眨眼：ARKit eyeBlink_L/R → eye_wink(12,13)
+    a[12] = g("eyeBlink_L", 0.0)
+    a[13] = g("eyeBlink_R", 0.0)
+    # 嘴：jawOpen → mouth_aaa(26)；mouthFunnel/Pucker → mouth_ooo(30)
+    a[26] = min(1.5, g("jawOpen", 0.0) * 1.5)
+    a[30] = max(g("mouthFunnel", 0.0), g("mouthPucker", 0.0))
+    # 微笑：mouthSmile_L/R → mouth_raised_corner(34,35)
+    a[34] = g("mouthSmile_L", 0.0)
+    a[35] = g("mouthSmile_R", 0.0)
+    # 皱眉：browDown_L/R → eyebrow_angry(2,3)；raise → eyebrow_raised(6,7)
+    a[2] = g("browDown_L", 0.0)
+    a[3] = g("browDown_R", 0.0)
+    a[6] = g("browInnerUp", 0.0)
+    a[7] = g("browInnerUp", 0.0)
+    # 头部：pitch/yaw(度) → head_x(39)/head_y(40)，小幅缩放
+    pitch, yaw = head[0], head[1]
+    a[39] = max(-1.0, min(1.0, pitch / 30.0))
+    a[40] = max(-1.0, min(1.0, yaw / 30.0))
+    # 视线：eyeLook 左右上下合成 → iris_rotation(37,38)
+    a[37] = g("eyeLookOut_L", 0.0) - g("eyeLookIn_L", 0.0)
+    a[38] = g("eyeLookUp_L", 0.0) - g("eyeLookDown_L", 0.0)
+    return np.asarray(a, dtype=np.float32)
+
+
+def _ifm_listener():
+    """iFacialMocap UDP 接收线程：监听本地端口，解析并写入 _ifm。THA_IFM=ip:port，端口默认 49983。"""
+    import socket
+    try:
+        port = int(IFM_ADDR.rsplit(":", 1)[-1]) if ":" in IFM_ADDR else 49983
+    except ValueError:
+        port = 49983
+    try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sock.bind(("0.0.0.0", port))
+        sock.settimeout(1.0)
+        print(f"[tha_server] iFacialMocap UDP 监听 0.0.0.0:{port}")
+    except OSError as e:
+        print(f"[tha_server] iFacialMocap 监听失败：{e}")
+        return
+    while not stop_flag["v"]:
+        try:
+            data, _ = sock.recvfrom(65535)
+        except socket.timeout:
+            continue
+        except OSError:
+            break
+        parsed = _ifm_parse(data.decode("utf-8", "ignore"))
+        if parsed is None:
+            continue
+        bs, head = parsed
+        pose45 = _ifm_to_pose(bs, head)
+        _ifm["pose45"] = pose45
+        _ifm["ts"] = time.perf_counter()
+    try:
+        sock.close()
+    except OSError:
+        pass
+
+
+def ifm_active(now):
+    """iFM 是否有新鲜数据（在有效期内）。"""
+    return _ifm["ts"] >= 0 and (now - _ifm["ts"]) <= _IFM_TTL
+
+
+# 项7 wink：来自 OpenSeeFace model 4 的单眼闭合度 [右,左](0..1)。新鲜时覆盖程序化眨眼，
+# 支持真人单眼眨眼。超过 TTL 无更新则回落到程序化定时眨眼（见 make_idle_pose）。
+_wink = {"r": 0.0, "l": 0.0, "ts": -1.0}
+_WINK_TTL = 0.5
+
+
+def set_wink(right_close, left_close, now):
+    _wink["r"] = max(0.0, min(1.0, right_close))
+    _wink["l"] = max(0.0, min(1.0, left_close))
+    _wink["ts"] = now
+
+
+def wink_active(now):
+    return _wink["ts"] >= 0 and (now - _wink["ts"]) <= _WINK_TTL
+
+
 def update_gaze(mode, now):
     """更新注视：优先用新鲜的 follow 目标（摄像头视线跟随）；否则按当前模式随机游移。
     每帧向目标平滑插值。返回 (head_x,head_y,iris_x,iris_y)。"""
@@ -227,14 +502,20 @@ def update_gaze(mode, now):
         cur[i] += (tgt[i] - cur[i]) * GAZE_LERP
     return tuple(cur)
 
+# 项1 服务层 RIFE：producer 自管 prev_frame 调独立 rife session，插 1 中间帧(x2)。
+# 桌宠常驻场景 x2 足够：等效用一半的 THA 推理换取翻倍输出帧，显著降显卡占用。
+# 仅在未开 SR 时生效（SR 会放大帧尺寸，与 512 输入的独立 rife 不兼容）。
 rife = None
-if USE_RIFE:
-    _rife_path = os.path.join(HERE, "data", "models", "rife", "rife_x2_fp16.onnx")
+if _rife_scale >= 2 and not _sr_enable:
+    _rife_path = os.path.join(HERE, "data", "models", "rife",
+                              f"rife_x2_{'fp16' if RIFE_FP16 else 'fp32'}.onnx")
     if os.path.isfile(_rife_path):
-        rife = createORTSession(_rife_path, 0)
-        print("[tha_server] RIFE x2 loaded (service-layer 3-dim uint8 interface)")
+        rife = createORTSession(_rife_path, int(os.environ.get("EZVTB_DEVICE_ID", "0")))
+        print(f"[tha_server] service-layer RIFE x2 loaded ({'fp16' if RIFE_FP16 else 'fp32'})")
     else:
-        print("[tha_server] RIFE model missing (not bundled); interpolation disabled")
+        print(f"[tha_server] RIFE 模型缺失({_rife_path})，插帧禁用")
+elif _rife_scale >= 2 and _sr_enable:
+    print("[tha_server] 已开 SR，服务层 RIFE 禁用（避免尺寸冲突）")
 
 print("[tha_server] model ready")
 
@@ -316,20 +597,22 @@ def producer():
             preset = state["pending_preset"]
             state["pending_preset"] = None
         if preset is not None and preset in PRESET_MAP:
-            sep, half = PRESET_MAP[preset]
-            if not _preset_model_exists(sep, half):
-                print(f"[tha_server] preset {preset} model missing (need HQ download)")
+            if _version != "v3":
+                # v4 系列没有 seperable/standard 之分，性能预设不适用，忽略。
+                print(f"[tha_server] preset ignored (version={_version} 不支持预设切换)")
             else:
-                try:
-                    core = CoreORT(tha_model_version="v3", tha_model_seperable=sep, tha_model_fp16=half,
-                                   rife_model_enable=False, sr_model_enable=False,
-                                   vram_cache_size=0.0, cache_max_giga=1.0, use_eyebrow=True)
-                    core.setImage(current_pose_image)
-                    core.inference([np.zeros((1, 45), dtype=np.float32)])
-                    prev_frame = None
-                    print(f"[tha_server] preset applied: {preset} (seperable={sep}, fp16={half})")
-                except Exception as e:
-                    print(f"[tha_server] preset apply failed: {e}")
+                sep, half = PRESET_MAP[preset]
+                if not _preset_model_exists(sep, half):
+                    print(f"[tha_server] preset {preset} model missing (need HQ download)")
+                else:
+                    try:
+                        core = build_core(sep, half)
+                        core.setImage(current_pose_image)
+                        core.inference([quantize_pose(np.zeros((1, 45), dtype=np.float32))])
+                        prev_frame = None
+                        print(f"[tha_server] preset applied: {preset} (seperable={sep}, fp16={half})")
+                    except Exception as e:
+                        print(f"[tha_server] preset apply failed: {e}")
 
         # 热切换立绘：在 producer 线程内应用，避免与推理并发
         with lock:
@@ -356,16 +639,28 @@ def producer():
             gaze_mode = state["gaze_mode"]
         gaze_now = update_gaze(gaze_mode, now)
         pose = make_idle_pose(t, mouth=current_mouth(), idle_mouth=IDLE_MOUTH, expr_pose=expr_now, gaze=gaze_now)
-        cur = np.asarray(core.inference([pose]))[0]  # (512,512,4) uint8 BGRA
+        # 项7：有新鲜 wink 数据(OpenSeeFace model 4)时，用真人单眼闭合覆盖程序化眨眼。
+        if wink_active(now):
+            pose[0, 12] = _wink["r"]  # eye_wink 右
+            pose[0, 13] = _wink["l"]  # eye_wink 左
+        # 项6 iFacialMocap：有新鲜面捕数据时，用其 45 维 pose 作为主驱动（叠加情绪基底），
+        # 覆盖程序化 idle/gaze，获得真人面捕的实时表情。超时自动回落（见 ifm_active）。
+        if IFM_ADDR and ifm_active(now) and _ifm["pose45"] is not None:
+            pose = (_ifm["pose45"] + expr_now).reshape(1, 45)
+            np.clip(pose, -1.0, 1.5, out=pose)
+        # 项3 输入量化：量化后再喂模型，使相近姿态命中同一缓存（QUANT_STEP=0 时不变）。
+        pose = quantize_pose(pose)
+        cur = np.asarray(core.inference([pose]))[0]  # SR 关:(512,512,4)；SR 开:(1024/2048,...,4) uint8 BGRA
 
         out_frames = []
-        if rife is not None and prev_frame is not None:
+        # 服务层 RIFE 仅在未开 SR 时生效：SR 会放大帧尺寸，与独立 rife(512 输入)不兼容。
+        if rife is not None and not _sr_enable and prev_frame is not None:
             res = rife.run(None, {"tha_img_0": prev_frame, "tha_img_1": cur})
             out_frames.append(res[0])  # 插值中间帧
             out_frames.append(cur)     # 当前帧
         else:
             out_frames.append(cur)
-        prev_frame = cur
+        prev_frame = cur if not _sr_enable else None
 
         encoded = [encode(f) for f in out_frames]
         encoded = [e for e in encoded if e is not None]
@@ -475,14 +770,23 @@ def apply_control(msg):
         with lock:
             state["gaze_mode"] = mode
     elif mtype == "gazeTarget":
-        # 方向级注视跟随：{type:gazeTarget, yaw, pitch}（度），来自摄像头感知。
+        # 方向级注视跟随：{type:gazeTarget, yaw, pitch, blink?}（度），来自摄像头感知。
         # 优先级高于 mode；超时自动回落程序化游移（见 update_gaze）。
+        # 项7：blink=[右,左] 眼开合(0..1，来自 OpenSeeFace model 4)，1=睁开 0=闭合，
+        # 转成 eye_wink(闭合度) 覆盖程序化眨眼，支持真人单眼 wink。
         try:
             yaw = float(obj.get("yaw", 0.0))
             pitch = float(obj.get("pitch", 0.0))
-        except Exception:
+        except (TypeError, ValueError):
             return
         set_gaze_follow(yaw, pitch, time.perf_counter())
+        blink = obj.get("blink")
+        if isinstance(blink, (list, tuple)) and len(blink) == 2:
+            try:
+                # OpenSeeFace eye_blink：1=睁 0=闭；eye_wink 相反(闭合度)，故取 1-开合。
+                set_wink(1.0 - float(blink[0]), 1.0 - float(blink[1]), time.perf_counter())
+            except (TypeError, ValueError):
+                pass
 
 
 async def handler(ws):
@@ -528,6 +832,9 @@ async def handler(ws):
 async def main():
     th = threading.Thread(target=producer, daemon=True)
     th.start()
+    # 项6 iFacialMocap：仅在显式配置 THA_IFM 时启动 UDP 面捕接收线程（默认不启）。
+    if IFM_ADDR:
+        threading.Thread(target=_ifm_listener, daemon=True).start()
     async with websockets.serve(handler, "127.0.0.1", PORT, max_size=None):
         print(f"[tha_server] WebSocket serving at ws://127.0.0.1:{PORT}")
         await asyncio.Future()  # run forever
