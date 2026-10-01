@@ -4,9 +4,9 @@
 // 做首启依赖安装、就绪探测（TCP 连通 WS 端口）与进程树清理。对标 backend-manager.ts。
 //
 // 运行时定位（源码 + 嵌入式 Python 自包含，不冻结）：
-//   - 打包态 THA 根目录：resources/tha-runtime（由 prepare-tha-runtime.js 组装：
+//   - 打包态 THA 根目录：resources/tha-runtime（由 integrations/easyvtuber/prepare.js 组装：
 //     源码 + data/models + 嵌入式 Python(python/) + requirements.txt）
-//   - 开发态 THA 根目录：<repoRoot>/tha-runtime
+//   - 开发态 THA 根目录：<repoRoot>/integrations/easyvtuber/runtime
 //   - Python：优先随包嵌入式 python/python.exe；开发态回退 .venv；再回退系统 python
 //   - 依赖：首次运行时用嵌入式 Python `pip install -r requirements.txt`，装好写 .deps-installed 标记
 //   可用环境变量覆盖：
@@ -39,12 +39,13 @@ export class ThaManager {
     return `ws://${HOST}:${this.port}/`;
   }
 
-  // 只读资源目录：打包态 resources/tha-runtime；开发态仓库根 tha-runtime。
+  // 只读资源目录：打包态 resources/tha-runtime（pack.js 把 dist-tha-runtime 打到此处，名字不变）；
+  // 开发态用仓库内 EasyVtuber 源目录 integrations/easyvtuber/runtime。
   private resourceRoot(): string {
     if (app.isPackaged) {
       return path.join(process.resourcesPath, 'tha-runtime');
     }
-    return path.join(app.getAppPath(), '..', 'tha-runtime');
+    return path.join(app.getAppPath(), '..', 'integrations', 'easyvtuber', 'runtime');
   }
 
   // 实际运行目录（需可写：首启要在此 pip 装依赖）。
