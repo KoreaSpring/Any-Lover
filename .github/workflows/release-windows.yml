@@ -115,3 +115,25 @@ jobs:
           } else {
             gh release upload '${{ github.ref_name }}' $assets --clobber
           }
+
+      # 官网分片下载：pack.js 已把安装包切成 < 100MB 的分片（split/ + manifest.json）并校验。
+      # 推到专用孤儿分支 downloads，经 raw.githubusercontent.com 提供（带 CORS，官网可在浏览器里下载并拼接）。
+      # 该分支只放当前版本的分片：每次发布用单个新提交强推覆盖，不在仓库里累积历史大文件。
+      # 注意：只强推 downloads 这一个分支，不影响 main 等其它分支。
+      - name: Publish split parts to downloads branch
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        run: |
+          $split = Join-Path '${{ steps.art.outputs.dir }}' 'split'
+          if (-not (Test-Path (Join-Path $split 'manifest.json'))) { throw '未找到分片 manifest.json' }
+          $work = Join-Path $env:RUNNER_TEMP 'downloads-branch'
+          New-Item -ItemType Directory -Force $work | Out-Null
+          Copy-Item (Join-Path $split '*') $work
+          Set-Location $work
+          git init -q -b downloads
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -q -m "downloads: ${{ github.ref_name }}"
+          git remote add origin "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git"
+          git push --force origin downloads

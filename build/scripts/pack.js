@@ -235,6 +235,24 @@ try {
   buildDesktop();
   const outDir = runBuilder();
   log(`\n打包完成。产物目录：${outDir}`);
+  // 打完安装包自动切成 < 100MB 的分片 + manifest.json（官网分片下载 / 浏览器组装用），并校验可还原。
+  // --dir 只出免安装目录、没有 setup.exe，跳过；--no-split 可手动关闭。
+  if (!dirOnly && !process.argv.includes('--no-split')) {
+    const exe = fs
+      .readdirSync(outDir)
+      .filter((f) => /-setup\.exe$/i.test(f))
+      .map((f) => path.join(outDir, f))[0];
+    if (exe) {
+      const splitDir = path.join(outDir, 'split');
+      for (const [script, args] of [
+        ['split-release.js', [exe, '--out', splitDir]],
+        ['verify-split.js', [splitDir]],
+      ]) {
+        const res = spawnSync(process.execPath, [path.join(__dirname, script), ...args], { stdio: 'inherit' });
+        if (res.status !== 0) throw new Error(`${script} 失败`);
+      }
+    }
+  }
 } catch (err) {
   console.error('[pack] 失败：', err.message);
   process.exit(1);
