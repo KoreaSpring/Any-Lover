@@ -73,3 +73,40 @@
 ## 请你拍板
 最省事的方式：**若全部采纳推荐（1A / 接受新 WS 消息 / 3A 只读工具 / 4A 不透传状态 / 5 默认关），回复"按推荐做"即可，我据此开工。**
 若某项想选别的，指出编号与选项（如"决策点1选 1B"）。
+
+---
+
+## ✅ 已实施（按全部推荐）
+
+分支 `feat/mcp-tools`，5 个提交，已验证 build + 68 单测通过：
+
+1. **proto**（`502578cd`）：`ws-backend.ts` + `protocol.proto` 加 `hub-tool-list`/`hub-tool-call`（出站）、
+   `hub-tool-info`/`hub-tool-result`（入站）+ 载荷类型（callId 配对）。
+2. **后端**（`9724519b`）：`websocket_handler.py` 加 `_handle_hub_tool_list`/`_handle_hub_tool_call`，
+   委托已有 `context.tool_executor.execute_tools(caller_mode="Prompt")`；未开启 MCP 时返回空清单（降级）。
+3. **tool-protocol**（`987875ae`）：`agent/dialogue/tool-protocol.ts` 纯函数——解析 `<tool_call>{json}</tool_call>`、
+   构造工具 system prompt、格式化结果回注。15 单测。
+4. **工具循环**（`a1b0d863`）：`DialogueEngine.handle` 增 `enableTools` 选项与工具循环（注入清单→生成→
+   解析工具调用→经 `ToolBridge` 委托后端→结果回注→再生成，最多 4 轮，仅终轮按句交付）；无工具时与原单程流完全一致。
+   `bootstrap` 实现 `ToolBridge`（callId 配对的 IPC↔WS RPC，5s/20s 超时降级）；`websocket-handler` 桥接
+   `agent:tool-*` IPC ↔ `hub-tool-*` WS 双向。
+5. **UI 开关 + 门控**：`utils/tool-calling.ts`（localStorage `anylover_tool_calling`，**默认关**）；
+   `tha-settings-panel` 加「工具调用（实验）」开关；`enableTools` 经 `agent:dialogue` 载荷从文字/语音两路传入。
+
+### 决策落实对照
+- 1A ✅ prompt 文本模式（未改 LLMProvider 接口）
+- 新 WS RPC ✅ `hub-tool-*` + callId 配对
+- 3A ✅ 工具范围由后端 MCP 配置（`mcp_servers.json` 的 time/ddg-search）决定，中枢不另给
+- 4A ✅ 中间 `tool_call_status` 不透传，只回最终结果
+- 门控 ✅ 默认关 + 用户显式开启；只读工具无需逐次确认；超时 + 可被 `interrupt()` 打断
+
+### 手动验证（需运行环境，无法在 CI/本机静态验证）
+闭环需要：① 后端 conf 开启 MCP（`use_mcpp` + `enabled_servers` 含 time/ddg-search，且 uvx 可用）；
+② 本地 Ollama 跑着主模型；③ 设置里「中枢对话」+「工具调用」都开启。
+验证点：问「现在几点」/「搜一下 X」，观察桌宠是否先调工具再据结果作答；关闭「工具调用」则回到纯对话。
+自动化已覆盖纯逻辑（解析/格式化/协议常量，68 单测）；端到端对话链需人工在上述环境试跑。
+
+### 后续（未做，需另立任务）
+- 原生 function calling（1B）：若 prompt 模式稳定性不足再升级。
+- 工具状态 UI（4B）：显示「🔧 正在搜索…」。
+- 有副作用工具（文件/桌面控制）：接入前必须加二次确认 + 白名单。

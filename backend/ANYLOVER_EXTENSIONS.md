@@ -38,7 +38,12 @@ git diff f5bf9f6 HEAD -- backend/src/open_llm_vtuber/<file>
     + `conversation-chain-end`。
   - `mic-audio-end-asr-only` → `_handle_asr_only`：累积 mic 音频只做 ASR，回发 `user-input-transcription`，
     **不生成回复**（生成交给中枢，避免双回复）。
-- 4 个 handler 方法约在类的 `_handle_*` 区块（撰写时 ~526–608 行）。
+  - `hub-tool-list` → `_handle_hub_tool_list`：返回 MCP 工具清单文本(`context.mcp_prompt`)+可用工具名
+    （`context.tool_manager.tools` 的键）。后端未开启 MCP 时 `tool_executor` 为 None，返回空清单（优雅降级）。
+  - `hub-tool-call` → `_handle_hub_tool_call`：执行一批工具调用（prompt 模式 `{id,name,args}`），委托
+    `context.tool_executor.execute_tools(..., caller_mode="Prompt")`，消费到 `final_tool_results` 后回发
+    `hub-tool-result{callId, results}`。中间 `tool_call_status` 不透传前端（决策 4A）。
+- 这些 handler 约在类的 `_handle_*` 区块。对应前端 `proto/ws-backend.ts` 的 `hubTool*` 扩展 type。
 
 > 说明：这 4 个 handler 深度依赖 `WebSocketHandler` 的实例状态（client_contexts / hub_tts_managers /
 > received_data_buffers），是类方法，**不宜外提到独立模块**（会破坏封装、需传一堆状态），故就地保留。

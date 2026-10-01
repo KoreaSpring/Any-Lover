@@ -7,6 +7,7 @@ import { wsService, MessageEvent } from '@/services/websocket-service';
 import { IPC } from '@proto/ipc';
 import { WS_OUT, WS_IN, WS_CONTROL } from '@proto/ws-backend';
 import { isHubDialogueEnabled } from '@/utils/hub-dialogue';
+import { isToolCallingEnabled } from '@/utils/tool-calling';
 import {
   WebSocketContext, HistoryInfo, defaultWsUrl, defaultBaseUrl,
 } from '@/context/websocket-context';
@@ -267,7 +268,7 @@ function WebSocketHandler({ children }: { children: React.ReactNode }) {
           // 仅中枢对话模式转发；老对话模式后端会自行生成，不转发。
           if (isHubDialogueEnabled()) {
             const api = window.electron?.ipcRenderer;
-            api?.invoke(IPC.agent.dialogue, { text: message.text });
+            api?.invoke(IPC.agent.dialogue, { text: message.text, enableTools: isToolCallingEnabled() });
           }
         }
         break;
@@ -313,6 +314,20 @@ function WebSocketHandler({ children }: { children: React.ReactNode }) {
       case WS_IN.interruptSignal:
         // Handle forwarded interrupt
         interrupt(false); // do not send interrupt signal to server
+        break;
+      case WS_IN.hubToolInfo:
+        // 后端工具清单响应 → 转 IPC 回中枢（main 的 ToolBridge.list 在等）。
+        window.electron?.ipcRenderer?.send(IPC.agent.toolInfo, {
+          prompt: (message as any).prompt || '',
+          names: (message as any).names || [],
+        });
+        break;
+      case WS_IN.hubToolResult:
+        // 后端工具执行结果 → 转 IPC 回中枢（main 的 ToolBridge.run 按 callId 配对）。
+        window.electron?.ipcRenderer?.send(IPC.agent.toolResult, {
+          callId: (message as any).callId || '',
+          results: (message as any).results || [],
+        });
         break;
       case WS_IN.toolCallStatus:
         if (message.tool_id && message.tool_name && message.status) {
@@ -409,6 +424,29 @@ function WebSocketHandler({ children }: { children: React.ReactNode }) {
       }
     };
   }, [setSubtitleText]);
+
+  // MCP 工具调用（路线 A）：中枢经 IPC 请求 → renderer 转发 WS hub-tool-* → 后端执行。
+  // 后端响应 hub-tool-info / hub-tool-result 在 handleWebSocketMessage 的 switch 里转成 IPC 回中枢。
+  useEffect(() => {
+    const api = window.electron?.ipcRenderer;
+    if (!api) return undefined;
+    const onToolList = (): void => {
+      wsService.sendMessage({ type: WS_OUT.hubToolList });
+    };
+    const onToolCall = (_e: unknown, payload: { callId?: string; toolCalls?: unknown[] }): void => {
+      wsService.sendMessage({ type: WS_OUT.hubToolCall, callId: payload?.callId, toolCalls: payload?.toolCalls || [] });
+    };
+    api.on(IPC.agent.toolList, onToolList);
+    api.on(IPC.agent.toolCall, onToolCall);
+    return () => {
+      try {
+        api.removeListener(IPC.agent.toolList, onToolList);
+        api.removeListener(IPC.agent.toolCall, onToolCall);
+      } catch {
+        /* ignore */
+      }
+    };
+  }, []);
 
   const webSocketContextValue = useMemo(() => ({
     sendMessage: wsService.sendMessage.bind(wsService),
