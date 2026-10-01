@@ -549,6 +549,17 @@ app.whenReady().then(() => {
     }
   });
 
+  // 切角色/新会话：清中枢会话历史，避免上一个角色的对话串入下一个角色的上下文。
+  ipcMain.on(IPC.agent.dialogueReset, () => {
+    try {
+      dialogueEngine.interrupt(); // 若正在生成，先停
+      dialogueEngine.clearHistory();
+      logToFile('[dialogue] 中枢会话历史已清空（切角色/新会话）');
+    } catch {
+      /* ignore */
+    }
+  });
+
   // LLM Provider（中枢直连）：按当前设置组装 provider 注册表。过渡期不接管现有对话
   // （对话仍走 Python 后端），仅让中枢能独立发起在线 LLM 调用，为将来编排上移铺路。
   rebuildProvidersFromSettings(logToFile);
