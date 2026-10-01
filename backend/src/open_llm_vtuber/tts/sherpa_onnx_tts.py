@@ -26,12 +26,14 @@ class TTSEngine(TTSInterface):
         speed=1.0,
         debug=False,
     ):
+        # [any-lover] 配置里的可选路径未填时为 None，而 sherpa-onnx 的 pybind 构造函数
+        # 只接受 str，传 None 会报 "incompatible constructor arguments"，统一转成 ""。
         self.vits_model = vits_model
-        self.vits_lexicon = vits_lexicon
-        self.vits_tokens = vits_tokens
-        self.vits_data_dir = vits_data_dir
-        self.vits_dict_dir = vits_dict_dir
-        self.tts_rule_fsts = tts_rule_fsts
+        self.vits_lexicon = vits_lexicon or ""
+        self.vits_tokens = vits_tokens or ""
+        self.vits_data_dir = vits_data_dir or ""
+        self.vits_dict_dir = vits_dict_dir or ""
+        self.tts_rule_fsts = tts_rule_fsts or ""
         self.max_num_sentences = max_num_sentences
         self.sid = sid  # Speaker ID
         self.provider = provider  # Computation provider (e.g., "cpu", "cuda")

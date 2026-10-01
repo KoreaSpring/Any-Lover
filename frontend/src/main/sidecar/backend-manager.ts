@@ -219,7 +219,8 @@ export class BackendManager {
       env.PYTHONUTF8 = '1';
 
       // 将随包 ffmpeg 目录加到后端进程 PATH 前缀，使 pydub 能找到它，
-      // 无需用户机器自行安装 ffmpeg（否则 edge_tts 的 mp3 无法转 wav，语音静音）。
+      // 无需用户机器自行安装 ffmpeg。默认离线 TTS（sherpa_onnx_tts）直接输出 wav，
+      // 但切回在线 edge_tts 时其 mp3 仍需 ffmpeg 转 wav，否则语音静音。
       const ffdir = this.ffmpegDir();
       if (ffdir) {
         env.PATH = `${ffdir}${path.delimiter}${env.PATH || ''}`;

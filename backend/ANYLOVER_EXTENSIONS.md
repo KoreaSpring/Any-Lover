@@ -73,6 +73,11 @@ git diff f5bf9f6 HEAD -- backend/src/open_llm_vtuber/<file>
 读环境变量 `AIBOT_FFMPEG_DIR`（Electron 注入），显式设置 `AudioSegment.converter/ffmpeg/ffprobe`，
 让用户机器无需自行安装 ffmpeg（edge_tts 输出 mp3，pydub 解码依赖 ffmpeg）。
 
+### 6b. `tts/sherpa_onnx_tts.py` —— 离线 TTS 可选路径 None 兜底（+3 行）
+`vits_lexicon/vits_tokens/vits_data_dir/vits_dict_dir/tts_rule_fsts` 为 `None` 时转为 `""`。
+配置模型里这些字段默认 `None`，而 sherpa-onnx pybind 构造函数只收 `str`，否则报
+"incompatible constructor arguments"。桌宠默认 TTS 已改为 `sherpa_onnx_tts`（MeloTTS 离线）。
+
 ### 7. 小改动（各 1 行，接流式旁路的 token 回调点）
 - `agent/agents/basic_memory_agent.py`（5 处 1 行）：接 `emit_partial_text` 的 token 回调点。
 - `conversations/conversation_utils.py`（`finalize_conversation_turn` 内 1 行）。

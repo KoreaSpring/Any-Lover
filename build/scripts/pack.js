@@ -114,12 +114,26 @@ const VENDOR_FFMPEG = path.join(ROOT, 'vendor', 'ffmpeg');
 
 function runBuilder() {
   // 基础 extraResources：dist-runtime -> runtime（相对 frontend/ 即 projectDir）
-  const extra = [{ from: '../dist-runtime', to: 'runtime', filter: ['**/*'] }];
+  // 排除本机开发/调试产生的运行期数据（日志、TTS 缓存、聊天记录），以及冗余的 fp32 ASR 权重。
+  const extra = [
+    {
+      from: '../dist-runtime',
+      to: 'runtime',
+      filter: [
+        '**/*',
+        '!logs/**',
+        '!cache/**',
+        '!chat_history/**',
+        '!conf.yaml',
+        '!models/sherpa-onnx-sense-voice-*/model.onnx',
+      ],
+    },
+  ];
 
-  // 随包提供 ffmpeg：edge_tts 输出 mp3，后端用 pydub 转 wav 需要 ffmpeg 解码。
-  // 打进产物后，用户机器无需自行安装 ffmpeg 即可听到语音（轻量版/整合版都带）。
+  // 随包提供 ffmpeg：edge_tts（在线备选）输出 mp3，后端用 pydub 转 wav 需要 ffmpeg 解码。
+  // 只打 ffmpeg/ffprobe；ffplay 是独立播放器，项目由前端播放音频，用不到（省约 100MB）。
   if (fs.existsSync(path.join(VENDOR_FFMPEG, 'bin', 'ffmpeg.exe'))) {
-    extra.push({ from: '../vendor/ffmpeg', to: 'ffmpeg', filter: ['**/*'] });
+    extra.push({ from: '../vendor/ffmpeg', to: 'ffmpeg', filter: ['**/*', '!**/ffplay*'] });
     log('打入 vendor/ffmpeg（用于 TTS 音频转码）');
   } else {
     log('提示：未找到 vendor/ffmpeg/bin/ffmpeg.exe，产物将不含 ffmpeg，缺 ffmpeg 的机器语音会静音');
