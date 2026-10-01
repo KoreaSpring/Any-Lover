@@ -147,6 +147,7 @@ screen-sampler 定时截屏 → screen-gate 黑名单/去重门控
 | `easyvtuber-integration.md` / `easyvtuber-windows-verify.md` | THA(EasyVtuber) 集成与验证 |
 | `avatar-alternatives.md` | 立绘/形象方案对比 |
 | `sidecar-plugin-architecture.md` | **提案**：sidecar 统一插件契约（SidecarPlugin + 注册表），让各 sidecar 可插拔 |
+| `upgrade-roadmap.md` | **方案**：三项高风险工程（同步上游 / MCP 工具调用 / 对话链上移）的评估、分阶段与决策点 |
 
 ---
 
