@@ -11,7 +11,7 @@ import { app, globalShortcut, BrowserWindow, ipcMain } from 'electron';
 import log from 'electron-log/main';
 import { BackendManager } from './sidecar/backend-manager';
 import { ThaManager } from './sidecar/tha-manager';
-import { registerThaIpc, ensureHqDownload } from './ipc/tha-ipc';
+import { registerThaIpc } from './ipc/tha-ipc';
 import { OpenSeeFaceManager } from './sidecar/openseeface-manager';
 import { eventBus } from './agent/event-bus';
 import { GazeBridge } from './agent/perception/gaze-bridge';
@@ -304,35 +304,18 @@ async function ensureModelSilently(): Promise<void> {
       void ollama.warmup(model, host);
       return;
     }
-    if (!ollama.beginPull(model)) {
-      logToFile(`[startup] 模型 ${model} 已在拉取中，跳过`);
-      return;
-    }
-    try {
-      logToFile(`[startup] 后台静默拉取模型：${model}`);
-      await pullModel(host, model, (p) => broadcastOllamaProgress(p));
-      writeSettings({ ollamaReady: true });
-      logToFile(`[startup] 模型拉取完成：${model}`);
-      // 拉取完成后预热一次。
-      void ollama.warmup(model, host);
-    } finally {
-      ollama.endPull(model);
-    }
+    // 模型未下完：不在后台自动拉取（用户要求「只有点了才下载」）。
+    // 启动页会显示「继续下载」，用户点击后由 ollama:install 续传（Ollama 断点续传，不从头下）。
+    logToFile(`[startup] 模型 ${model} 尚未下载完成，等待用户在启动页点击继续下载`);
   } catch (e: any) {
-    logToFile(`[startup] 后台拉取模型失败：${String((e && e.message) || e)}`);
-    broadcastOllamaProgress({
-      stage: 'pull',
-      percent: -1,
-      message: `模型下载失败：${String((e && e.message) || e)}`,
-      model,
-      role: 'main',
-    });
+    logToFile(`[startup] 检查模型状态失败：${String((e && e.message) || e)}`);
   }
 }
 
 // 本地辅助小模型：屏幕观察的视觉理解(moondream) + 记忆语义检索的 embedding(nomic-embed-text)。
-// 架构原则「除主模型走线上外全本地」——这两个跑在本地 Ollama。首启自动 pull，让「桌面观察/记忆
-// 语义检索」开箱即用；幂等（已装跳过）、并行、失败不阻塞、进度推右上角。
+// 架构原则「除主模型走线上外全本地」——这两个跑在本地 Ollama。按需下载：用户开启「桌面观察」时
+// 才拉取（记忆只来自屏幕观察）；幂等（已装跳过）、串行、失败不阻塞、进度推右上角。
+// 未下载时：桌面观察的视觉摘要不可用，记忆检索自动回退关键词检索。
 const LOCAL_HELPER_MODELS = ['moondream', 'nomic-embed-text'];
 
 // 辅助模型下载队列（串行）。
@@ -407,21 +390,17 @@ async function startBackend(): Promise<string> {
       try {
         const r = await ollama.ensureServe(resolved.exe, s.ollamaHost, resolved.modelsDir);
         logToFile(`[startup] ensureServe(${resolved.source}): started=${r.started} ${r.message}`);
-        // serve 就绪后，后台静默确保推荐模型已下载（不阻塞后端启动）。
+        // serve 就绪后检查主模型：已下载则预热；未下载不自动拉取，等用户在启动页点「继续下载」。
         void ensureModelSilently();
       } catch (e: any) {
         logToFile(`[startup] ensureServe 异常：${String((e && e.message) || e)}`);
       }
     }
   }
-  // 进入后并行补齐所有可选资源：THA 高画质模型包（仅 Windows；幂等，已装则跳过）。
-  // 语言模型由上面的 ensureModelSilently 后台下；两者进度都显示在右上角。不阻塞后端启动。
-  if (tha.canStart()) {
-    void ensureHqDownload(tha, logToFile);
-  }
-  // 本地辅助小模型（moondream 视觉 + nomic-embed-text embedding）：首启自动 pull，让桌面观察/
-  // 记忆语义检索开箱即用。跨平台（不限 Windows）；幂等、并行、失败不阻塞、进度推右上角。
-  void ensureLocalHelperModels();
+  // 只在用户点了才下载：
+  //   - THA 高画质模型包：只由启动页 / 设置里的「下载」按钮触发（tha:downloadHQ）；
+  //   - 辅助模型（moondream、nomic-embed-text）：用户开启「桌面观察」时才下（见 agent:screen）。
+  //     未下载时记忆检索自动回退关键词检索，功能不受影响。
 
   return backend.start();
 }
@@ -488,8 +467,14 @@ app.whenReady().then(() => {
   ipcMain.handle(IPC.agent.screen, (_evt, payload: { enabled?: boolean }) => {
     const enabled = !!(payload && payload.enabled);
     try {
-      if (enabled) screenSampler.start();
-      else screenSampler.stop();
+      if (enabled) {
+        screenSampler.start();
+        // 按需下载：用户第一次开启桌面观察时才下载它要用的辅助模型
+        // （moondream 看屏幕、nomic-embed-text 记忆语义检索）。幂等，已装则跳过，进度推右上角。
+        void ensureLocalHelperModels();
+      } else {
+        screenSampler.stop();
+      }
       return { ok: true };
     } catch (e: any) {
       const msg = String((e && e.message) || e);
@@ -785,8 +770,8 @@ app.whenReady().then(() => {
     return;
   }
 
-  // 已 onboarded（用户点过下载）：直接进桌宠。startBackend 内部会 ensureServe，
-  // 并在模型未下完时通过 ensureModelSilently 恢复断点续传（异常退出重进也在此恢复）。
+  // 已 onboarded（用户点过下载）：直接进桌宠。startBackend 内部会 ensureServe；
+  // 模型未下完时不自动续传，由启动页「继续下载」按钮让用户决定（异常退出重进也一样）。
   // 模型是否下完由桌宠界面的连接按钮按 ollamaReady 门控。
 
   // 正常路径：始终直接启动，不再用设置窗口拦住用户。

@@ -78,6 +78,7 @@ export default function OllamaOnboarding(): JSX.Element | null {
   const [status, setStatus] = useState<OllamaStatus | null>(null);
   const [busy, setBusy] = useState(false);
   const [started, setStarted] = useState(false); // 已开始下载：主按钮区显示进度
+  const [resumable, setResumable] = useState(false); // 上次下载未完成：按钮显示「继续下载」
   const [ready, setReady] = useState(false); // 模型下载完成：才允许「开始体验」
   const [progress, setProgress] = useState<Progress | null>(null);
   const [msg, setMsg] = useState('');
@@ -119,14 +120,11 @@ export default function OllamaOnboarding(): JSX.Element | null {
           setOptions(rec.options || []);
           setModel(st.model || (rec.recommended && rec.recommended.id) || '');
           setVisible(true);
-          // 若已 onboarded（此前点过下载）但未 ready：说明是中途退出，直接进入
-          // 「下载中」态并恢复下载（主进程侧 bootstrap 也会 ensureServe+续传，双保险）。
+          // 已 onboarded（此前点过下载）但未 ready：上次中途退出。不再自动续下——
+          // 预选上次的型号，按钮显示「继续下载」，由用户点了才开始（Ollama 断点续传，不会从头下）。
           if (st.onboarded) {
-            setStarted(true);
-            setMsg('正在恢复模型下载，请等待完成…');
-            try {
-              r.invoke('ollama:install', { installDir: st.installDir, mirror: st.mirror, model: st.model }).catch(() => {});
-            } catch {}
+            setResumable(true);
+            setMsg('上次的下载未完成，点击「继续下载」接着下载。');
           }
         } else {
           // 已就绪：不显示覆盖层。
@@ -471,7 +469,7 @@ export default function OllamaOnboarding(): JSX.Element | null {
 
             {!started ? (
               <button onClick={onDownloadAndStart} disabled={busy || !model} style={btnPrimary}>
-                {busy ? '正在开始下载…' : '下载模型'}
+                {busy ? '正在开始下载…' : resumable ? '继续下载' : '下载模型'}
               </button>
             ) : (
               <button
