@@ -8,13 +8,17 @@
 //   后端在此仅做 ASR/TTS/表情，对话生成、上下文编排、历史都在中枢（应用作为 agent 统筹的终局第一步）。
 //   语音输入/中断/多角色留 F-2。默认关闭（由开关切换中枢对话 vs 老后端对话），不回归。
 
-import { LLMProviderRegistry } from '../llm/llm-provider';
+import { LLMProviderRegistry, LLMProvider } from '../llm/llm-provider';
 import { MemoryStore } from '../memory/memory-store';
 import { ProfileStore } from '../memory/profile-store';
 import { RelationshipState } from '../memory/relationship-state';
 import { EmotionState } from '../emotion/emotion-state';
 import { eventBus, EventBus } from '../event-bus';
 import { readSettings } from '../../core/settings-store';
+import {
+  ToolCall, ToolResult, parseToolCalls, hasToolCall, stripToolCalls,
+  buildToolSystemPrompt, formatToolResultsForContext,
+} from './tool-protocol';
 
 /** 一轮对话的句子交付回调：start(轮开始) / say(每句) / end(轮结束) / error。 */
 export interface DialogueSink {
@@ -22,6 +26,19 @@ export interface DialogueSink {
   say(sentence: string): void;
   end(fullText: string): void;
   error(message: string): void;
+}
+
+/** 工具桥：委托外部（经 renderer 转发到后端 mcpp）拉工具清单 / 执行工具。注入可选，不注入则无工具能力。 */
+export interface ToolBridge {
+  /** 拉可用工具清单（prompt 文本 + 工具名）。 */
+  list(): Promise<{ prompt: string; names: string[] }>;
+  /** 执行一批工具调用，返回结果（与入参按 id 配对）。 */
+  run(calls: ToolCall[]): Promise<ToolResult[]>;
+}
+
+/** 一轮对话选项：是否启用工具调用（由上层按用户开关传入；默认关）。 */
+export interface DialogueOptions {
+  enableTools?: boolean;
 }
 
 /** 中枢人设：保留 live2d 表情关键词约定由后端 extract_emotion 处理，这里只定语气人格。 */
@@ -54,6 +71,12 @@ export class DialogueEngine {
   /** 当前生成的中断控制。 */
   private abort: AbortController | null = null;
 
+  /** 工具桥（可选注入；启用工具调用时用）。 */
+  private toolBridge: ToolBridge | null = null;
+
+  /** 一轮对话内工具循环的最大轮数（防止模型反复要工具导致死循环）。 */
+  private readonly maxToolRounds = 4;
+
   constructor(
     registry: LLMProviderRegistry,
     memory: MemoryStore,
@@ -77,6 +100,11 @@ export class DialogueEngine {
     return !!this.registry.active();
   }
 
+  /** 注入工具桥（启用 MCP 工具调用；不注入则无工具能力，走纯对话）。 */
+  setToolBridge(bridge: ToolBridge): void {
+    this.toolBridge = bridge;
+  }
+
   /** 中断当前生成（供 F-2 打断接入）。 */
   interrupt(): void {
     if (this.abort) {
@@ -87,8 +115,10 @@ export class DialogueEngine {
 
   /**
    * 处理一轮用户消息：组装上下文 → 流式生成 → 逐句交付 → 存历史。
+   * 若 opts.enableTools 且注入了可用工具桥，则走「工具循环」：生成中检出工具调用则委托执行、
+   * 结果回注再生成，直到无工具调用的那轮才按句交付（中间轮不念出来）。无工具时与原单程流完全一致。
    */
-  async handle(userText: string, sink: DialogueSink): Promise<void> {
+  async handle(userText: string, sink: DialogueSink, opts: DialogueOptions = {}): Promise<void> {
     const text = (userText || '').trim();
     if (!text) return;
     const provider = this.registry.active();
@@ -112,30 +142,31 @@ export class DialogueEngine {
 
     try {
       const messages = await this.buildMessages(text);
-      let acc = ''; // 当前未交付的句子缓冲
-      let full = ''; // 整轮完整回复
 
-      for await (const chunk of provider.chat({ model, messages, temperature: s.temperature, signal: this.abort.signal })) {
-        if (chunk.delta) {
-          acc += chunk.delta;
-          full += chunk.delta;
-          // 攒到句末标点就交付一句（TTS 逐句合成，减少首句延迟）。
-          let m: RegExpMatchArray | null;
-          // eslint-disable-next-line no-cond-assign
-          while ((m = acc.match(SENTENCE_END)) && m.index !== undefined) {
-            const cut = m.index + 1;
-            const sentence = acc.slice(0, cut).trim();
-            acc = acc.slice(cut);
-            if (sentence) sink.say(sentence);
+      // 工具调用（可选）：开关开启 + 有工具桥 + 后端确有可用工具时，注入工具说明并进入工具循环。
+      let toolsEnabled = false;
+      if (opts.enableTools && this.toolBridge) {
+        try {
+          const info = await this.toolBridge.list();
+          const sys = buildToolSystemPrompt(info.prompt, info.names);
+          if (sys) {
+            // 把工具说明追加到首条 system 消息（已含人设/记忆等）。
+            if (messages[0] && messages[0].role === 'system') {
+              messages[0].content += '\n\n' + sys;
+            } else {
+              messages.unshift({ role: 'system', content: sys });
+            }
+            toolsEnabled = true;
           }
+        } catch (e) {
+          this.log(`[dialogue] 拉工具清单失败，降级为无工具对话：${e instanceof Error ? e.message : String(e)}`);
         }
-        if (chunk.done) break;
       }
-      // 收尾：交付残余不足一句的部分。
-      const tail = acc.trim();
-      if (tail) sink.say(tail);
 
-      const reply = full.trim();
+      const reply = toolsEnabled
+        ? await this.runWithTools(provider, model, s.temperature, messages, sink)
+        : await this.runPlain(provider, model, s.temperature, messages, sink);
+
       if (reply) {
         this.pushHistory('user', text);
         this.pushHistory('assistant', reply);
@@ -152,8 +183,98 @@ export class DialogueEngine {
     }
   }
 
+  /** 纯对话（无工具）：流式生成 + 逐句交付。与改造前行为完全一致。 */
+  private async runPlain(
+    provider: LLMProvider,
+    model: string,
+    temperature: number | undefined,
+    messages: Array<{ role: 'system' | 'user' | 'assistant' | 'tool'; content: string }>,
+    sink: DialogueSink,
+  ): Promise<string> {
+    let acc = '';
+    let full = '';
+    for await (const chunk of provider.chat({ model, messages, temperature, signal: this.abort!.signal })) {
+      if (chunk.delta) {
+        acc += chunk.delta;
+        full += chunk.delta;
+        let m: RegExpMatchArray | null;
+        // eslint-disable-next-line no-cond-assign
+        while ((m = acc.match(SENTENCE_END)) && m.index !== undefined) {
+          const cut = m.index + 1;
+          const sentence = acc.slice(0, cut).trim();
+          acc = acc.slice(cut);
+          if (sentence) sink.say(sentence);
+        }
+      }
+      if (chunk.done) break;
+    }
+    const tail = acc.trim();
+    if (tail) sink.say(tail);
+    return full.trim();
+  }
+
+  /**
+   * 工具循环：每轮先整段收集模型输出（不边收边念，因为可能含工具调用）；
+   * 若检出工具调用则委托执行、结果回注 messages、进入下一轮；
+   * 若无工具调用，则把该轮文本按句交付（去掉可能残留的工具标记），结束。
+   */
+  private async runWithTools(
+    provider: LLMProvider,
+    model: string,
+    temperature: number | undefined,
+    messages: Array<{ role: 'system' | 'user' | 'assistant' | 'tool'; content: string }>,
+    sink: DialogueSink,
+  ): Promise<string> {
+    for (let round = 0; round < this.maxToolRounds; round++) {
+      // 整段收集本轮输出（工具轮不边收边念）。
+      let full = '';
+      for await (const chunk of provider.chat({ model, messages, temperature, signal: this.abort!.signal })) {
+        if (chunk.delta) full += chunk.delta;
+        if (chunk.done) break;
+      }
+
+      const calls = hasToolCall(full) ? parseToolCalls(full) : [];
+      const isLastRound = round === this.maxToolRounds - 1;
+
+      if (calls.length === 0 || isLastRound) {
+        // 无工具调用（或已达轮数上限）：把文本按句交付（剥掉任何残留标记）。
+        const clean = stripToolCalls(full).trim();
+        this.deliverBySentence(clean, sink);
+        return clean;
+      }
+
+      // 有工具调用：把本轮 assistant 输出入历史，执行工具，结果回注，继续下一轮。
+      messages.push({ role: 'assistant', content: full });
+      let results: ToolResult[] = [];
+      try {
+        results = await this.toolBridge!.run(calls);
+      } catch (e) {
+        this.log(`[dialogue] 工具执行失败：${e instanceof Error ? e.message : String(e)}`);
+        results = calls.map((c) => ({ id: c.id, content: '工具执行失败', isError: true }));
+      }
+      // prompt 模式：工具结果以 user 角色回注（模型据此继续）。
+      messages.push({ role: 'user', content: formatToolResultsForContext(calls, results) });
+    }
+    return '';
+  }
+
+  /** 把一段文本按句末标点逐句交付（供工具循环终轮用）。 */
+  private deliverBySentence(text: string, sink: DialogueSink): void {
+    let acc = text;
+    let m: RegExpMatchArray | null;
+    // eslint-disable-next-line no-cond-assign
+    while ((m = acc.match(SENTENCE_END)) && m.index !== undefined) {
+      const cut = m.index + 1;
+      const sentence = acc.slice(0, cut).trim();
+      acc = acc.slice(cut);
+      if (sentence) sink.say(sentence);
+    }
+    const tail = acc.trim();
+    if (tail) sink.say(tail);
+  }
+
   /** 组装注入了记忆/画像/关系/情绪的消息序列。 */
-  private async buildMessages(userText: string): Promise<Array<{ role: 'system' | 'user' | 'assistant'; content: string }>> {
+  private async buildMessages(userText: string): Promise<Array<{ role: 'system' | 'user' | 'assistant' | 'tool'; content: string }>> {
     const parts: string[] = [PERSONA];
 
     // 关系温度 → 语气锚定。
@@ -194,7 +315,7 @@ export class DialogueEngine {
       /* ignore：检索超时/失败则不注入记忆，优先保证首句响应 */
     }
 
-    const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
+    const messages: Array<{ role: 'system' | 'user' | 'assistant' | 'tool'; content: string }> = [
       { role: 'system', content: parts.join('\n') },
     ];
     // 中枢会话历史（近若干轮）。

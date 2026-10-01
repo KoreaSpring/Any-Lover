@@ -8,6 +8,7 @@ import { useMediaCapture } from '@/hooks/utils/use-media-capture';
 import { IPC } from '@proto/ipc';
 import { WS_OUT } from '@proto/ws-backend';
 import { isHubDialogueEnabled } from '@/utils/hub-dialogue';
+import { isToolCallingEnabled } from '@/utils/tool-calling';
 
 export function useTextInput() {
   const [inputText, setInputText] = useState('');
@@ -39,7 +40,7 @@ export function useTextInput() {
     const hubDialogue = isHubDialogueEnabled();
     const ipc = window.electron?.ipcRenderer;
     if (hubDialogue && ipc) {
-      ipc.invoke(IPC.agent.dialogue, { text }).then((res: any) => {
+      ipc.invoke(IPC.agent.dialogue, { text, enableTools: isToolCallingEnabled() }).then((res: any) => {
         // 中枢不可用（未配主模型）时回退老后端，保证不"哑火"。
         if (!res?.ok) {
           wsContext.sendMessage({ type: 'text-input', text, images });

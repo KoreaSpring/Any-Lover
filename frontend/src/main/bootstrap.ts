@@ -486,7 +486,44 @@ app.whenReady().then(() => {
       if (!w.isDestroyed()) w.webContents.send(channel, payload);
     }
   };
-  ipcMain.handle(IPC.agent.dialogue, async (_evt, payload: { text?: string }) => {
+  // MCP 工具调用桥（路线 A）：中枢委托 renderer 转发到后端 hub-tool-* 执行，callId 配对请求/响应。
+  // enableTools 由 renderer 按用户开关（默认关）在 agent:dialogue 载荷里带上，main 不自持开关。
+  const pendingToolInfo: Array<(v: { prompt: string; names: string[] }) => void> = [];
+  const pendingToolResults = new Map<string, (v: Array<{ id: string; content: string; isError: boolean }>) => void>();
+  ipcMain.on(IPC.agent.toolInfo, (_e, payload: { prompt?: string; names?: string[] }) => {
+    const cb = pendingToolInfo.shift();
+    if (cb) cb({ prompt: String(payload?.prompt || ''), names: Array.isArray(payload?.names) ? payload!.names! : [] });
+  });
+  ipcMain.on(IPC.agent.toolResult, (_e, payload: { callId?: string; results?: Array<{ id: string; content: string; isError: boolean }> }) => {
+    const cb = payload?.callId ? pendingToolResults.get(payload.callId) : undefined;
+    if (cb) {
+      pendingToolResults.delete(payload!.callId!);
+      cb(Array.isArray(payload?.results) ? payload!.results! : []);
+    }
+  });
+  const TOOL_RPC_TIMEOUT = 20000;
+  dialogueEngine.setToolBridge({
+    list: () => new Promise((resolve) => {
+      const timer = setTimeout(() => {
+        const i = pendingToolInfo.indexOf(resolve as never);
+        if (i >= 0) pendingToolInfo.splice(i, 1);
+        resolve({ prompt: '', names: [] }); // 超时降级为无工具
+      }, 5000);
+      pendingToolInfo.push((v) => { clearTimeout(timer); resolve(v); });
+      dialogueBroadcast(IPC.agent.toolList);
+    }),
+    run: (calls) => new Promise((resolve) => {
+      const callId = `tc_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      const timer = setTimeout(() => {
+        pendingToolResults.delete(callId);
+        resolve(calls.map((c) => ({ id: c.id, content: '工具调用超时', isError: true })));
+      }, TOOL_RPC_TIMEOUT);
+      pendingToolResults.set(callId, (v) => { clearTimeout(timer); resolve(v); });
+      dialogueBroadcast(IPC.agent.toolCall, { callId, toolCalls: calls });
+    }),
+  });
+
+  ipcMain.handle(IPC.agent.dialogue, async (_evt, payload: { text?: string; enableTools?: boolean }) => {
     const text = String(payload?.text || '').trim();
     if (!text) return { ok: false, message: '空消息' };
     rebuildProvidersFromSettings(logToFile);
@@ -499,7 +536,7 @@ app.whenReady().then(() => {
       say: (sentence) => dialogueBroadcast(IPC.agent.dialogueSay, { text: sentence }),
       end: (fullText) => dialogueBroadcast(IPC.agent.dialogueEnd, { text: fullText }),
       error: (message) => dialogueBroadcast(IPC.agent.dialogueError, { message }),
-    });
+    }, { enableTools: !!payload?.enableTools });
     return { ok: true };
   });
 
