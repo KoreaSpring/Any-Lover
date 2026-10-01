@@ -13,6 +13,16 @@ files:
   - '!{.eslintignore,.eslintrc.cjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
   - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
+  # 仅 renderer 使用的依赖已被 vite 打进 out/renderer，主进程不 require 它们，不必再进 app.asar（约 200MB）。
+  # 主进程运行时只依赖 @electron-toolkit/*、electron-log、electron-updater、@modelcontextprotocol/sdk 及其传递依赖。
+  - '!node_modules/react-icons/**'
+  - '!node_modules/onnxruntime-web/**'
+  - '!node_modules/onnx-proto/**'
+  - '!node_modules/@mediapipe/**'
+  - '!node_modules/date-fns/**'
+  - '!node_modules/@fortawesome/**'
+  - '!node_modules/@ricky0123/**'
+  - '!node_modules/eslint/**'
 extraResources:
   # 冻结的 Python 后端 + 前端静态资源 + 模型（组装在 <root>/dist-runtime）。
   # 路径相对 frontend/（projectDir）。注意：pack.js 会用 --config 覆盖 extraResources，

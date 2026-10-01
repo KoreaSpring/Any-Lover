@@ -126,6 +126,8 @@ function runBuilder() {
         '!chat_history/**',
         '!conf.yaml',
         '!models/sherpa-onnx-sense-voice-*/model.onnx',
+        // 历史遗留的独立 node.exe（约 68MB），没有任何代码引用；MCP 等需要 Node 时用 Electron 自身即可
+        '!node/**',
       ],
     },
   ];
