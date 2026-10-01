@@ -148,7 +148,7 @@ screen-sampler 定时截屏 → screen-gate 黑名单/去重门控
 | `avatar-alternatives.md` | 立绘/形象方案对比 |
 | `sidecar-plugin-architecture.md` | **提案**：sidecar 统一插件契约（SidecarPlugin + 注册表），让各 sidecar 可插拔 |
 | `upgrade-roadmap.md` | **方案**：三项高风险工程（同步上游 / MCP 工具调用 / 对话链上移）的评估、分阶段与决策点 |
-| `mcp-integration-decisions.md` | MCP 工具调用的决策单（**已实施**：路线 A / prompt 模式 / 默认关门控） |
+| `mcp-integration-decisions.md` | MCP 工具调用的决策单（路线 A 曾实施，**已被取代**：中枢改用 McpHub 直连 MCP，hub-tool-* 消息已删除） |
 | `dialogue-uplift-phase1.md` | 对话链上移阶段 1（**已实施**：历史持久化 + AI 回复进面板 + 人设随角色） |
 
 ---

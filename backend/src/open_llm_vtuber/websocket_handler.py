@@ -108,10 +108,6 @@ class WebSocketHandler:
             # 中枢对话语音路径（F-2）：只做 ASR 出文本回发，不在后端生成回复
             # （生成交给中枢 DialogueEngine，避免双回复）。
             "mic-audio-end-asr-only": self._handle_asr_only,
-            # 中枢工具调用（MCP，prompt 模式）：中枢委托后端已实例化的 mcpp 执行工具。
-            # list 回发工具清单文本 + 工具名；call 执行一批工具并回发结果。后端只当"工具执行服务"。
-            "hub-tool-list": self._handle_hub_tool_list,
-            "hub-tool-call": self._handle_hub_tool_call,
         }
 
     async def handle_new_connection(
@@ -605,59 +601,6 @@ class WebSocketHandler:
             return
         await websocket.send_text(
             json.dumps({"type": "user-input-transcription", "text": text})
-        )
-
-    async def _handle_hub_tool_list(
-        self, websocket: WebSocket, client_uid: str, data: WSMessage
-    ) -> None:
-        """中枢工具调用（MCP）：返回工具清单文本(prompt)+可用工具名。
-        后端未开启 MCP（use_mcpp/enabled_servers 关）时 tool_executor 为空，返回空清单（优雅降级）。"""
-        context = self.client_contexts.get(client_uid)
-        prompt = ""
-        names: list[str] = []
-        if context is not None and getattr(context, "tool_executor", None) is not None:
-            prompt = getattr(context, "mcp_prompt", "") or ""
-            tm = getattr(context, "tool_manager", None)
-            if tm is not None and getattr(tm, "tools", None):
-                names = list(tm.tools.keys())
-        await websocket.send_text(
-            json.dumps({"type": "hub-tool-info", "prompt": prompt, "names": names})
-        )
-
-    async def _handle_hub_tool_call(
-        self, websocket: WebSocket, client_uid: str, data: WSMessage
-    ) -> None:
-        """中枢工具调用（MCP）：执行一批工具调用，回发 hub-tool-result{callId, results}。
-        tool_calls 项为 {id,name,args}（prompt 模式）；委托 context.tool_executor 执行。
-        状态中间态（running/completed）不透传前端（决策 4A），只回最终结果。"""
-        call_id = data.get("callId", "")
-        tool_calls = data.get("toolCalls", []) or []
-        context = self.client_contexts.get(client_uid)
-        results: list[dict] = []
-        executor = getattr(context, "tool_executor", None) if context else None
-        if executor is None:
-            # 未开启 MCP：回发空结果，中枢据此继续（无工具可用）。
-            await websocket.send_text(
-                json.dumps({"type": "hub-tool-result", "callId": call_id, "results": []})
-            )
-            return
-        try:
-            # execute_tools 是异步生成器：中途 yield tool_call_status（忽略，4A 不透传），
-            # 最后 yield {"type":"final_tool_results","results":[{tool_id,content,is_error}...]}。
-            async for ev in executor.execute_tools(tool_calls, caller_mode="Prompt"):
-                if ev.get("type") == "final_tool_results":
-                    for r in ev.get("results", []):
-                        results.append(
-                            {
-                                "id": r.get("tool_id", ""),
-                                "content": str(r.get("content", "")),
-                                "isError": bool(r.get("is_error", False)),
-                            }
-                        )
-        except Exception as e:
-            logger.error(f"hub-tool-call 执行异常：{e}")
-        await websocket.send_text(
-            json.dumps({"type": "hub-tool-result", "callId": call_id, "results": results})
         )
 
     async def _handle_conversation_trigger(

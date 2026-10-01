@@ -1,5 +1,8 @@
 # MCP 工具调用集成 —— 实施前决策单（路线 A）
 
+> **状态：已被取代。** 中枢已改用官方 MCP TS SDK 直连工具 server（`frontend/src/main/agent/tools/mcp-hub.ts`），
+> 本文的路线 A（委托后端 mcpp）和 `hub-tool-*` 消息都已删除。下文保留作决策记录。
+
 > 路线 A = 中枢 `DialogueEngine` 做 LLM 决策，把工具执行**委托给后端已有的 `mcpp`**（不在 TS 侧重做 MCP 客户端）。
 > 本文把实施前绕不开的决策点收敛成可拍板的选项，每项给出推荐默认。**你确认后我按确定范围开工。**
 > 事实依据见 `docs/roadmap/upgrade-roadmap.md` 第二节 + 本轮代码调查。

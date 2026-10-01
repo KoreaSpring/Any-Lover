@@ -20,9 +20,9 @@
   - [x] 2.1 `IPC.config.getConfigFiles` 在主进程里调用 `localStorage`，一调用就会抛错。改为返回主进程缓存的配置列表
   - [x] 2.2 `setAppUserModelId` 改为和 appId 一致的 `com.anylover.charis`
   - [x] 2.3 给 `electron-builder.yml` 的 extraResources 补上和 pack.js 相同的过滤规则，避免把日志、聊天记录、conf.yaml 打进安装包
-- [ ] 3. 删除 MCP 旧转发链（McpHub 已经直连 MCP，主进程不再收发 `agent.tool*`）
-  - [ ] 3.1 TS 侧：renderer 里的转发代码、`IPC.agent.tool*`、`WS_*.hubTool*` 常量和载荷类型、对应测试
-  - [ ] 3.2 Python 侧：`websocket_handler.py` 里的 hub-tool-list / hub-tool-call handler；同步更新 ANYLOVER_EXTENSIONS.md、MCP 决策文档和 requirements-pet.txt 的注释
+- [x] 3. 删除 MCP 旧转发链（McpHub 已经直连 MCP，主进程不再收发 `agent.tool*`）
+  - [x] 3.1 TS 侧：renderer 里的转发代码、`IPC.agent.tool*`、`WS_*.hubTool*` 常量和载荷类型、对应测试
+  - [x] 3.2 Python 侧：`websocket_handler.py` 里的 hub-tool-list / hub-tool-call handler；同步更新 ANYLOVER_EXTENSIONS.md、MCP 决策文档和 requirements-pet.txt 的注释
     - 验证：对改动的 .py 文件跑 `python -m py_compile`
 - [ ] 4. 删除死代码和死配置
   - [ ] 4.1 渲染层没有引用的文件：canvas/canvas.tsx、sidebar/chat-bubble.tsx（以及只被它用到的 ui/avatar）、use-background.ts、use-chat-history-panel.ts、assets/react.svg、未使用的 Chakra 封装组件（每个都先 grep 确认没有引用再删）
