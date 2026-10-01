@@ -1,0 +1,65 @@
+{
+  "version": "0.1.0",
+  "file": "any-lover-0.1.0-setup.exe",
+  "size": 1082475768,
+  "sha256": "8fa401283416b5fd156cd8149ad3d89ca5542d36dcb6057b6ee13d01bf3311fb",
+  "partSize": 99614720,
+  "createdAt": "2026-10-01T12:05:29.458Z",
+  "parts": [
+    {
+      "name": "any-lover-0.1.0-setup.exe.part001",
+      "size": 99614720,
+      "sha256": "54db2740613692c479dbd8839eb48e8a2e34ced0d1709bf42fa565eb99e6c2aa"
+    },
+    {
+      "name": "any-lover-0.1.0-setup.exe.part002",
+      "size": 99614720,
+      "sha256": "c5394532304587d1f233214b0c15a3432459bf7949287aa51504ceeceaddd43e"
+    },
+    {
+      "name": "any-lover-0.1.0-setup.exe.part003",
+      "size": 99614720,
+      "sha256": "7bcf5727a3bc90bc1f3ad3ffd0b6538021ddb11b41576861481388714c757319"
+    },
+    {
+      "name": "any-lover-0.1.0-setup.exe.part004",
+      "size": 99614720,
+      "sha256": "97cc695b0d619170e11b7dc75fdbfaa0b796f6013594850daea500ec7ad4da04"
+    },
+    {
+      "name": "any-lover-0.1.0-setup.exe.part005",
+      "size": 99614720,
+      "sha256": "9db6a84d941dfe93459468f15e0e695df35bf773fcba24c09e2e0e9fb071f2b5"
+    },
+    {
+      "name": "any-lover-0.1.0-setup.exe.part006",
+      "size": 99614720,
+      "sha256": "fc4aa7fcff1fe6866705eab5471036a8cf89ced39fe1de07a566a9e703e87e30"
+    },
+    {
+      "name": "any-lover-0.1.0-setup.exe.part007",
+      "size": 99614720,
+      "sha256": "71e4b5b6d6b153c878bc51011fa48002b9a6ab92f66faa86e7a0cb2059e21922"
+    },
+    {
+      "name": "any-lover-0.1.0-setup.exe.part008",
+      "size": 99614720,
+      "sha256": "63d5426f1dad8b66b805bb975e051c65e82c023040a544bc9205c442eb6380d0"
+    },
+    {
+      "name": "any-lover-0.1.0-setup.exe.part009",
+      "size": 99614720,
+      "sha256": "76fda2db847a2fe7b73511ada0a5c9af0a96f4a96b479f7133ca94a6d76c50ea"
+    },
+    {
+      "name": "any-lover-0.1.0-setup.exe.part010",
+      "size": 99614720,
+      "sha256": "fbd5257b2fd7d7ba815e0b8dacca0c1883bdb178c51f62a6023ac66d5b28a99a"
+    },
+    {
+      "name": "any-lover-0.1.0-setup.exe.part011",
+      "size": 86328568,
+      "sha256": "537c4206ab2bec2ccd1537d2b7a96e0df2861668e576b1108790baccc7f4507b"
+    }
+  ]
+}
