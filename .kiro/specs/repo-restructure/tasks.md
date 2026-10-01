@@ -24,9 +24,9 @@
   - [x] 3.1 TS 侧：renderer 里的转发代码、`IPC.agent.tool*`、`WS_*.hubTool*` 常量和载荷类型、对应测试
   - [x] 3.2 Python 侧：`websocket_handler.py` 里的 hub-tool-list / hub-tool-call handler；同步更新 ANYLOVER_EXTENSIONS.md、MCP 决策文档和 requirements-pet.txt 的注释
     - 验证：对改动的 .py 文件跑 `python -m py_compile`
-- [ ] 4. 删除死代码和死配置
-  - [ ] 4.1 渲染层没有引用的文件：canvas/canvas.tsx、sidebar/chat-bubble.tsx（以及只被它用到的 ui/avatar）、use-background.ts、use-chat-history-panel.ts、assets/react.svg、未使用的 Chakra 封装组件（每个都先 grep 确认没有引用再删）
-  - [ ] 4.2 嵌套的 `frontend/.github/`；根 .gitignore 里 `apps/` 的死规则、拼错的 `verdor/`、空目录规则；本地空目录 `.tmp-site-review/`、`release/`、`runtime/`
+- [x] 4. 删除死代码和死配置
+  - [x] 4.1 渲染层没有引用的文件：canvas/canvas.tsx、sidebar/chat-bubble.tsx（以及只被它用到的 ui/avatar）、use-background.ts、use-chat-history-panel.ts、assets/react.svg、未使用的 Chakra 封装组件（每个都先 grep 确认没有引用再删）
+  - [x] 4.2 嵌套的 `frontend/.github/`；根 .gitignore 里 `apps/` 的死规则、拼错的 `verdor/`、空目录规则；本地空目录 `.tmp-site-review/`、`release/`、`runtime/`
 - [ ] 5. 让类型检查真正覆盖 main 和 preload
   - [ ] 5.1 `tsconfig.node.json` 纳入 `src/main`、`src/preload`、`src/proto`，统计报错数量（超过 30 个就按目录拆成子任务）
   - [ ] 5.2 修复 typecheck 报错

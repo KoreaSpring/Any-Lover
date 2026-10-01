@@ -1,56 +1,38 @@
 node_modules/
-apps/desktop/node_modules/
-apps/settings-ui/node_modules/
-
-# electron-vite / builder 产物
-apps/desktop/out/
-apps/desktop/dist/
-apps/desktop/release/
-apps/desktop/resources/settings/
-# pack.js 运行时生成的临时 electron-builder 配置（打包后自动删除）
-apps/desktop/electron-builder.pack.json
 
 # 后端组装与冻结（可复现，不入库）
 build/pyinstaller/
 dist-runtime/
 
-# 内置 Ollama 与模型（体积大，本地拷贝，不入库）
+# 内置 Ollama、ffmpeg、OpenSeeFace（体积大，由脚本拉取或本地拷贝，不入库）
 vendor/
 
-# 自包含的后端源码（从上游拷贝，可再生）
+# 后端 ASR/TTS 模型缓存（prepare-runtime 会复用或重新下载）
 backend/models/
 
-# 临时脚本
-build/scripts/_*.ps1
+# Python 字节码（任意目录）
+__pycache__/
+
+# 运行期日志
+*.log
+
+# 打包用的 Python 虚拟环境（见 README「完整重建」）
+.venv-pack/
+
+# 临时脚本：任意目录下以 _ 开头的 .ps1；build/scripts 下以 _ 开头的 .js / .mjs
+_*.ps1
 build/scripts/_*.js
 build/scripts/_*.mjs
 
-# 历史遗留（已废弃，待手动清理）
-# 必须用 / 前缀锚定到仓库根：不加锚定会匹配任意层级的同名目录，
-# 曾误伤 Live2D 模型的 backend/live2d-models/*/runtime/，导致模型未入库。
-/runtime/
-/release/
-
-# 运行期生成
-*.log
-verdor/
-.venv-pack/
-
 # THA / EasyVtuber 渲染运行时（源在 integrations/easyvtuber/runtime/，产物在根 dist-tha-runtime/）
-# 打包组装产物（含嵌入式 Python，可由 integrations/easyvtuber/prepare.js 再生，不入库）
+# 打包组装产物（含嵌入式 Python，可由 integrations/easyvtuber/prepare.js 再生）
 dist-tha-runtime/
-# 开发/验证用的本地 venv 与首启依赖标记（不入库）
+# 开发/验证用的本地 venv 与首启依赖标记
 integrations/easyvtuber/runtime/.venv/
 integrations/easyvtuber/runtime/.deps-installed
 integrations/easyvtuber/runtime/_pip_tha.log
 # 立绘预处理产物（用户上传抠图后生成，运行期数据）
 integrations/easyvtuber/runtime/data/images/*_512.png
-# 临时验证脚本（根目录）
-_*.ps1
-
-# THA 模型（体积大，不入库；由 setup 脚本下载或本地准备后 prepare 组装）
+# THA 模型（体积大；由 fetch-tha-models 下载或本地准备）
 integrations/easyvtuber/runtime/data/models/
 integrations/easyvtuber/runtime/data/rembg/
-integrations/easyvtuber/runtime/__pycache__/
-integrations/easyvtuber/runtime/ezvtb_rt/**/__pycache__/
-integrations/easyvtuber/runtime/src/**/__pycache__/
