@@ -17,9 +17,6 @@ import { useRenderMode } from '@/context/render-mode-context';
 import { thaDriver } from '@/utils/tha-driver';
 import * as LAppDefine from '../../../WebSDK/src/lappdefine';
 
-// Simple type alias for Live2D model
-type Live2DModel = any;
-
 interface AudioTaskOptions {
   audioBase64: string
   volumes: number[]

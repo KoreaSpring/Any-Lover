@@ -3,7 +3,7 @@ import { useWebSocket } from '@/context/websocket-context';
 import { WS_OUT } from '@proto/ws-backend';
 import { useInterrupt } from '@/components/canvas/live2d';
 import { useChatHistory } from '@/context/chat-history-context';
-import { useMode, ModeType } from '@/context/mode-context';
+import { useMode } from '@/context/mode-context';
 
 export const useSidebar = () => {
   const disclosure = useDisclosure();

@@ -65,9 +65,11 @@ export class VoiceEmotionRunner {
 
     this.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     const Ctor = (window as any).AudioContext || (window as any).webkitAudioContext;
-    this.ctx = new Ctor();
-    const src = this.ctx.createMediaStreamSource(this.stream);
-    this.analyser = this.ctx.createAnalyser();
+    // 用局部常量持有：this.ctx 声明为可空，直接用它会被判定为可能为 null
+    const ctx: AudioContext = new Ctor();
+    this.ctx = ctx;
+    const src = ctx.createMediaStreamSource(this.stream);
+    this.analyser = ctx.createAnalyser();
     this.analyser.fftSize = 2048;
     src.connect(this.analyser);
     // 不连到 destination：只分析，不外放（避免回声）。

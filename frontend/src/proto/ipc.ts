@@ -132,3 +132,9 @@ export const IPC = {
 // 现有 `import { IPC_EXPRESS_GAZE } from '.../gaze-bridge'` 的消费方可平滑迁移到本文件。
 export const IPC_EXPRESS_GAZE = IPC.agent.expressGaze;
 export const IPC_EXPRESS_EMOTION = IPC.agent.expressEmotion;
+
+/** `IPC.config.getConfigFiles` / `IPC.config.updateConfigFiles` 的载荷：一份角色配置文件。 */
+export interface ConfigFile {
+  filename: string;
+  name: string;
+}
