@@ -41,6 +41,8 @@ enum WsOut {
   hub_speak_start = 19;         // (any-lover) 中枢生成句子交后端 TTS+表情
   hub_speak = 20;               // (any-lover)
   hub_speak_end = 21;           // (any-lover)
+  hub_tool_list = 22;           // (any-lover) 中枢拉 MCP 工具清单
+  hub_tool_call = 23;           // (any-lover) 中枢委托后端执行 MCP 工具
 }
 
 // ---- 入站 type（后端 → renderer）。字符串值见 ws-backend.ts WS_IN ----
@@ -67,6 +69,8 @@ enum WsIn {
   force_new_message = 19;
   interrupt_signal_in = 20;     // wire 值仍是 "interrupt-signal"
   tool_call_status = 21;
+  hub_tool_info = 22;           // (any-lover) hub-tool-list 响应：工具清单
+  hub_tool_result = 23;         // (any-lover) hub-tool-call 响应：执行结果
 }
 
 // ---- control 消息的 text 子命令 ----
@@ -98,6 +102,33 @@ message AudioPayload {
   int32 slice_length = 4;
   DisplayText display_text = 5;
   Actions actions = 6;
+}
+
+// (any-lover) 中枢工具调用（MCP，prompt 文本模式）
+message HubToolInfo {              // hub-tool-info（后端→中枢）
+  string type = 1;
+  string prompt = 2;               // 可注入 system 的工具说明文本
+  repeated string names = 3;       // 可用工具名
+}
+message HubToolCallItem {
+  string id = 1;
+  string name = 2;
+  string args_json = 3;            // 工具入参（JSON 字符串）
+}
+message HubToolCallRequest {       // hub-tool-call（中枢→后端）
+  string type = 1;
+  string call_id = 2;
+  repeated HubToolCallItem tool_calls = 3;
+}
+message HubToolResultItem {
+  string id = 1;
+  string content = 2;
+  bool is_error = 3;
+}
+message HubToolResult {            // hub-tool-result（后端→中枢）
+  string type = 1;
+  string call_id = 2;
+  repeated HubToolResultItem results = 3;
 }
 
 // ============================================================================

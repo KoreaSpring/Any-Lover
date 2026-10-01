@@ -34,6 +34,10 @@ export const WS_OUT = {
   hubSpeakStart: 'hub-speak-start',
   hubSpeak: 'hub-speak',
   hubSpeakEnd: 'hub-speak-end',
+  // (any-lover) 中枢工具调用（MCP）：中枢委托后端已有的 mcpp 执行工具。
+  //   hubToolList：拉工具清单（prompt 文本模式用）；hubToolCall：执行一批工具调用。
+  hubToolList: 'hub-tool-list',
+  hubToolCall: 'hub-tool-call',
 } as const;
 
 /** 入站消息 type（后端 → renderer）。取值来自 websocket-handler 的路由 switch。 */
@@ -59,6 +63,11 @@ export const WS_IN = {
   forceNewMessage: 'force-new-message',
   interruptSignal: 'interrupt-signal',
   toolCallStatus: 'tool_call_status',
+  // (any-lover) 中枢工具调用（MCP）响应：
+  //   hubToolInfo：hub-tool-list 的响应，带工具清单 prompt + 可用工具名；
+  //   hubToolResult：hub-tool-call 的响应，带 callId + 执行结果（供中枢回注上下文）。
+  hubToolInfo: 'hub-tool-info',
+  hubToolResult: 'hub-tool-result',
 } as const;
 
 /** `control` 消息的 text 子命令。 */
@@ -123,4 +132,47 @@ export interface BrowserViewData {
   }[];
   wsUrl: string;
   sessionId?: string;
+}
+
+// ── (any-lover) 中枢工具调用（MCP，prompt 文本模式）wire 载荷 ──────────────────────
+/** 中枢 → 后端：拉工具清单（hub-tool-list）。无额外字段，后端按当前 client 的 MCP 配置返回。 */
+export interface HubToolListRequest {
+  type: typeof WS_OUT.hubToolList;
+}
+
+/** 后端 → 中枢：工具清单（hub-tool-info）。prompt=可直接注入 system 的工具说明文本；names=可用工具名。 */
+export interface HubToolInfo {
+  type: typeof WS_IN.hubToolInfo;
+  prompt: string;
+  names: string[];
+}
+
+/** 单个工具调用（prompt 模式下中枢从 LLM 文本里解析出的）。 */
+export interface HubToolCallItem {
+  /** 工具调用标识（中枢生成，用于把结果和调用配对）。 */
+  id: string;
+  name: string;
+  /** 工具入参（已解析为对象）。 */
+  args: Record<string, unknown>;
+}
+
+/** 中枢 → 后端：执行一批工具调用（hub-tool-call）。callId 关联本次 RPC 请求/响应。 */
+export interface HubToolCallRequest {
+  type: typeof WS_OUT.hubToolCall;
+  callId: string;
+  toolCalls: HubToolCallItem[];
+}
+
+/** 单个工具执行结果。 */
+export interface HubToolResultItem {
+  id: string;
+  content: string;
+  isError: boolean;
+}
+
+/** 后端 → 中枢：工具执行结果（hub-tool-result）。callId 与请求配对。 */
+export interface HubToolResult {
+  type: typeof WS_IN.hubToolResult;
+  callId: string;
+  results: HubToolResultItem[];
 }
