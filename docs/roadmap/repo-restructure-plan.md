@@ -620,7 +620,7 @@ ANYLOVER_FFMPEG_DIR 这类由主进程注入给 sidecar 的变量，两端会一
 **每一期都遵守的规则**：
 
 1. 一期一个分支、一个 PR。先提交纯移动（`git mv`，不改文件内容），再提交路径修正。这样 git 能识别出重命名，blame 也不会丢。
-2. 开工前先合并或冻结在途分支，P1 尤其如此，否则大面积移动会和在途改动严重冲突。当前分支 `feat/slim-pack-offline-tts` 上还有 5 个未提交的改动，需要先合入。
+2. 开工前先合并或冻结在途分支，P1 尤其如此，否则大面积移动会和在途改动严重冲突。开工时用 `git branch -a --no-merged main` 确认没有未合入的分支。
 3. 每期都要同步更新 steering 和 docs 里受影响的路径。否则 Kiro 等 AI 助手会继续按旧结构工作。
 4. 本项目踩过的坑：smart_relocate 在这里不会自动改 import；tsc 通过不代表 rollup 通过。所以每次移动都要手动核对 import，并跑完整的 `npm run build`。
 5. 完成标准：第 10 节的验证清单全部通过。
