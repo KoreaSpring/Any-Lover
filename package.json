@@ -7,7 +7,7 @@
   "private": true,
   "scripts": {
     "prepare-runtime": "node build/scripts/prepare-runtime.js",
-    "prepare-tha-runtime": "node build/scripts/prepare-tha-runtime.js",
+    "prepare-tha-runtime": "node integrations/easyvtuber/prepare.js",
     "fetch-tha-models": "node build/scripts/fetch-tha-models.js",
     "fetch-openseeface": "node build/scripts/fetch-openseeface.js",
     "setup:win": "npm run install:app && npm run prepare-runtime && npm run fetch-tha-models && npm run fetch-openseeface",
