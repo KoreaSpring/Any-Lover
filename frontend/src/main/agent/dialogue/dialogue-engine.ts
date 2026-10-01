@@ -42,9 +42,17 @@ export interface DialogueOptions {
   enableTools?: boolean;
 }
 
-/** 中枢人设：保留 live2d 表情关键词约定由后端 extract_emotion 处理，这里只定语气人格。 */
-const PERSONA =
+/** 默认人设基调（无具体角色名时用）。保留 live2d 表情关键词约定由后端 extract_emotion 处理。 */
+const DEFAULT_PERSONA =
   '你是用户的桌面陪伴角色，温柔体贴、自然口语、简洁。基于你对用户的了解与当下状态，真诚地回应。';
+
+/** 按当前角色名构造人设（B1：人设随角色）。角色名空则用默认基调。 */
+export function buildPersona(characterName?: string): string {
+  const name = (characterName || '').trim();
+  if (!name) return DEFAULT_PERSONA;
+  return `你是「${name}」，用户的桌面陪伴角色，温柔体贴、自然口语、简洁，始终以「${name}」的身份与语气回应。`
+    + '基于你对用户的了解与当下状态，真诚地回应。';
+}
 
 /** 句末标点（中英文），用于把流式 token 攒成整句再交付 TTS。 */
 const SENTENCE_END = /[。！？.!?\n]/;
@@ -68,6 +76,9 @@ export class DialogueEngine {
   private history: Array<{ role: 'user' | 'assistant'; content: string }> = [];
 
   private historyStore: DialogueHistoryStore | null = null;
+
+  /** 当前人设（随角色；默认基调）。切角色时经 setPersona 更新。 */
+  private persona = DEFAULT_PERSONA;
 
   private readonly maxHistory = 20;
 
@@ -111,6 +122,11 @@ export class DialogueEngine {
   /** 注入历史存储（启用落盘持久化；不注入则历史只在内存）。注入后用其已加载的历史。 */
   setHistoryStore(store: DialogueHistoryStore): void {
     this.historyStore = store;
+  }
+
+  /** 设置当前角色人设（B1：人设随角色）。传角色名则按角色定制，空则回默认基调。 */
+  setPersona(characterName?: string): void {
+    this.persona = buildPersona(characterName);
   }
 
   /** 中断当前生成（供 F-2 打断接入）。 */
@@ -283,7 +299,7 @@ export class DialogueEngine {
 
   /** 组装注入了记忆/画像/关系/情绪的消息序列。 */
   private async buildMessages(userText: string): Promise<Array<{ role: 'system' | 'user' | 'assistant' | 'tool'; content: string }>> {
-    const parts: string[] = [PERSONA];
+    const parts: string[] = [this.persona];
 
     // 关系温度 → 语气锚定。
     try {

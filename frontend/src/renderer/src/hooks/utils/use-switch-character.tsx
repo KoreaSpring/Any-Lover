@@ -11,7 +11,7 @@ import { useLive2DConfig } from '@/context/live2d-config-context';
 
 export function useSwitchCharacter() {
   const { sendMessage } = useWebSocket();
-  const { confName, getFilenameByName } = useConfig();
+  const { confName, getFilenameByName, configFiles } = useConfig();
   const { interrupt } = useInterrupt();
   const { stopMic } = useVAD();
   const { setSubtitleText } = useSubtitle();
@@ -30,10 +30,11 @@ export function useSwitchCharacter() {
     stopMic();
     setAiState('loading');
     setModelInfo(undefined);
-    // 中枢对话：切角色时清中枢会话历史，避免上一个角色的对话串入新角色的上下文。
-    // 无条件发送（main 侧仅在有中枢历史时才有实际效果，无害）。
+    // 中枢对话：切角色时清中枢会话历史 + 把目标角色名传给中枢（人设随角色 B1）。
+    // 无条件发送（main 侧仅在中枢对话时有实际效果，无害）。
     try {
-      window.electron?.ipcRenderer?.send(IPC.agent.dialogueReset);
+      const targetName = configFiles.find((c) => c.filename === fileName)?.name;
+      window.electron?.ipcRenderer?.send(IPC.agent.dialogueReset, { characterName: targetName });
     } catch {
       /* ignore */
     }
@@ -42,7 +43,7 @@ export function useSwitchCharacter() {
       file: fileName,
     });
     console.log('Switch Character fileName: ', fileName);
-  }, [confName, getFilenameByName, sendMessage, interrupt, stopMic, setSubtitleText, setAiState]);
+  }, [confName, getFilenameByName, configFiles, sendMessage, interrupt, stopMic, setSubtitleText, setAiState, setModelInfo]);
 
   return { switchCharacter };
 }

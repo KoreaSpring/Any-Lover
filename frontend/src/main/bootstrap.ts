@@ -558,12 +558,13 @@ app.whenReady().then(() => {
     }
   });
 
-  // 切角色/新会话：清中枢会话历史，避免上一个角色的对话串入下一个角色的上下文。
-  ipcMain.on(IPC.agent.dialogueReset, () => {
+  // 切角色/新会话：清中枢会话历史 + 人设随角色（B1）。避免上一个角色的对话/人设串入下一个角色。
+  ipcMain.on(IPC.agent.dialogueReset, (_evt, payload: { characterName?: string }) => {
     try {
       dialogueEngine.interrupt(); // 若正在生成，先停
       dialogueEngine.clearHistory();
-      logToFile('[dialogue] 中枢会话历史已清空（切角色/新会话）');
+      dialogueEngine.setPersona(payload?.characterName); // 人设随当前角色（空则默认基调）
+      logToFile(`[dialogue] 中枢会话历史已清空、人设切换为「${payload?.characterName || '默认'}」`);
     } catch {
       /* ignore */
     }
