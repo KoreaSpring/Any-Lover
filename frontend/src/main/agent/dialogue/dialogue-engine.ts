@@ -19,6 +19,7 @@ import {
   ToolCall, ToolResult, parseToolCalls, hasToolCall, stripToolCalls,
   buildToolSystemPrompt, formatToolResultsForContext,
 } from './tool-protocol';
+import { DialogueHistoryStore } from './dialogue-history';
 
 /** 一轮对话的句子交付回调：start(轮开始) / say(每句) / end(轮结束) / error。 */
 export interface DialogueSink {
@@ -63,8 +64,10 @@ export class DialogueEngine {
 
   private readonly log: (msg: string) => void;
 
-  /** 中枢会话历史（F-1 内存维护；F-2 再统一持久化）。 */
+  /** 中枢会话历史：注入了 historyStore 则落盘持久化（阶段 1 / A1），否则回退内存数组（测试/无注入）。 */
   private history: Array<{ role: 'user' | 'assistant'; content: string }> = [];
+
+  private historyStore: DialogueHistoryStore | null = null;
 
   private readonly maxHistory = 20;
 
@@ -103,6 +106,11 @@ export class DialogueEngine {
   /** 注入工具桥（启用 MCP 工具调用；不注入则无工具能力，走纯对话）。 */
   setToolBridge(bridge: ToolBridge): void {
     this.toolBridge = bridge;
+  }
+
+  /** 注入历史存储（启用落盘持久化；不注入则历史只在内存）。注入后用其已加载的历史。 */
+  setHistoryStore(store: DialogueHistoryStore): void {
+    this.historyStore = store;
   }
 
   /** 中断当前生成（供 F-2 打断接入）。 */
@@ -319,7 +327,7 @@ export class DialogueEngine {
       { role: 'system', content: parts.join('\n') },
     ];
     // 中枢会话历史（近若干轮）。
-    for (const h of this.history.slice(-this.maxHistory)) {
+    for (const h of this.readHistory()) {
       messages.push({ role: h.role, content: h.content });
     }
     messages.push({ role: 'user', content: userText });
@@ -327,15 +335,28 @@ export class DialogueEngine {
   }
 
   private pushHistory(role: 'user' | 'assistant', content: string): void {
+    if (this.historyStore) {
+      this.historyStore.append(role, content);
+      return;
+    }
     this.history.push({ role, content });
     if (this.history.length > this.maxHistory * 2) {
       this.history = this.history.slice(-this.maxHistory * 2);
     }
   }
 
-  /** 清空中枢会话历史（新对话/切角色）。 */
+  /** 读取近若干轮历史（供 buildMessages 组装）。注入 store 则用落盘历史，否则用内存。 */
+  private readHistory(): Array<{ role: 'user' | 'assistant'; content: string }> {
+    if (this.historyStore) {
+      return this.historyStore.all().slice(-this.maxHistory).map((t) => ({ role: t.role, content: t.content }));
+    }
+    return this.history.slice(-this.maxHistory);
+  }
+
+  /** 清空中枢会话历史（新对话/切角色）。注入 store 则同时清盘。 */
   clearHistory(): void {
     this.history = [];
+    if (this.historyStore) this.historyStore.clear();
   }
 }
 
