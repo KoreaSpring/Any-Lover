@@ -9,6 +9,7 @@ import { FaceEmotionRunner } from '@/utils/face-emotion';
 import { VoiceEmotionRunner } from '@/utils/voice-emotion';
 import { IPC } from '@proto/ipc';
 import { isHubDialogueEnabled, setHubDialogueEnabled } from '@/utils/hub-dialogue';
+import { isToolCallingEnabled, setToolCallingEnabled } from '@/utils/tool-calling';
 
 // THA 参数侧边面板（Windows / THA 模式）。展开态占满左侧一列（对标截图蓝圈），
 // 含：立绘上传 + 抠图模型选择（动漫/写实）+ 当前立绘 + 性能预设 + 提示。
@@ -152,6 +153,12 @@ export const ThaSettingsPanel = memo((): JSX.Element => {
   };
 
   // 中枢对话（F-1）：开启后文字对话走中枢(注入记忆/画像/关系/情绪),默认关(走老后端)。纯本地开关。
+  const [toolCallingOn, setToolCallingOn] = useState(isToolCallingEnabled);
+  const toggleToolCalling = (): void => {
+    const next = !toolCallingOn;
+    setToolCallingOn(next);
+    setToolCallingEnabled(next);
+  };
   const [hubDialogueOn, setHubDialogueOn] = useState(isHubDialogueEnabled);
   const toggleHubDialogue = (): void => {
     const next = !hubDialogueOn;
@@ -581,6 +588,22 @@ export const ThaSettingsPanel = memo((): JSX.Element => {
         <Text fontSize="10px" color="whiteAlpha.500">
           开启后文字对话由中枢统筹，结合它对你的记忆、画像、关系与当下情绪来回应，更懂你。
           需先配好主模型；语音对话暂仍走原通道；关闭即回到原对话。
+        </Text>
+      </Box>
+
+      {/* 工具调用（MCP，实验性，默认关；仅在中枢对话模式下生效） */}
+      <Box>
+        <Box display="flex" alignItems="center" justifyContent="space-between" mb="6px">
+          <Text fontSize="sm" color="whiteAlpha.700" fontWeight="semibold">
+            工具调用（实验）
+          </Text>
+          <Button size="sm" variant={toolCallingOn ? 'solid' : 'outline'} onClick={toggleToolCalling}>
+            {toolCallingOn ? '已开启' : '开启'}
+          </Button>
+        </Box>
+        <Text fontSize="10px" color="whiteAlpha.500">
+          开启后，中枢对话可调用工具（如查时间、联网搜索）来获取信息再回答。仅在「中枢对话」开启时生效；
+          当前为只读工具、本地执行；关闭即不提供工具。
         </Text>
       </Box>
 
