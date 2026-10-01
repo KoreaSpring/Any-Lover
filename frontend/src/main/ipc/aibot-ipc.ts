@@ -291,7 +291,7 @@ export function registerAibotIpc(deps: Deps): void {
           try {
             const list = await ollama.listModels(host);
             if (list.ok && list.models.includes(model)) {
-              sendProgress({ stage: 'pull', percent: 100, message: `模型 ${model} 已就绪` });
+              sendProgress({ stage: 'pull', percent: 100, message: `模型 ${model} 已就绪`, model, role: 'main' });
               writeSettings({ ollamaReady: true });
               return;
             }
@@ -301,7 +301,7 @@ export function registerAibotIpc(deps: Deps): void {
           } catch (e: any) {
             const m = String((e && e.message) || e);
             log(`[ollama] 后台拉取模型失败：${m}`);
-            sendProgress({ stage: 'pull', percent: -1, message: `模型下载失败：${m}` });
+            sendProgress({ stage: 'pull', percent: -1, message: `模型下载失败：${m}`, model, role: 'main' });
           } finally {
             ollama.endPull(model);
           }

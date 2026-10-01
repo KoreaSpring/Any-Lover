@@ -8,6 +8,10 @@ import { IPC } from '../../proto/ipc';
 
 const isMac = process.platform === 'darwin';
 
+// 窗口模式的窗口底色：与界面深色背景一致（Chakra gray.900）。以前是白色，
+// 页面重新合成的瞬间（切回前台、恢复最小化）会露出底色，看起来像白屏闪一下。
+const WINDOW_MODE_BG = '#18181b';
+
 // 解析窗口图标。打包后 resources/ 被 asarUnpack 解包，__dirname 相对路径在
 // asar 内不一定可用，这里按“打包资源目录 -> asar.unpacked -> 开发态”依次探测，
 // 找不到时返回 undefined（交给 Electron 用默认图标，而不是传一个坏路径）。
@@ -88,7 +92,7 @@ export class WindowManager {
       height: 670,
       show: false,
       transparent: true,
-      backgroundColor: '#ffffff',
+      backgroundColor: WINDOW_MODE_BG,
       autoHideMenuBar: true,
       frame: false,
       ...(icon ? { icon } : {}),
@@ -192,7 +196,7 @@ export class WindowManager {
     this.window.setFocusable(true);
     this.window.setAlwaysOnTop(false);
 
-    this.window.setBackgroundColor('#ffffff');
+    this.window.setBackgroundColor(WINDOW_MODE_BG);
     this.window.webContents.send(IPC.window.preModeChanged, 'window');
   }
 

@@ -163,5 +163,7 @@ app.on("before-quit", () => {
   isQuitting = true;
   // menuManager 在 whenReady 后才创建；若启动早期就退出（如未获单例锁）此处可能为 undefined，需空值保护。
   menuManager?.destroy();
-  globalShortcut.unregisterAll();
+  // 未获单例锁时 bootstrap 在模块加载阶段就调用 app.quit()，before-quit 会在 ready 之前同步触发；
+  // 此时调用 globalShortcut 会抛 "cannot be used before the app is ready"，弹出主进程错误框。
+  if (app.isReady()) globalShortcut.unregisterAll();
 });

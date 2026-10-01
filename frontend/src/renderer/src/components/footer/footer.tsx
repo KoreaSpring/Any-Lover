@@ -11,6 +11,8 @@ import { InputGroup } from '@/components/ui/input-group';
 import { footerStyles } from './footer-styles';
 import AIStateIndicator from './ai-state-indicator';
 import { useFooter } from '@/hooks/footer/use-footer';
+import { useOllamaReady } from '@/hooks/canvas/use-ollama-ready';
+import { notifyModelNotReady } from '@/utils/model-gate';
 
 // Type definitions
 interface FooterProps {
@@ -27,6 +29,8 @@ interface ActionButtonsProps {
   micOn: boolean
   onMicToggle: () => void
   onInterrupt: () => void
+  /** 模型未下完：按钮显示为禁用，点击只弹提示 */
+  locked: boolean
 }
 
 interface MessageInputProps {
@@ -35,7 +39,12 @@ interface MessageInputProps {
   onKeyDown: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void
   onCompositionStart: () => void
   onCompositionEnd: () => void
+  locked: boolean
+  lockedPlaceholder: string
 }
+
+// 禁用态样式。不用原生 disabled：disabled 元素收不到点击，就没法弹「模型下载中」提示。
+const lockedStyle = { opacity: 0.4, cursor: 'not-allowed', filter: 'grayscale(0.6)' } as const;
 
 // Reusable components
 const ToggleButton = memo(({ isCollapsed, onToggle }: ToggleButtonProps) => (
@@ -53,20 +62,29 @@ const ToggleButton = memo(({ isCollapsed, onToggle }: ToggleButtonProps) => (
 
 ToggleButton.displayName = 'ToggleButton';
 
-const ActionButtons = memo(({ micOn, onMicToggle, onInterrupt }: ActionButtonsProps) => (
+const ActionButtons = memo(({
+  micOn, onMicToggle, onInterrupt, locked,
+}: ActionButtonsProps) => (
   <HStack gap={2}>
     <IconButton
+      aria-label="Toggle microphone"
+      aria-disabled={locked}
+      title={locked ? '模型下载完成后可用' : undefined}
       bg={micOn ? 'green.500' : 'red.500'}
       {...footerStyles.footer.actionButton}
-      onClick={onMicToggle}
+      {...(locked ? lockedStyle : {})}
+      onClick={locked ? notifyModelNotReady : onMicToggle}
     >
       {micOn ? <BsMicFill /> : <BsMicMuteFill />}
     </IconButton>
     <IconButton
       aria-label="Raise hand"
+      aria-disabled={locked}
+      title={locked ? '模型下载完成后可用' : undefined}
       bg="yellow.500"
       {...footerStyles.footer.actionButton}
-      onClick={onInterrupt}
+      {...(locked ? lockedStyle : {})}
+      onClick={locked ? notifyModelNotReady : onInterrupt}
     >
       <IoHandRightSharp size="24" />
     </IconButton>
@@ -81,6 +99,8 @@ const MessageInput = memo(({
   onKeyDown,
   onCompositionStart,
   onCompositionEnd,
+  locked,
+  lockedPlaceholder,
 }: MessageInputProps) => {
   const { t } = useTranslation();
 
@@ -91,17 +111,24 @@ const MessageInput = memo(({
           aria-label="Attach file"
           variant="ghost"
           {...footerStyles.footer.attachButton}
+          {...(locked ? lockedStyle : {})}
+          onClick={locked ? notifyModelNotReady : undefined}
         >
           <BsPaperclip size="24" />
         </IconButton>
         <Textarea
           value={value}
+          // 只读而非 disabled：仍能收到点击/按键，从而弹出提示
+          readOnly={locked}
+          aria-disabled={locked}
           onChange={onChange}
-          onKeyDown={onKeyDown}
+          onMouseDown={locked ? notifyModelNotReady : undefined}
+          onKeyDown={locked ? (e) => { e.preventDefault(); notifyModelNotReady(); } : onKeyDown}
           onCompositionStart={onCompositionStart}
           onCompositionEnd={onCompositionEnd}
-          placeholder={t('footer.typeYourMessage')}
+          placeholder={locked ? lockedPlaceholder : t('footer.typeYourMessage')}
           {...footerStyles.footer.input}
+          {...(locked ? { cursor: 'not-allowed', opacity: 0.6 } : {})}
         />
       </Box>
     </InputGroup>
@@ -122,6 +149,10 @@ function Footer({ isCollapsed = false, onToggle }: FooterProps): JSX.Element {
     handleMicToggle,
     micOn,
   } = useFooter();
+  // 本地主模型没下完时锁住语音/打断/输入，下完自动解锁（云端 API 不受影响）
+  const { ready, percent } = useOllamaReady();
+  const locked = !ready;
+  const lockedPlaceholder = percent >= 0 ? `模型下载中（${percent}%），完成后可输入…` : '模型下载中，完成后可输入…';
 
   return (
     <Box {...footerStyles.footer.container(isCollapsed)}>
@@ -137,6 +168,7 @@ function Footer({ isCollapsed = false, onToggle }: FooterProps): JSX.Element {
               micOn={micOn}
               onMicToggle={handleMicToggle}
               onInterrupt={handleInterrupt}
+              locked={locked}
             />
           </Box>
 
@@ -146,6 +178,8 @@ function Footer({ isCollapsed = false, onToggle }: FooterProps): JSX.Element {
             onKeyDown={handleKeyPress}
             onCompositionStart={handleCompositionStart}
             onCompositionEnd={handleCompositionEnd}
+            locked={locked}
+            lockedPlaceholder={lockedPlaceholder}
           />
         </HStack>
       </Box>

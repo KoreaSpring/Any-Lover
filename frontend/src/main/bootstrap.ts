@@ -200,23 +200,31 @@ function startThaIfEnabled(): void {
 // R2 可见性驱动：桌宠窗口最小化/隐藏 → 卸载 THA 省显存；恢复/显示 → 重新加载。
 // 说明：pet 模式桌宠常驻置顶、不进任务栏，通常不会最小化/隐藏，故此路径主要覆盖
 // window 模式最小化场景；显存的主要腾挪仍靠采样 VLM 加载时的 degrade（见资源协调器）。
+// 延迟卸载：以前一最小化就立刻杀掉 THA，切回来要重新拉起 Python + 加载模型（十几秒），
+// 这段时间桌宠区域是空白的。短暂切到后台再切回是常见操作，延迟一段时间再卸载，期间恢复则取消。
+const THA_RELEASE_DELAY_MS = 2 * 60 * 1000;
+
 function bindThaVisibility(win: import('electron').BrowserWindow): void {
+  let releaseTimer: ReturnType<typeof setTimeout> | null = null;
   const release = (): void => {
-    if (!thaEnabled()) return;
-    void resourceCoordinator.forceUnload(THA_RESOURCE_ID).catch(() => {});
+    if (!thaEnabled() || releaseTimer) return;
+    releaseTimer = setTimeout(() => {
+      releaseTimer = null;
+      logToFile('[startup] 窗口已在后台较久：卸载 THA 省显存');
+      void resourceCoordinator.forceUnload(THA_RESOURCE_ID).catch(() => {});
+    }, THA_RELEASE_DELAY_MS);
   };
   const acquire = (): void => {
+    if (releaseTimer) {
+      clearTimeout(releaseTimer); // 很快就切回来了：THA 还在，不用重载
+      releaseTimer = null;
+      return;
+    }
     if (!thaEnabled()) return;
     void resourceCoordinator.acquire(THA_RESOURCE_ID).catch(() => {});
   };
-  win.on('minimize', () => {
-    logToFile('[startup] 窗口最小化：卸载 THA 省显存');
-    release();
-  });
-  win.on('restore', () => {
-    logToFile('[startup] 窗口恢复：重新加载 THA');
-    acquire();
-  });
+  win.on('minimize', release);
+  win.on('restore', acquire);
   win.on('hide', release);
   win.on('show', acquire);
 }
@@ -312,7 +320,13 @@ async function ensureModelSilently(): Promise<void> {
     }
   } catch (e: any) {
     logToFile(`[startup] 后台拉取模型失败：${String((e && e.message) || e)}`);
-    broadcastOllamaProgress({ stage: 'pull', percent: -1, message: `模型下载失败：${String((e && e.message) || e)}` });
+    broadcastOllamaProgress({
+      stage: 'pull',
+      percent: -1,
+      message: `模型下载失败：${String((e && e.message) || e)}`,
+      model,
+      role: 'main',
+    });
   }
 }
 
@@ -320,6 +334,20 @@ async function ensureModelSilently(): Promise<void> {
 // 架构原则「除主模型走线上外全本地」——这两个跑在本地 Ollama。首启自动 pull，让「桌面观察/记忆
 // 语义检索」开箱即用；幂等（已装跳过）、并行、失败不阻塞、进度推右上角。
 const LOCAL_HELPER_MODELS = ['moondream', 'nomic-embed-text'];
+
+// 辅助模型下载队列（串行）。
+let helperQueue: Promise<void> = Promise.resolve();
+
+/** 等主模型（settings.ollamaModel）不在下载中再继续；最多等 6 小时，防止异常时永久挂起。 */
+async function waitMainModelIdle(): Promise<void> {
+  const deadline = Date.now() + 6 * 3600 * 1000;
+  for (;;) {
+    const main = String(readSettings().ollamaModel || '').trim();
+    if (!main || !ollama.isPulling(main) || Date.now() > deadline) return;
+    // eslint-disable-next-line no-await-in-loop
+    await new Promise((r) => setTimeout(r, 3000));
+  }
+}
 
 async function ensureLocalHelperModels(): Promise<void> {
   const s = readSettings();
@@ -349,19 +377,21 @@ async function ensureLocalHelperModels(): Promise<void> {
       continue;
     }
     if (ollama.isPulling(model) || !ollama.beginPull(model)) continue;
-    // 逐个后台拉取（不阻塞；进度推右上角）。不 await 全部并发，避免同时占满带宽/磁盘。
-    void (async () => {
+    // 串行排队后台拉取（不阻塞启动；进度推右上角）：原来每个模型各自 void 并发，和主模型一起抢带宽，
+    // 进度事件交错导致角落进度来回闪。现在辅助模型一个接一个下，且先等主模型下完（主模型决定界面可用）。
+    helperQueue = helperQueue.then(async () => {
+      await waitMainModelIdle();
       try {
         logToFile(`[startup] 后台拉取本地辅助模型：${model}`);
-        await pullModel(host, model, (p) => broadcastOllamaProgress({ ...(p as object), model }));
+        await pullModel(host, model, (p) => broadcastOllamaProgress(p), 'helper');
         logToFile(`[startup] 本地辅助模型拉取完成：${model}`);
       } catch (e: any) {
         logToFile(`[startup] 拉取本地辅助模型失败（${model}）：${String((e && e.message) || e)}`);
-        broadcastOllamaProgress({ stage: 'pull', percent: -1, message: `${model} 下载失败`, model });
+        broadcastOllamaProgress({ stage: 'pull', percent: -1, message: `${model} 下载失败`, model, role: 'helper' });
       } finally {
         ollama.endPull(model);
       }
-    })();
+    });
   }
 }
 
@@ -782,6 +812,9 @@ let cleanedUp = false;
 function cleanupAll(): void {
   if (cleanedUp) return;
   cleanedUp = true;
+  // 未获单例锁的第二个实例：什么都没启动，不能清理——killAll 按镜像名强杀，
+  // 会把正在运行的第一个实例的后端 / Ollama / THA 一并杀掉。
+  if (!gotSingleInstanceLock) return;
   // 各 sidecar（backend / ollama / tha / openSeeFace）的进程树强杀：统一交给注册表，
   // 内部已逐个 try/catch 隔离（见 SidecarRegistry.killAll）。
   sidecars.killAll();
@@ -829,6 +862,7 @@ function cleanupAll(): void {
 
 // before-quit：尝试优雅停止（异步，尽力而为）
 app.on('before-quit', () => {
+  if (!gotSingleInstanceLock) return; // 第二个实例：不触碰第一个实例的进程
   // 各 sidecar 的优雅停止统一交给注册表（反序、逐个 try/catch、仅停在运行的）。
   void sidecars.stopAll();
 });

@@ -34,6 +34,9 @@ export interface OllamaProgress {
   // 下载阶段附带的字节信息（可选）
   receivedBytes?: number;
   totalBytes?: number;
+  /** 拉取阶段：所属模型与角色。main=对话主模型（决定界面是否可用），helper=本地辅助小模型 */
+  model?: string;
+  role?: 'main' | 'helper';
 }
 
 export type ProgressCb = (p: OllamaProgress) => void;
@@ -240,11 +243,49 @@ export async function installOllama(
   return resolved;
 }
 
+/** 不可重试的拉取错误（模型名不存在等）；其余（网络中断、registry 超时）都按临时错误重试。 */
+function isPermanentPullError(msg: string): boolean {
+  return /file does not exist|not found|invalid model name|HTTP 4\d\d/i.test(msg);
+}
+
+const PULL_RETRY_DELAYS_MS = [3000, 8000, 20000];
+
+/**
+ * 拉取模型，网络类错误自动重试（Ollama 支持断点续传，重试不会从头下载）。
+ * 日志里出现过 `read ECONNRESET`：大模型下载途中连接被重置是常见情况，不应直接判失败。
+ */
+export async function pullModel(
+  host: string,
+  model: string,
+  onProgress: ProgressCb,
+  role: 'main' | 'helper' = 'main',
+): Promise<void> {
+  // 每条进度都带上 model/role，界面据此把不同模型分开显示，辅助模型的进度不会影响主模型就绪状态
+  const report: ProgressCb = (p) => onProgress({ ...p, model, role });
+  for (let attempt = 0; ; attempt++) {
+    try {
+      await pullModelOnce(host, model, report);
+      return;
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      const delay = PULL_RETRY_DELAYS_MS[attempt];
+      if (delay === undefined || isPermanentPullError(msg)) throw e;
+      report({
+        stage: 'pull',
+        percent: -1,
+        message: `网络中断，${Math.round(delay / 1000)} 秒后继续下载 ${model}（第 ${attempt + 1} 次重试）`,
+      });
+      // eslint-disable-next-line no-await-in-loop
+      await new Promise((r) => setTimeout(r, delay));
+    }
+  }
+}
+
 /**
  * 通过 Ollama 原生 /api/pull 拉取模型（stream:true），上报进度。
  * host 形如 http://127.0.0.1:11434
  */
-export function pullModel(
+function pullModelOnce(
   host: string,
   model: string,
   onProgress: ProgressCb,
@@ -276,6 +317,12 @@ export function pullModel(
           return;
         }
         let buf = '';
+        let succeeded = false;
+        // Ollama 按层（digest）逐个上报 completed/total：直接用单层百分比会在
+        // 「大层 80% → 小层 0%→100%」之间来回跳。按所有层累计，并保证单调不减。
+        const layers = new Map<string, { completed: number; total: number }>();
+        let lastPercent = -1;
+        res.on('error', (e) => reject(e));
         res.on('data', (chunk: Buffer) => {
           buf += chunk.toString('utf-8');
           // Ollama 逐行返回 JSON 对象
@@ -291,9 +338,21 @@ export function pullModel(
                 return;
               }
               const status = String(obj.status || '');
-              const completed = Number(obj.completed || 0);
-              const total = Number(obj.total || 0);
-              const percent = total > 0 ? Math.min(99, Math.round((completed / total) * 100)) : -1;
+              if (status === 'success') succeeded = true;
+              if (obj.digest && Number(obj.total) > 0) {
+                layers.set(String(obj.digest), { completed: Number(obj.completed || 0), total: Number(obj.total) });
+              }
+              let completed = 0;
+              let total = 0;
+              for (const l of layers.values()) {
+                completed += l.completed;
+                total += l.total;
+              }
+              if (total > 0) {
+                lastPercent = Math.max(lastPercent, Math.min(99, Math.round((completed / total) * 100)));
+              }
+              // 没有字节进度的阶段（pulling manifest / verifying / writing manifest）沿用上次百分比，避免进度条闪回
+              const percent = lastPercent;
               onProgress({
                 stage: 'pull',
                 percent,
@@ -310,6 +369,11 @@ export function pullModel(
           }
         });
         res.on('end', () => {
+          // 流正常结束但没收到 status=success：连接被提前关闭，模型并不完整，交给重试
+          if (!succeeded) {
+            reject(new Error('模型下载连接提前结束'));
+            return;
+          }
           onProgress({ stage: 'pull', percent: 100, message: `模型 ${model} 已就绪` });
           resolve();
         });

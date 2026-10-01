@@ -14,4 +14,7 @@ if (process.platform === 'win32') {
   app.commandLine.appendSwitch('enable-transparent-visuals');
   // 忽略部分环境下的 GPU 黑名单，确保 WebGL 可用
   app.commandLine.appendSwitch('ignore-gpu-blocklist');
+  // 关闭 Windows 原生窗口遮挡检测：窗口被其它程序挡住（切到后台）时，Chromium 会把页面当成
+  // 不可见、丢弃已合成的画面；切回来要重新渲染，期间露出窗口底色，表现为白屏一下。
+  app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
 }

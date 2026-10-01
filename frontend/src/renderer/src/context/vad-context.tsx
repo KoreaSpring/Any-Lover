@@ -11,6 +11,8 @@ import { SubtitleContext } from './subtitle-context';
 import { AiStateContext, AiState } from './ai-state-context';
 import { useLocalStorage } from '@/hooks/utils/use-local-storage';
 import { toaster } from '@/components/ui/toaster';
+import { useOllamaReady } from '@/hooks/canvas/use-ollama-ready';
+import { isModelReady } from '@/utils/model-gate';
 
 /**
  * VAD settings configuration interface
@@ -164,6 +166,9 @@ export function VADProvider({ children }: { children: React.ReactNode }) {
   const isProcessingRef = useRef(false);
   const isStartingRef = useRef(false);
   const microphoneUnavailableNotifiedRef = useRef(false);
+  /** 模型下载期间被拦下的开麦请求，模型就绪后自动补开 */
+  const pendingMicStartRef = useRef(false);
+  const { ready: modelReady } = useOllamaReady();
 
   // Update refs when dependencies change
   useEffect(() => {
@@ -314,6 +319,12 @@ export function VADProvider({ children }: { children: React.ReactNode }) {
    * Start microphone and VAD processing
    */
   const startMic = useCallback(async () => {
+    // 本地主模型没下完：后端连上时会发 start-mic，此时开麦说话也得不到回复。
+    // 先记下「想开麦」，模型就绪后由下面的 effect 自动补开。
+    if (!isModelReady()) {
+      pendingMicStartRef.current = true;
+      return;
+    }
     // WebSocket 控制消息、会话结束和用户点击可能在初始化完成前同时触发；
     // 合并并发启动，避免创建多个 MicVAD/getUserMedia 请求。
     if (isStartingRef.current) return;
@@ -377,7 +388,16 @@ export function VADProvider({ children }: { children: React.ReactNode }) {
     }
     setMicOn(false);
     isProcessingRef.current = false;
+    pendingMicStartRef.current = false; // 用户主动关麦：模型就绪后不要再自动开
   }, []);
+
+  // 模型就绪后补开下载期间被拦下的麦克风（自动可用，不需要用户再点一次）
+  useEffect(() => {
+    if (modelReady && pendingMicStartRef.current) {
+      pendingMicStartRef.current = false;
+      void startMic();
+    }
+  }, [modelReady, startMic]);
 
   /**
    * Set Auto stop mic state

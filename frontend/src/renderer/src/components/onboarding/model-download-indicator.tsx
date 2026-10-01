@@ -8,10 +8,20 @@ interface Progress {
   stage: string;
   percent: number;
   message: string;
+  model?: string;
+  role?: 'main' | 'helper';
 }
-type TaskKey = 'ollama' | 'tha';
+// 每个下载任务一张卡：主模型 'ollama'、每个辅助模型 'helper:<名>'、高画质模型 'tha'。
+// 以前所有 Ollama 模型共用一张卡，几个模型的进度交替到达，数字和进度条来回跳。
+type TaskKey = string;
 interface Task extends Progress {
   label: string;
+}
+
+function keyAndLabel(channel: 'ollama' | 'tha', p: Progress): { key: TaskKey; label: string } {
+  if (channel === 'tha') return { key: 'tha', label: '高画质模型' };
+  if (p.role === 'helper' && p.model) return { key: `helper:${p.model}`, label: `辅助模型 ${p.model}` };
+  return { key: 'ollama', label: '语言模型' };
 }
 
 function ipc(): any {
@@ -20,23 +30,36 @@ function ipc(): any {
 }
 
 export default function ModelDownloadIndicator(): JSX.Element | null {
-  const [tasks, setTasks] = useState<Record<TaskKey, Task | null>>({ ollama: null, tha: null });
-  const hideTimers = useRef<Record<TaskKey, ReturnType<typeof setTimeout> | null>>({ ollama: null, tha: null });
+  const [tasks, setTasks] = useState<Record<TaskKey, Task>>({});
+  const hideTimers = useRef<Record<TaskKey, ReturnType<typeof setTimeout>>>({});
 
   useEffect(() => {
     const r = ipc();
     if (!r) return undefined;
 
-    const mk = (key: TaskKey, label: string) => (_e: any, p: Progress): void => {
-      setTasks((prev) => ({ ...prev, [key]: { ...p, label } }));
+    const mk = (channel: 'ollama' | 'tha') => (_e: any, p: Progress): void => {
+      const { key, label } = keyAndLabel(channel, p);
+      setTasks((prev) => {
+        const old = prev[key];
+        // -1（准备中 / 校验中 / 重试中）沿用上次百分比，进度条不在「确定 ↔ 不确定」之间闪
+        const percent = p.percent >= 0 ? p.percent : old && old.percent >= 0 ? old.percent : -1;
+        return { ...prev, [key]: { ...p, percent, label } };
+      });
       const t = hideTimers.current;
-      if (t[key]) clearTimeout(t[key] as any);
+      if (t[key]) clearTimeout(t[key]);
       const delay = p.percent >= 100 || p.stage === 'done' ? 2500 : 60000;
-      t[key] = setTimeout(() => setTasks((prev) => ({ ...prev, [key]: null })), delay);
+      t[key] = setTimeout(() => {
+        setTasks((prev) => {
+          const next = { ...prev };
+          delete next[key];
+          return next;
+        });
+        delete t[key];
+      }, delay);
     };
 
-    const onOllama = mk('ollama', '语言模型');
-    const onTha = mk('tha', '高画质模型');
+    const onOllama = mk('ollama');
+    const onTha = mk('tha');
     r.on('ollama:progress', onOllama);
     r.on('tha:progress', onTha);
     return () => {
@@ -44,13 +67,16 @@ export default function ModelDownloadIndicator(): JSX.Element | null {
         r.removeListener('ollama:progress', onOllama);
         r.removeListener('tha:progress', onTha);
       } catch {}
-      const t = hideTimers.current;
-      if (t.ollama) clearTimeout(t.ollama);
-      if (t.tha) clearTimeout(t.tha);
+      Object.values(hideTimers.current).forEach((t) => clearTimeout(t));
+      hideTimers.current = {};
     };
   }, []);
 
-  const list = (Object.keys(tasks) as TaskKey[]).map((k) => tasks[k]).filter(Boolean) as Task[];
+  // 固定顺序：主模型 → 高画质 → 辅助模型，卡片位置不随事件到达顺序变化
+  const order = (k: string): number => (k === 'ollama' ? 0 : k === 'tha' ? 1 : 2);
+  const list = Object.keys(tasks)
+    .sort((a, b) => order(a) - order(b) || a.localeCompare(b))
+    .map((k) => tasks[k]);
   if (list.length === 0) return null;
 
   return (
@@ -64,7 +90,8 @@ export default function ModelDownloadIndicator(): JSX.Element | null {
         flexDirection: 'column',
         gap: 8,
         fontFamily: '"Noto Sans SC", system-ui, sans-serif',
-        WebkitAppRegion: 'no-drag' as any,
+        // Electron 专有 CSS 属性，React 的 CSSProperties 类型里没有
+        ...({ WebkitAppRegion: 'no-drag' } as Record<string, string>),
       }}
     >
       {list.map((task) => {
