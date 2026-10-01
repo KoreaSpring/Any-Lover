@@ -24,8 +24,10 @@ soundfile==0.13.1
 pysbd==0.3.4
 langdetect==1.0.9
 
-# 本地 ASR（Sherpa SenseVoice，CPU）
-sherpa-onnx==1.10.46
+# 本地 ASR（Sherpa SenseVoice）+ 离线 TTS（MeloTTS/Kokoro），CPU
+# 1.12+ 起原生库拆到 sherpa-onnx-core，两者版本必须一致
+sherpa-onnx==1.13.8
+sherpa-onnx-core==1.13.8
 onnxruntime==1.23.2
 
 # TTS
