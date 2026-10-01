@@ -8,6 +8,7 @@ import http from 'http';
 import { spawn, spawnSync, ChildProcess } from 'child_process';
 import { app } from 'electron';
 import { readSettings, loadApiKey, clampTtsSid } from '../core/settings-store';
+import { largeDataDir, cleanupLegacy } from '../core/data-dir';
 
 const HOST = '127.0.0.1';
 const PORT = 12393;
@@ -43,8 +44,10 @@ export class BackendManager {
     return path.join(app.getAppPath(), '..', 'dist-runtime');
   }
 
+  // 可写运行目录：用户在启动页选了安装位置则放到 <安装位置>/runtime，否则 userData/runtime；
+  // 首次解析时按需从旧位置迁移（见 core/data-dir）。
   private dataRoot(): string {
-    return path.join(app.getPath('userData'), 'runtime');
+    return largeDataDir('runtime', this.log);
   }
 
   // 随包 ffmpeg 的 bin 目录：打包态 resources/ffmpeg/bin；开发态 vendor/ffmpeg/bin
@@ -157,6 +160,12 @@ export class BackendManager {
     for (const d of ['logs', 'cache', 'chat_history', 'models']) {
       fs.mkdirSync(path.join(root, d), { recursive: true });
     }
+    // 跨盘换了位置：新位置已铺好，删除旧副本（聊天记录先补到新位置）
+    const old = path.join(app.getPath('userData'), 'runtime');
+    if (old !== root && fs.existsSync(old)) {
+      this.copyIfMissing(path.join(old, 'chat_history'), path.join(root, 'chat_history'));
+    }
+    cleanupLegacy('runtime', this.log);
   }
 
   private resolveLlm(): LlmResolved {

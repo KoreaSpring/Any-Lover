@@ -22,8 +22,9 @@ export interface ModelOption {
   blurb: string;
 }
 
-// 推荐清单：照抄 AnythingLLM 桌面版实际使用的 Ollama 标签。
-// 注意：任何一项都可用 `ollama pull <id>` 直接获取。
+// 推荐清单：每档 2 个，共 6 个，均为 Ollama 官方 registry 上的真实标签（ollama pull <id> 可直接获取）。
+// sizeGB 为 registry manifest 各层体积之和（2026-10 核对）。
+// 每档第一个是该档的默认推荐（recommendModel 取同档首项），调整顺序会改变推荐结果。
 export const MODEL_OPTIONS: ModelOption[] = [
   {
     id: 'qwen3-vl:4b-instruct',
@@ -34,6 +35,14 @@ export const MODEL_OPTIONS: ModelOption[] = [
     blurb: '最佳体验：多模态，可理解屏幕与摄像头画面，桌宠首选。',
   },
   {
+    id: 'gemma3:4b',
+    name: 'Gemma 3 4B',
+    tier: 'best',
+    sizeGB: 3.3,
+    multimodal: true,
+    blurb: '最佳体验备选：Google 多模态模型，看图能力强，中文略逊于 Qwen。',
+  },
+  {
     id: 'llama3.2:3b',
     name: 'Llama 3.2 3B',
     tier: 'balanced',
@@ -42,12 +51,28 @@ export const MODEL_OPTIONS: ModelOption[] = [
     blurb: '平衡：速度与质量兼顾的纯文本模型。',
   },
   {
+    id: 'qwen3-vl:2b-instruct',
+    name: 'Qwen3-VL 2B Instruct',
+    tier: 'balanced',
+    sizeGB: 1.9,
+    multimodal: true,
+    blurb: '平衡：体积小的多模态模型，中文好，也能看屏幕。',
+  },
+  {
     id: 'qwen3:1.7b',
     name: 'Qwen3 1.7B',
     tier: 'fastest',
-    sizeGB: 1.7,
+    sizeGB: 1.4,
     multimodal: false,
     blurb: '最快：体积最小，低配机器也能流畅运行。',
+  },
+  {
+    id: 'gemma3:1b',
+    name: 'Gemma 3 1B',
+    tier: 'fastest',
+    sizeGB: 0.8,
+    multimodal: false,
+    blurb: '极速：不到 1GB，老旧机器也能跑，回答较简单。',
   },
 ];
 

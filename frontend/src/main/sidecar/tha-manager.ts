@@ -18,6 +18,8 @@ import net from 'net';
 import path from 'path';
 import { spawn, spawnSync, ChildProcess } from 'child_process';
 import { app } from 'electron';
+import { largeDataDir, cleanupLegacy } from '../core/data-dir';
+import { installedHqTiers } from './tha-model-installer';
 
 const HOST = '127.0.0.1';
 
@@ -50,12 +52,17 @@ export class ThaManager {
 
   // 实际运行目录（需可写：首启要在此 pip 装依赖）。
   //   - 开发态：直接用仓库根 tha-runtime（可写，且含开发 .venv）。
-  //   - 打包态：resources 通常只读，复制到 userData/tha-runtime 再运行。
+  //   - 打包态：resources 通常只读，复制到可写目录再运行：用户在启动页选了安装位置则为
+  //     <安装位置>/tha-runtime，否则 userData/tha-runtime（见 core/data-dir，含旧位置迁移）。
+  //     高画质模型（约 1.5GB）下载到其 data/models，随之落到同一位置。
   private thaDir(): string {
     const override = process.env.ANYLOVER_THA_DIR;
     if (override && override.trim()) return override.trim();
     if (app.isPackaged) {
-      return path.join(app.getPath('userData'), 'tha-runtime');
+      // 跨盘时若旧副本里已下载了高画质模型（约 1.5GB），继续用旧位置，不在启动时同步拷贝
+      return largeDataDir('tha-runtime', this.log, {
+        keepOldIf: (old) => Object.values(installedHqTiers(path.join(old, 'data', 'models'))).some(Boolean),
+      });
     }
     return this.resourceRoot();
   }
@@ -83,6 +90,7 @@ export class ThaManager {
     if (!fs.existsSync(res)) return;
     this.log(`[tha] 准备可写运行目录：${dst}`);
     this.copyIfMissing(res, dst);
+    cleanupLegacy('tha-runtime', this.log); // 跨盘换位置后删除旧副本（若有）
   }
 
   // THA 服务用的 python：优先随包嵌入式 python，其次开发用 venv，最后回退系统 python。
