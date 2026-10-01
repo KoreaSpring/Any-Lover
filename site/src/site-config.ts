@@ -2,7 +2,9 @@
  * 站点级链接与素材配置。
  * 待发布时把占位符替换为真实地址即可，无需改动各组件。
  */
-export const WINDOWS_DOWNLOAD_URL = '#download';
+// 下载按钮：点击时由 split-download.ts 在浏览器里下载分片并组装（onClick 拦截默认跳转）；
+// 脚本不可用时 href 兜底跳到 GitHub Releases 的完整安装包。
+export const WINDOWS_DOWNLOAD_URL = 'https://github.com/KoreaSpring/Any-Lover/releases/latest';
 export const GITHUB_URL = 'https://github.com/';
 export const UPSTREAM_URL = 'https://github.com/Open-LLM-VTuber/Open-LLM-VTuber';
 

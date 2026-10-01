@@ -1,4 +1,5 @@
 import { GITHUB_URL, IMG, WINDOWS_DOWNLOAD_URL } from '../site-config';
+import { startSplitDownload } from '../split-download';
 
 /** Hero 右下角对话卡里的声波动画条高度与节奏 */
 const WAVE = [9, 13, 10, 16, 11, 17, 10, 14, 9, 13, 10, 12];
@@ -49,6 +50,7 @@ export default function Hero() {
           <div className="mt-8 flex flex-wrap items-center gap-3">
             <a
               href={WINDOWS_DOWNLOAD_URL}
+              onClick={(e) => void startSplitDownload(e.nativeEvent)}
               className="group relative inline-flex items-center gap-2 h-12 px-6 rounded-full bg-primary-500 hover:bg-primary-600 text-background-50 font-medium transition cursor-pointer whitespace-nowrap"
             >
               <span

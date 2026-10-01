@@ -1,4 +1,5 @@
 import { GITHUB_URL, IMG, WINDOWS_DOWNLOAD_URL } from '../site-config';
+import { startSplitDownload } from '../split-download';
 
 export default function FinalCta() {
   return (
@@ -31,6 +32,7 @@ export default function FinalCta() {
             <div className="mt-10 flex flex-wrap justify-center gap-3">
               <a
                 href={WINDOWS_DOWNLOAD_URL}
+                onClick={(e) => void startSplitDownload(e.nativeEvent)}
                 className="group relative inline-flex items-center gap-2 h-12 md:h-14 px-7 rounded-full bg-primary-500 hover:bg-primary-600 text-background-50 font-medium transition cursor-pointer whitespace-nowrap"
               >
                 <span

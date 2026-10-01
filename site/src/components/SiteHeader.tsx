@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { GITHUB_URL, LOGO_URL, WINDOWS_DOWNLOAD_URL } from '../site-config';
+import { startSplitDownload } from '../split-download';
 import ThemeToggle from './ThemeToggle';
 
 const NAV = [
@@ -66,6 +67,7 @@ export default function SiteHeader() {
           </a>
           <a
             href={WINDOWS_DOWNLOAD_URL}
+            onClick={(e) => void startSplitDownload(e.nativeEvent)}
             className="group relative hidden sm:inline-flex items-center gap-2 h-10 px-5 rounded-full bg-primary-500 hover:bg-primary-600 text-background-50 text-sm font-medium transition cursor-pointer whitespace-nowrap"
           >
             <span
@@ -101,7 +103,10 @@ export default function SiteHeader() {
           ))}
           <a
             href={WINDOWS_DOWNLOAD_URL}
-            onClick={() => setMenuOpen(false)}
+            onClick={(e) => {
+              setMenuOpen(false);
+              void startSplitDownload(e.nativeEvent);
+            }}
             className="mt-4 inline-flex items-center gap-2 h-11 px-5 rounded-full bg-primary-500 hover:bg-primary-600 text-background-50 text-sm font-medium"
           >
             <i className="ri-windows-fill" />
