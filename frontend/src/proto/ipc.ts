@@ -114,6 +114,7 @@ export const IPC = {
     llmChat: 'agent:llm:chat',
     dialogue: 'agent:dialogue',
     dialogueInterrupt: 'agent:dialogue-interrupt',
+    dialogueReset: 'agent:dialogue-reset', // 清中枢会话历史（切角色/新会话；避免跨角色串味）
     // main → renderer（中枢广播）
     proactiveSay: 'agent:proactive-say',
     dialogueStart: 'agent:dialogue-start',
