@@ -12,25 +12,32 @@ import { resolveChosenRoot, sameVolume, largeDataDir, cleanupLegacy } from './da
 const yes = (): boolean => true;
 const no = (): boolean => false;
 
+// 路径用当前平台的原生格式拼（CI 跑在 Linux，Windows 盘符路径在那里是相对路径）
+const isWin = process.platform === 'win32';
+
 describe('resolveChosenRoot', () => {
-  const UD = 'C:\\Users\\u\\AppData\\Roaming\\Any-Lover';
+  const UD = path.join(os.tmpdir(), 'Any-Lover');
   it('未选择时返回 null（使用 userData）', () => {
     expect(resolveChosenRoot('', UD, yes)).toBeNull();
     expect(resolveChosenRoot(undefined, UD, yes)).toBeNull();
   });
   it('选的是默认的 userData/ollama 视为未选择（老用户位置不变）', () => {
-    expect(resolveChosenRoot(`${UD}\\ollama`, UD, yes)).toBeNull();
-    expect(resolveChosenRoot(`${UD.toLowerCase()}\\OLLAMA\\`, UD, yes)).toBeNull();
+    expect(resolveChosenRoot(path.join(UD, 'ollama'), UD, yes)).toBeNull();
+    expect(resolveChosenRoot(path.join(UD, 'ollama') + path.sep, UD, yes)).toBeNull();
+  });
+  it.runIf(isWin)('Windows 下比较路径忽略大小写', () => {
+    expect(resolveChosenRoot(path.join(UD.toLowerCase(), 'OLLAMA'), UD, yes)).toBeNull();
   });
   it('选了可写的自定义目录 → 使用该目录', () => {
-    expect(resolveChosenRoot('D:\\any-lover1', UD, yes)).toBe('D:\\any-lover1');
+    const chosen = path.join(os.tmpdir(), 'any-lover1');
+    expect(resolveChosenRoot(chosen, UD, yes)).toBe(path.resolve(chosen));
   });
   it('选的目录不可写（如 Program Files）→ 回退 userData', () => {
-    expect(resolveChosenRoot('C:\\Program Files\\Any-Lover', UD, no)).toBeNull();
+    expect(resolveChosenRoot(path.join(os.tmpdir(), 'Program Files', 'Any-Lover'), UD, no)).toBeNull();
   });
 });
 
-describe('sameVolume', () => {
+describe.runIf(isWin)('sameVolume（Windows 盘符）', () => {
   it('按盘符判断，忽略大小写', () => {
     expect(sameVolume('C:\\a\\b', 'c:\\x')).toBe(true);
     expect(sameVolume('C:\\a', 'D:\\a')).toBe(false);
