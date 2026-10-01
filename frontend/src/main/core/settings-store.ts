@@ -24,6 +24,15 @@ export interface AppSettings {
   ollamaMirror: string; // 下载镜像键（official/ghproxy），空=official
   ollamaReady: boolean; // 模型已实际下载完成（用于角落进度/状态展示）
   onboarded: boolean; // 用户已在首启「模型推荐」界面确认过（决定是否再拦截首启，可先于模型下完置 true）
+  ttsSid: number; // 离线 Kokoro TTS 音色 ID（0-102；3-57 中文女声，58-102 中文男声）
+}
+
+/** Kokoro multi-lang v1.1 音色 ID 合法范围 */
+export const TTS_SID_MAX = 102;
+export function clampTtsSid(v: unknown): number {
+  const n = Math.round(Number(v));
+  if (!Number.isFinite(n)) return DEFAULT_SETTINGS.ttsSid;
+  return Math.min(TTS_SID_MAX, Math.max(0, n));
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -41,6 +50,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   ollamaMirror: 'official',
   ollamaReady: false,
   onboarded: false,
+  ttsSid: 3, // zf_001 中文女声
 };
 
 function configDir(): string {

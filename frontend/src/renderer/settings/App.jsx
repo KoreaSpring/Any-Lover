@@ -7,6 +7,19 @@ const clampTemp = (v) => {
   return Math.min(2, Math.max(0, n));
 };
 
+// Kokoro multi-lang v1.1 常用音色（sid 对照 sherpa-onnx 文档：3-57 中文女声 zf_*，58-102 中文男声 zm_*）
+const TTS_VOICES = [
+  { sid: 3, label: '中文女声 1（zf_001，默认）' },
+  { sid: 4, label: '中文女声 2（zf_002）' },
+  { sid: 9, label: '中文女声 3（zf_007）' },
+  { sid: 30, label: '中文女声 4（zf_047）' },
+  { sid: 47, label: '中文女声 5（zf_083）' },
+  { sid: 58, label: '中文男声 1（zm_009）' },
+  { sid: 64, label: '中文男声 2（zm_015）' },
+  { sid: 80, label: '中文男声 3（zm_054）' },
+  { sid: 0, label: '英文女声（af_maple）' },
+];
+
 export default function App() {
   const [useOllama, setUseOllama] = useState(false);
   const [baseUrl, setBaseUrl] = useState('');
@@ -19,6 +32,7 @@ export default function App() {
   const [ollamaModels, setOllamaModels] = useState([]);
   const [temperature, setTemperature] = useState(1.0);
   const [clickThrough, setClickThrough] = useState(true);
+  const [ttsSid, setTtsSid] = useState(3);
   const [status, setStatus] = useState({ msg: '', kind: '' });
   const [busy, setBusy] = useState(false);
 
@@ -46,6 +60,7 @@ export default function App() {
       if (s.ollamaModel) setOllamaModels([s.ollamaModel]);
       setTemperature(Number.isFinite(s.temperature) ? s.temperature : 1.0);
       setClickThrough(s.clickThrough !== false);
+      if (Number.isFinite(s.ttsSid)) setTtsSid(s.ttsSid);
       if (s.hasApiKey) setApiKeyPlaceholder('已保存（留空则不修改）');
 
       // 加载 Ollama 下载状态
@@ -133,9 +148,10 @@ export default function App() {
       ollamaHost: ollamaHost.trim(),
       ollamaModel,
       temperature: clampTemp(temperature),
-      clickThrough
+      clickThrough,
+      ttsSid
     }),
-    [useOllama, baseUrl, model, apiKey, ollamaPath, ollamaHost, ollamaModel, temperature, clickThrough]
+    [useOllama, baseUrl, model, apiKey, ollamaPath, ollamaHost, ollamaModel, temperature, clickThrough, ttsSid]
   );
 
   const persist = useCallback(async () => {
@@ -338,6 +354,16 @@ export default function App() {
         <div className="field">
           <label className="label">温度 (0-2，可选)</label>
           <input className="input" type="number" min="0" max="2" step="0.1" value={temperature} onChange={(e) => setTemperature(e.target.value)} />
+        </div>
+
+        <div className="field">
+          <label className="label" htmlFor="tts-sid">语音音色（离线 Kokoro）</label>
+          <select id="tts-sid" className="input" value={ttsSid} onChange={(e) => setTtsSid(Number(e.target.value))}>
+            {TTS_VOICES.map((v) => (
+              <option key={v.sid} value={v.sid}>{v.label}</option>
+            ))}
+          </select>
+          <div className="hint">保存后重启桌宠生效。共 103 个音色，这里列出常用几个。</div>
         </div>
 
         <label className="row field" style={{ cursor: 'pointer' }}>

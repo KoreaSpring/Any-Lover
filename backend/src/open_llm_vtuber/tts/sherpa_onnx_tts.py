@@ -13,7 +13,7 @@ sys.path.append(current_dir)
 class TTSEngine(TTSInterface):
     def __init__(
         self,
-        vits_model,
+        vits_model=None,
         vits_lexicon="",
         vits_tokens="",
         vits_data_dir="",
@@ -25,7 +25,20 @@ class TTSEngine(TTSInterface):
         num_threads=1,
         speed=1.0,
         debug=False,
+        # [any-lover] Kokoro 支持（sherpa-onnx 1.13+）。model_type='kokoro' 时使用以下字段。
+        model_type="vits",
+        kokoro_model=None,
+        kokoro_voices=None,
+        kokoro_tokens=None,
+        kokoro_data_dir=None,
+        kokoro_lexicon=None,
     ):
+        self.model_type = model_type or "vits"
+        self.kokoro_model = kokoro_model or ""
+        self.kokoro_voices = kokoro_voices or ""
+        self.kokoro_tokens = kokoro_tokens or ""
+        self.kokoro_data_dir = kokoro_data_dir or ""
+        self.kokoro_lexicon = kokoro_lexicon or ""
         # [any-lover] 配置里的可选路径未填时为 None，而 sherpa-onnx 的 pybind 构造函数
         # 只接受 str，传 None 会报 "incompatible constructor arguments"，统一转成 ""。
         self.vits_model = vits_model
@@ -53,16 +66,32 @@ class TTSEngine(TTSInterface):
         """
         Initialize the sherpa-onnx TTS engine.
         """
-        # Construct the configuration for the TTS engine
-        tts_config = sherpa_onnx.OfflineTtsConfig(
-            model=sherpa_onnx.OfflineTtsModelConfig(
-                vits=sherpa_onnx.OfflineTtsVitsModelConfig(
-                    model=self.vits_model,
+        # [any-lover] 按 model_type 构造 vits 或 kokoro 子配置
+        if self.model_type == "kokoro":
+            model_part = {
+                "kokoro": sherpa_onnx.OfflineTtsKokoroModelConfig(
+                    model=self.kokoro_model,
+                    voices=self.kokoro_voices,
+                    tokens=self.kokoro_tokens,
+                    data_dir=self.kokoro_data_dir,
+                    lexicon=self.kokoro_lexicon,
+                )
+            }
+        else:
+            model_part = {
+                "vits": sherpa_onnx.OfflineTtsVitsModelConfig(
+                    model=self.vits_model or "",
                     lexicon=self.vits_lexicon,
                     data_dir=self.vits_data_dir,
                     dict_dir=self.vits_dict_dir,
                     tokens=self.vits_tokens,
-                ),
+                )
+            }
+
+        # Construct the configuration for the TTS engine
+        tts_config = sherpa_onnx.OfflineTtsConfig(
+            model=sherpa_onnx.OfflineTtsModelConfig(
+                **model_part,
                 provider=self.provider,
                 debug=self.debug,
                 num_threads=self.num_threads,

@@ -43,17 +43,28 @@
   - 去掉 anthropic / jinja2 / letta-client；启动链路 `sys.modules` 无泄漏，冻结 exe 启动到 `Uvicorn running`
   - 体积 302.5MB → 301.1MB（纯 Python 包压缩进 PYZ，省得不多）；主要收益是少了 3 个「缺包即崩」的启动风险
 
-## P3 TEN-VAD 🔍
-- [ ] 3.1 调研：当前 VAD 在哪做（后端 `vad_model: null`，前端是否用 vad-web/Silero），打断与断句链路
+## P3 TEN-VAD 🔍 ⏸️ 挂起（许可证待用户决定）
+> **挂起原因**：TEN-VAD 许可证 = Apache-2.0 **+ Agora 附加条款**：不得以与 Agora 产品竞争的方式部署，
+> 衍生作品继续受该条款约束。Agora 本身提供对话式语音 AI 服务，Any-Lover（MIT 开源的语音 AI 伙伴）
+> 存在落入「竞争」解释的风险。sherpa-onnx 集成的 TEN-VAD 模型同样受此约束。需用户（或法务）确认后再做。
+> 不接受该条款时的替代：保持 vad-web Silero v5（MIT），或调参 / 换 sherpa-onnx 内置 Silero VAD。
+- [x] 3.1 调研：当前 VAD 在哪做（后端 `vad_model: null`，前端是否用 vad-web/Silero），打断与断句链路
+  - 前端 `renderer/src/context/vad-context.tsx` 用 `@ricky0123/vad-web@^0.0.24` `MicVAD`（Silero v5），
+    资源在 `./libs/`；阈值 50/35、redemptionFrames 35，设置页 `sidebar/setting/asr.tsx` 可调。后端 VAD 关闭。
+  - 若接入：需在前端用 TEN-VAD WASM（lib/Web）自实现 MicVAD 等价状态机（onSpeechStart/RealStart/End/Misfire、preSpeechPad）。
 - [ ] 3.2 按 3.1 结论选接入点（后端 sherpa-onnx VAD 或前端 WASM），出最小方案
 - [ ] 3.3 实现 + 对比测试（误触发、断句、打断延迟）
 
 ## P4 Kokoro 替代 MeloTTS
-- [ ] 4.1 选定模型（kokoro-multi-lang v1.0/v1.1，fp32 vs int8 体积），确认中文音色列表
-- [ ] 4.2 `sherpa_onnx_tts.py` 增加 kokoro 模型类型（上游只支持 VITS），配置模型同步加字段
-- [ ] 4.3 `prepare-runtime.js` 下载 Kokoro、`conf.pet.yaml` 切换默认，移除 melo
-- [ ] 4.4 设置界面可选音色（sid）
-- [ ] 4.5 回归：合成速度、首句延迟、安装包体积
+- [x] 4.1 选定模型（kokoro-multi-lang v1.0/v1.1，fp32 vs int8 体积），确认中文音色列表
+  - 选 **v1.1 fp32**（103 音色：0-1 美式女、2 英式女、3-57 中文女、58-102 中文男，24kHz）。
+  - 实测 i5-12400F、4 线程、短句：fp32 RTF≈0.45（1.1s 合成 2.4s 音频），**int8 RTF≈1.5（慢于实时）**，故不用 int8。
+  - 体积：Kokoro 打包约 406MB（去 dict、gb 词典） vs Melo 约 190MB，净增约 216MB（仍远小于已删的 fp32 ASR 894MB）。
+- [x] 4.2 `sherpa_onnx_tts.py` 增加 kokoro 模型类型（上游只支持 VITS），配置模型同步加字段（ANYLOVER_EXTENSIONS 6d）
+- [x] 4.3 `prepare-runtime.js` 下载 Kokoro、`conf.pet.yaml` 切换默认，移除 melo
+  - 顺带修复：本机 Windows bsdtar 缺 bzip2，解压回退到 Python tarfile；`pruneUnused` 支持目录
+- [x] 4.4 设置界面可选音色（sid）：settings-store `ttsSid`（默认 3）→ IPC → `__OLVT_TTS_SID__`；设置窗口下拉 9 个常用音色
+- [x] 4.5 回归：配置 → TTSConfig 校验 → TTSEngine 合成中英数字混读正常；初始化约 2s；typecheck:node + vitest 81 项通过
 
 ## P5 流式 ASR 🔍
 - [ ] 5.1 调研：当前「VAD 分段 → 整段识别」协议，流式需要改哪些消息（前端/后端/中枢）

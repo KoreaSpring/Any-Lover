@@ -76,7 +76,13 @@ git diff f5bf9f6 HEAD -- backend/src/open_llm_vtuber/<file>
 ### 6b. `tts/sherpa_onnx_tts.py` —— 离线 TTS 可选路径 None 兜底（+3 行）
 `vits_lexicon/vits_tokens/vits_data_dir/vits_dict_dir/tts_rule_fsts` 为 `None` 时转为 `""`。
 配置模型里这些字段默认 `None`，而 sherpa-onnx pybind 构造函数只收 `str`，否则报
-"incompatible constructor arguments"。桌宠默认 TTS 已改为 `sherpa_onnx_tts`（MeloTTS 离线）。
+"incompatible constructor arguments"。
+
+### 6d. `tts/sherpa_onnx_tts.py` + `config_manager/tts.py` —— Kokoro 模型类型
+- `SherpaOnnxTTSConfig` 新增 `model_type: vits|kokoro`（默认 vits，保持上游行为）与 `kokoro_model/voices/tokens/data_dir/lexicon`；
+  `vits_model/vits_tokens` 改为可选。
+- `TTSEngine.initialize_tts` 按 `model_type` 构造 `OfflineTtsVitsModelConfig` 或 `OfflineTtsKokoroModelConfig`。
+- 桌宠默认 TTS：`sherpa_onnx_tts` + Kokoro multi-lang v1.1（fp32），`sid` 由设置注入 `__OLVT_TTS_SID__`。
 
 ### 6c. 可选 LLM / Agent 懒加载（瘦身打包）
 - `agent/stateless_llm_factory.py`：`stateless_llm_with_template`（jinja2）与 `claude_llm`（anthropic）

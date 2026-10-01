@@ -7,7 +7,7 @@ import path from 'path';
 import http from 'http';
 import { spawn, spawnSync, ChildProcess } from 'child_process';
 import { app } from 'electron';
-import { readSettings, loadApiKey } from '../core/settings-store';
+import { readSettings, loadApiKey, clampTtsSid } from '../core/settings-store';
 
 const HOST = '127.0.0.1';
 const PORT = 12393;
@@ -187,7 +187,8 @@ export class BackendManager {
     text = text
       .replace(/__OLVT_BASE_URL__/g, llm.baseUrl)
       .replace(/__OLVT_MODEL__/g, llm.model)
-      .replace(/__OLVT_TEMPERATURE__/g, String(llm.temperature));
+      .replace(/__OLVT_TEMPERATURE__/g, String(llm.temperature))
+      .replace(/__OLVT_TTS_SID__/g, String(clampTtsSid(readSettings().ttsSid)));
     fs.writeFileSync(path.join(root, 'conf.yaml'), text, 'utf-8');
   }
 

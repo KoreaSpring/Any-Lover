@@ -362,9 +362,17 @@ class CoquiTTSConfig(I18nMixin):
 class SherpaOnnxTTSConfig(I18nMixin):
     """Configuration for Sherpa Onnx TTS."""
 
-    vits_model: str = Field(..., alias="vits_model")
+    # [any-lover] 新增 kokoro 模型类型（sherpa-onnx 1.13 原生支持），默认 vits 保持上游行为。
+    # model_type='kokoro' 时使用 kokoro_* 字段，vits_* 可不填。
+    model_type: Literal["vits", "kokoro"] = Field("vits", alias="model_type")
+    kokoro_model: Optional[str] = Field(None, alias="kokoro_model")
+    kokoro_voices: Optional[str] = Field(None, alias="kokoro_voices")
+    kokoro_tokens: Optional[str] = Field(None, alias="kokoro_tokens")
+    kokoro_data_dir: Optional[str] = Field(None, alias="kokoro_data_dir")
+    kokoro_lexicon: Optional[str] = Field(None, alias="kokoro_lexicon")
+    vits_model: Optional[str] = Field(None, alias="vits_model")
     vits_lexicon: Optional[str] = Field(None, alias="vits_lexicon")
-    vits_tokens: str = Field(..., alias="vits_tokens")
+    vits_tokens: Optional[str] = Field(None, alias="vits_tokens")
     vits_data_dir: Optional[str] = Field(None, alias="vits_data_dir")
     vits_dict_dir: Optional[str] = Field(None, alias="vits_dict_dir")
     tts_rule_fsts: Optional[str] = Field(None, alias="tts_rule_fsts")
@@ -376,6 +384,18 @@ class SherpaOnnxTTSConfig(I18nMixin):
     debug: bool = Field(False, alias="debug")
 
     DESCRIPTIONS: ClassVar[Dict[str, Description]] = {
+        "model_type": Description(
+            en="Model type: vits or kokoro", zh="模型类型：vits 或 kokoro"
+        ),
+        "kokoro_model": Description(en="Path to Kokoro model file", zh="Kokoro 模型文件路径"),
+        "kokoro_voices": Description(en="Path to Kokoro voices.bin", zh="Kokoro 音色文件 voices.bin 路径"),
+        "kokoro_tokens": Description(en="Path to Kokoro tokens.txt", zh="Kokoro tokens.txt 路径"),
+        "kokoro_data_dir": Description(
+            en="Path to Kokoro espeak-ng-data directory", zh="Kokoro espeak-ng-data 目录路径"
+        ),
+        "kokoro_lexicon": Description(
+            en="Comma-separated Kokoro lexicon files", zh="Kokoro 词典文件（逗号分隔）"
+        ),
         "vits_model": Description(en="Path to VITS model file", zh="VITS 模型文件路径"),
         "vits_lexicon": Description(
             en="Path to lexicon file (optional)", zh="词典文件路径（可选）"

@@ -34,15 +34,18 @@ const SENSE_VOICE = {
   unused: ['model.onnx']
 };
 
-// 离线中英文 TTS（sherpa-onnx VITS / MeloTTS，单说话人）。
-const MELO_TTS = {
-  dirName: 'vits-melo-tts-zh_en',
+// 离线中英文 TTS：Kokoro multi-lang v1.1（sherpa-onnx，103 个音色，24kHz）。
+// 选 fp32 而非 int8：实测 i5-12400F 4 线程，fp32 RTF≈0.45，int8 RTF≈1.5（慢于实时，会卡顿）。
+const KOKORO_TTS = {
+  dirName: 'kokoro-multi-lang-v1_1',
   url:
-    'https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-melo-tts-zh_en.tar.bz2',
+    'https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/kokoro-multi-lang-v1_1.tar.bz2',
   modelFile: 'model.onnx',
-  // 归档/仓库里的 model.int8.onnx 可能只是占位文件，运行时不用，不分发。
-  unused: ['model.int8.onnx']
+  // sherpa-onnx 1.12.15+ 中文不再需要 jieba dict；只用美式英文词典。
+  unused: ['dict', 'lexicon-gb-en.txt']
 };
+// 旧版默认离线 TTS，已被 Kokoro 取代；dist-runtime 里残留的目录在组装时删除，避免被打包。
+const LEGACY_TTS_DIRS = ['vits-melo-tts-zh_en'];
 
 const GLOBAL_EXCLUDE = ['.git', '.gitignore', '.gitattributes', '__pycache__', '.DS_Store'];
 
@@ -121,8 +124,8 @@ function assembleSource() {
 function writePetConfigTemplate() {
   log('写入桌宠配置模板 config_templates/conf.pet.yaml ...');
   const modelDir = `./models/${SENSE_VOICE.dirName}`;
-  const ttsDir = `./models/${MELO_TTS.dirName}`;
-  const ttsFsts = ['number.fst', 'phone.fst', 'date.fst', 'new_heteronym.fst']
+  const ttsDir = `./models/${KOKORO_TTS.dirName}`;
+  const ttsFsts = ['phone-zh.fst', 'date-zh.fst', 'number-zh.fst']
     .map((f) => `${ttsDir}/${f}`)
     .join(',');
   const yaml = `# 桌宠专用配置（由 Any-Lover 生成）。占位符会在启动时由 Electron 主进程替换。
@@ -171,19 +174,21 @@ character_config:
       provider: 'cpu'
 
   tts_config:
-    # 离线 TTS：sherpa-onnx VITS（MeloTTS 中英文），不依赖网络与 ffmpeg 转码（直接输出 wav）。
+    # 离线 TTS：sherpa-onnx Kokoro（中英混读，103 音色），不依赖网络与 ffmpeg 转码（直接输出 wav）。
+    # sid 选音色（由设置里的「语音音色」替换，默认 3 = zf_001 中文女声；3-57 女声、58-102 男声）。
     tts_model: 'sherpa_onnx_tts'
     sherpa_onnx_tts:
-      vits_model: '${ttsDir}/${MELO_TTS.modelFile}'
-      vits_lexicon: '${ttsDir}/lexicon.txt'
-      vits_tokens: '${ttsDir}/tokens.txt'
-      vits_data_dir: ''
-      vits_dict_dir: '${ttsDir}/dict'
+      model_type: 'kokoro'
+      kokoro_model: '${ttsDir}/${KOKORO_TTS.modelFile}'
+      kokoro_voices: '${ttsDir}/voices.bin'
+      kokoro_tokens: '${ttsDir}/tokens.txt'
+      kokoro_data_dir: '${ttsDir}/espeak-ng-data'
+      kokoro_lexicon: '${ttsDir}/lexicon-us-en.txt,${ttsDir}/lexicon-zh.txt'
       tts_rule_fsts: '${ttsFsts}'
-      max_num_sentences: 2
-      sid: 0
+      max_num_sentences: 1
+      sid: __OLVT_TTS_SID__
       provider: 'cpu'
-      num_threads: 2
+      num_threads: 4
       speed: 1.0
     # 在线备选（需联网，mp3 经 ffmpeg 转 wav）：把 tts_model 改回 'edge_tts' 即可。
     edge_tts:
@@ -231,7 +236,14 @@ function download(url, dest, redirectsLeft = 5) {
 
 function extractTarBz2(archive, outDir) {
   const res = spawnSync('tar', ['xf', archive, '-C', outDir], { stdio: 'inherit' });
-  if (res.status !== 0) throw new Error('解压失败：请确认系统 tar 可用（Windows 10+ 自带）');
+  if (res.status === 0) return;
+  // 部分 Windows 自带 bsdtar 缺 bzip2 过滤器（报 "unable to run program bzip2 -d"），
+  // 回退到 Python 标准库 tarfile（构建环境本就需要 Python，见 AIBOT_PYTHON）。
+  log('  系统 tar 无法解压 bz2，改用 Python tarfile ...');
+  const py = process.env.AIBOT_PYTHON && fs.existsSync(process.env.AIBOT_PYTHON) ? process.env.AIBOT_PYTHON : 'python';
+  const code = 'import sys,tarfile; tarfile.open(sys.argv[1], "r:bz2").extractall(sys.argv[2], filter="data")';
+  const res2 = spawnSync(py, ['-c', code, archive, outDir], { stdio: 'inherit' });
+  if (res2.status !== 0) throw new Error('解压失败：系统 tar 与 Python tarfile 均不可用');
 }
 
 /** 删除模型目录中运行时不用的文件（如 fp32 冗余权重），避免被打进安装包。 */
@@ -240,7 +252,8 @@ function pruneUnused(dir, unused) {
     const p = path.join(dir, name);
     if (fs.existsSync(p)) {
       const mb = (fs.statSync(p).size / 1048576).toFixed(1);
-      fs.rmSync(p, { force: true });
+      // unused 里也可能是目录（如 Kokoro 的 dict），需 recursive
+      fs.rmSync(p, { recursive: true, force: true });
       log(`  [prune] ${path.basename(dir)}/${name}（${mb} MB）`);
     }
   }
@@ -250,6 +263,17 @@ function pruneUnused(dir, unused) {
  * 备齐一个 sherpa-onnx 模型目录：dist-runtime 已有 → 源项目 backend/models 复制 → 官方归档下载。
  * 复制时跳过 unused 文件；无论哪条路径，最后都清理 unused。
  */
+/** 删除已弃用的旧模型目录（如被 Kokoro 取代的 MeloTTS），避免被打进安装包。 */
+function removeLegacyModels() {
+  for (const name of LEGACY_TTS_DIRS) {
+    const p = path.join(RUNTIME, 'models', name);
+    if (fs.existsSync(p)) {
+      fs.rmSync(p, { recursive: true, force: true });
+      log(`  [prune] 旧模型目录 models/${name}`);
+    }
+  }
+}
+
 async function ensureModel(label, spec, requiredFile) {
   const modelsDir = path.join(RUNTIME, 'models');
   ensureDir(modelsDir);
@@ -284,7 +308,8 @@ async function main() {
   assembleSource();
   writePetConfigTemplate();
   await ensureModel('SenseVoice ASR', SENSE_VOICE, 'model.int8.onnx');
-  await ensureModel('MeloTTS 离线语音', MELO_TTS, MELO_TTS.modelFile);
+  await ensureModel('Kokoro 离线语音', KOKORO_TTS, KOKORO_TTS.modelFile);
+  removeLegacyModels();
   log('\ndist-runtime/ 组装完成。');
 }
 

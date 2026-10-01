@@ -5,7 +5,7 @@ import path from 'path';
 import http from 'http';
 import https from 'https';
 import { ipcMain, dialog, BrowserWindow, app } from 'electron';
-import { readSettings, writeSettings, saveApiKey, loadApiKey, hasApiKey } from '../core/settings-store';
+import { readSettings, writeSettings, saveApiKey, loadApiKey, hasApiKey, clampTtsSid } from '../core/settings-store';
 import { OllamaManager, resolveAnyOllama } from '../sidecar/ollama-manager';
 import { BackendManager } from '../sidecar/backend-manager';
 import {
@@ -82,6 +82,7 @@ export function registerAibotIpc(deps: Deps): void {
       ollamaHost: s.ollamaHost || '',
       ollamaModel: s.ollamaModel || '',
       clickThrough: s.clickThrough !== false,
+      ttsSid: clampTtsSid(s.ttsSid),
       hasApiKey: hasApiKey(),
       configured: s.configured,
     };
@@ -100,6 +101,8 @@ export function registerAibotIpc(deps: Deps): void {
       ollamaPath: String(payload.ollamaPath || '').trim(),
       ollamaHost: String(payload.ollamaHost || '').trim(),
       ollamaModel: String(payload.ollamaModel || '').trim(),
+      // 旧版设置窗口不传 ttsSid 时保留原值
+      ...(payload.ttsSid !== undefined ? { ttsSid: clampTtsSid(payload.ttsSid) } : {}),
       configured: true,
       // 用户在设置里手动保存（含选云端 API）也视为已完成引导，避免下次启动再拦。
       onboarded: true,

@@ -12,6 +12,7 @@ const mock = {
       ollamaHost: '',
       ollamaModel: '',
       clickThrough: true,
+      ttsSid: 3,
       hasApiKey: false,
       configured: false
     };
