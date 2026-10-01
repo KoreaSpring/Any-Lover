@@ -37,6 +37,12 @@ jobs:
         working-directory: frontend
         run: npm ci
 
+      # 主进程 / preload / 协议层类型检查。渲染层暂不纳入：第三方 WebSDK 有约 580 个历史报错，
+      # 计划在 P4 把它移到 third_party 并单独配置（见 .kiro/specs/repo-restructure/tasks.md）。
+      - name: Typecheck (main / preload / proto)
+        working-directory: frontend
+        run: npm run typecheck:node
+
       # 单元测试（主进程纯逻辑：感知管道/门控/协议解析/IPC 常量契约）
       - name: Unit tests
         working-directory: frontend
