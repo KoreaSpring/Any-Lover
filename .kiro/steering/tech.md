@@ -7,7 +7,7 @@
 | 桌面外壳 | Electron 31 + electron-vite + electron-builder（`frontend/`） |
 | 前端渲染 | React 18 + Chakra UI + Redux Toolkit + zustand + Live2D Cubism WebSDK + Pixi |
 | 设置窗口 | 前端的第二个 renderer 入口（`frontend/src/renderer/settings/`，React jsx） |
-| 官网 | Vue 3 + Vite（`site/`，独立部署） |
+| 官网 | React 18 + Vite + Tailwind（`site/`，独立部署） |
 | 后端 | Python 3.10–3.12（**3.13/3.14 不支持**）· FastAPI · WebSocket |
 | ASR / TTS | Sherpa-ONNX SenseVoice（本地）· edge-tts（输出 mp3，经 pydub+ffmpeg 转 wav） |
 | LLM | OpenAI 兼容 API 或本地 Ollama；默认整合 `minicpm-v:8b`（多模态） |
@@ -46,7 +46,7 @@ dist-runtime/python/aibot-backend.exe (自包含后端，无需装 Python)
    │  pack.js：electron-builder 打包，extraResources 映射：
    │    dist-runtime → resources/runtime
    │    vendor/ffmpeg → resources/ffmpeg
-   │    vendor/ollama → resources/ollama（仅整合版 --with-ollama）
+   │    vendor/ollama → resources/ollama（仅整合版 --with-model）
    ▼
 release/dist/ (NSIS 安装包 或 win-unpacked 免安装目录)
 ```

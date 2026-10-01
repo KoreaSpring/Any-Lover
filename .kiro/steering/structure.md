@@ -6,7 +6,7 @@
 pet-bot/
 ├─ frontend/            前端（Electron App）：主进程 + Live2D 主窗口渲染 + 设置窗口渲染
 ├─ backend/             后端（上游 Open-LLM-VTuber，Python，黑盒整体引入，勿拆）
-├─ site/               官网（Vue 3 + Vite，GitHub Pages 独立部署）
+├─ site/               官网（React + Vite + Tailwind，GitHub Pages 独立部署）
 ├─ build/scripts/       构建 / 打包编排脚本（prepare-runtime / build-backend / pack）
 ├─ vendor/              本机构建资源（不入 Git）：ollama 程序+模型、ffmpeg
 ├─ dist-runtime/        组装出的可分发后端运行时（含冻结 exe），构建产物

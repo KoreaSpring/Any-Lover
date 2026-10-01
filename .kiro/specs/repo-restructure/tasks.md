@@ -11,10 +11,10 @@
 
 ## P0 止血（分支 `refactor/p0-stabilize`）
 
-- [ ] 1. 修正打包和官网脚本
-  - [ ] 1.1 `pack:full` 改传 `--with-model`，同步修正 tech.md 和 runtime-download 文档里的 `--with-ollama`
-    - 验证：仓库里搜不到 `--with-ollama`
-  - [ ] 1.2 `site:dev` / `site:build` 去掉不存在的 `sync:live2d`，同步 README 和根 package.json 的描述（官网是 React，不是 Vue）
+- [x] 1. 修正打包和官网脚本
+  - [x] 1.1 `pack:full` 改传 `--with-model`，同步修正 tech.md 和 runtime-download 文档里的 `--with-ollama`
+    - 验证：除方案和本清单里对这个缺陷的描述外，仓库里搜不到 `--with-ollama`
+  - [x] 1.2 `site:dev` / `site:build` 去掉不存在的 `sync:live2d`，同步 README 和根 package.json 的描述（官网是 React，不是 Vue）
     - 验证：`npm run site:build` 成功
 - [ ] 2. 修主进程的小缺陷
   - [ ] 2.1 `IPC.config.getConfigFiles` 在主进程里调用 `localStorage`，一调用就会抛错。改为返回主进程缓存的配置列表

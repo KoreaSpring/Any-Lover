@@ -224,7 +224,7 @@ npm run pack -- --dir         # 轻量版免安装目录
 | `npm run build:backend` | PyInstaller 冻结后端到 `dist-runtime/python`（需 `prepare-runtime` + `AIBOT_PYTHON`） |
 | `npm run pack` / `pack:full` | 打**轻量版** / **整合版** 安装包（只封装现有后端），并自动切分片 |
 | `npm run dist` / `dist:full` / `dist:win` | 完整发布：`prepare-runtime` → `build:backend` → 打包 → 切分片 |
-| `npm run site:dev` / `site:build` | 官网本地预览 / 生产构建（自动同步 Live2D 资源） |
+| `npm run site:dev` / `site:build` | 官网本地预览 / 生产构建 |
 
 </details>
 
