@@ -90,11 +90,18 @@
   - workflow 本身未在 GitHub 上实跑（需推送标签），本地已验证其中各脚本
 
 ## P7 长期记忆（sqlite-vec + mem0 式抽取）
-- [ ] 7.1 读现有 `agent/memory/*`（memory-store、embedding-client），确定存储接口边界
-- [ ] 7.2 引入 sqlite-vec（Electron 原生模块兼容性验证：better-sqlite3 + 扩展加载）
-- [ ] 7.3 memory-store 后端切到 sqlite-vec，迁移旧数据
-- [ ] 7.4 实现抽取→合并→去重流程（参考 mem0 的 ADD/UPDATE/DELETE/NOOP 决策）
-- [ ] 7.5 测试：召回准确性、重复记忆合并
+- [x] 7.1 读现有 `agent/memory/*`，确定存储接口边界
+  - JSONL 全量加载，容量 2000，检索为 JS 线性扫描（2000×768 维约个位数 ms）；唯一写入方是 ScreenMemoryBridge（3 分钟一次），
+    去重只比「上一条且文本完全相同」；update 改 note 不清旧向量；写文件非原子
+- [ ] ~~7.2 / 7.3 引入 sqlite-vec~~ **不引入**：规模（≤2000 条、低频写）用不到 ANN；better-sqlite3 + sqlite-vec 是原生模块，
+  Electron 44 需 ABI 匹配的预编译或本机编译（本机无 VS Build Tools，builder `npmRebuild:false`），会破坏当前零原生依赖的打包。
+  条目稳定超 5 万或需要复杂 SQL 过滤时再评估（可先看 WASM 方案避开原生 rebuild）。
+- [x] 7.4 mem0 式合并：`memory-consolidator.ts`（纯逻辑，依赖注入）+ `llm-memory-judge.ts`
+  - 相似度 ≥0.92 NOOP 合并计数；0.75~0.92 交 LLM 判 ADD/UPDATE/DELETE/NOOP（只能操作给它看过的近邻 id）；其余 ADD；
+    judge 失败/超时/非法一律 ADD。ScreenMemoryBridge 保留「文本相同」快路径，其余串行走合并
+  - MemoryStore：新增 `remove/all`；改 note 自动清旧向量；原子写（tmp+rename）；容量淘汰改为保留分
+    （importance × 两周半衰新近度 × 计数加权）
+- [x] 7.5 测试：`memory-consolidator.test.ts` 10 项（NOOP/UPDATE/DELETE/ADD、防误删、judge 异常、kind 隔离、输出解析），vitest 91 项全过
 
 ## P8 中枢直连 MCP（官方 TS SDK）
 - [ ] 8.1 读 hub-tool-list / hub-tool-call 现有链路与授权门控设计

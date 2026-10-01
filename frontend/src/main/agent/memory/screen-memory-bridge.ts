@@ -10,6 +10,7 @@
 
 import { eventBus, EventBus, Unsubscribe } from '../event-bus';
 import { MemoryStore, MemoryEntry } from './memory-store';
+import { consolidate, Embedder, MemoryJudge } from './memory-consolidator';
 
 /** 合并窗口：与上一条同摘要且间隔在此以内，则合并而非新增。 */
 const MERGE_WINDOW_MS = 30 * 60 * 1000; // 30 分钟
@@ -32,10 +33,23 @@ export class ScreenMemoryBridge {
   /** 当前是否在对话中（预留分流位；P1 恒为 false，全部写记忆）。 */
   private conversing = false;
 
+  /** 语义合并依赖（可选）：未注入时退化为「文本完全相同才合并」的旧行为。 */
+  private embedder: Embedder | null = null;
+
+  private judge: MemoryJudge | null = null;
+
+  private queue: Promise<void> = Promise.resolve();
+
   constructor(store: MemoryStore, logger?: (msg: string) => void, bus: EventBus = eventBus) {
     this.store = store;
     this.log = logger || (() => {});
     this.bus = bus;
+  }
+
+  /** 启用语义合并：embedder 计算向量，judge（LLM）处理中等相似度的模糊情况。 */
+  setConsolidation(embedder: Embedder | null, judge: MemoryJudge | null): void {
+    this.embedder = embedder;
+    this.judge = judge;
   }
 
   /** 开始桥接（订阅 perception.screen 与 conversing）。幂等。 */
@@ -74,7 +88,7 @@ export class ScreenMemoryBridge {
       ts - last.ts <= MERGE_WINDOW_MS;
 
     if (mergeable && last) {
-      // 合并：连续同一活动，更新计数与最近时间，不新增条目。
+      // 快路径：连续同一活动（文本完全相同），更新计数与最近时间，不新增条目、不调 embedding。
       this.store.update(last.id, { ts, count: (last.count || 1) + 1 });
       return;
     }
@@ -89,8 +103,24 @@ export class ScreenMemoryBridge {
       importance: 0.3, // 屏幕琐事默认低权重，可过期清理
       count: 1,
     };
-    this.store.add(entry);
-    this.bus.emit({ kind: 'memory.write', ts, note, meta: { kind: 'screen', tags: entry.tags } });
-    this.log(`[screen-memory] 记忆 +1：${note}`);
+    // 串行化合并：embedding / LLM 判定是异步的，排队执行避免两条记忆同时比对彼此看不见。
+    this.queue = this.queue.then(() => this.write(entry)).catch(() => {});
+  }
+
+  /** 经语义合并（mem0 式 ADD/UPDATE/DELETE/NOOP）写入；未配置 embedder 时直接新增。 */
+  private async write(entry: MemoryEntry): Promise<void> {
+    const res = await consolidate(this.store, entry, { embedder: this.embedder, judge: this.judge });
+    const sim = res.topSimilarity !== undefined ? `（最相似 ${res.topSimilarity.toFixed(2)}）` : '';
+    if (res.op === 'NOOP') {
+      this.log(`[screen-memory] 合并到已有记忆${sim}：${res.entry.note}`);
+      return;
+    }
+    this.bus.emit({
+      kind: 'memory.write',
+      ts: entry.ts,
+      note: res.entry.note,
+      meta: { kind: 'screen', tags: entry.tags, op: res.op },
+    });
+    this.log(`[screen-memory] 记忆 ${res.op}${sim}：${res.entry.note}`);
   }
 }

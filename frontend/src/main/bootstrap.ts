@@ -31,6 +31,7 @@ import { EmotionExpressionBridge } from './agent/emotion/emotion-expression-brid
 import { RelationshipState } from './agent/memory/relationship-state';
 import { ProfileStore, ProfileExtractor } from './agent/memory/profile-store';
 import { LocalEmbeddingClient } from './agent/memory/embedding-client';
+import { LlmMemoryJudge } from './agent/memory/llm-memory-judge';
 import { DialogueEngine } from './agent/dialogue/dialogue-engine';
 import { DialogueHistoryStore } from './agent/dialogue/dialogue-history';
 import './core/gpu-fix';
@@ -142,6 +143,8 @@ proactiveEngine.setEmotionState(emotionState);
 const relationshipState = new RelationshipState(logToFile);
 const profileStore = new ProfileStore(logToFile);
 const profileExtractor = new ProfileExtractor(profileStore, memoryStore, llmProviderRegistry, logToFile);
+// 记忆写入走 mem0 式语义合并：本地 embedding 找近邻，中等相似度交 LLM 判 ADD/UPDATE/DELETE/NOOP。
+screenMemoryBridge.setConsolidation(embeddingClient, new LlmMemoryJudge(llmProviderRegistry, logToFile));
 proactiveEngine.setRelationship(relationshipState);
 proactiveEngine.setProfile(profileStore);
 // 每次写入屏幕记忆后，尝试低频提炼画像（内部有冷却与 provider 守卫）。

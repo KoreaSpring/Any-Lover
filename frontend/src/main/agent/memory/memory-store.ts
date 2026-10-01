@@ -104,32 +104,67 @@ export class MemoryStore {
           /* 跳过损坏行 */
         }
       }
-      // 保留最新 capacity 条
-      this.entries = out.slice(-this.capacity);
+      this.entries = out;
+      this.evictIfNeeded();
       this.log(`[memory] 已加载 ${this.entries.length} 条记忆（${this.fileName}）`);
     } catch {
       this.entries = [];
     }
   }
 
-  /** 追加一条记忆。返回写入的条目。 */
+  /** 追加一条记忆。返回写入的条目。超出容量时按保留分淘汰（见 evictIfNeeded）。 */
   add(entry: MemoryEntry): MemoryEntry {
     this.load();
     this.entries.push(entry);
-    if (this.entries.length > this.capacity) {
-      this.entries = this.entries.slice(-this.capacity);
-    }
+    this.evictIfNeeded();
     this.scheduleFlush();
     return entry;
   }
 
-  /** 更新已存在的条目（如合并计数/更新时间）。找不到则忽略。 */
+  /**
+   * 更新已存在的条目（如合并计数/更新时间/改写摘要）。找不到则忽略。
+   * note 变化而 patch 未带新向量时，清掉旧 embedding（旧向量已不代表新文本，留着会误检索）。
+   */
   update(id: string, patch: Partial<MemoryEntry>): void {
     this.load();
     const i = this.entries.findIndex((e) => e.id === id);
     if (i < 0) return;
-    this.entries[i] = { ...this.entries[i], ...patch };
+    const prev = this.entries[i];
+    const next = { ...prev, ...patch };
+    if (patch.note !== undefined && patch.note !== prev.note && patch.embedding === undefined) {
+      delete next.embedding;
+    }
+    this.entries[i] = next;
     this.scheduleFlush();
+  }
+
+  /** 删除一条记忆（记忆合并判定为「与新事实矛盾」时用）。返回是否删除。 */
+  remove(id: string): boolean {
+    this.load();
+    const before = this.entries.length;
+    this.entries = this.entries.filter((e) => e.id !== id);
+    if (this.entries.length === before) return false;
+    this.scheduleFlush();
+    return true;
+  }
+
+  /** 只读快照（供记忆合并做近邻检索）。 */
+  all(): readonly MemoryEntry[] {
+    this.load();
+    return this.entries;
+  }
+
+  /**
+   * 超出容量时淘汰「保留分」最低的条目，而非简单丢最旧：
+   * 保留分 = importance × 新近度（两周半衰）× 合并计数加权。重要/常见/近期的记忆更不容易被挤掉。
+   */
+  private evictIfNeeded(now = Date.now()): void {
+    const overflow = this.entries.length - this.capacity;
+    if (overflow <= 0) return;
+    const scored = this.entries.map((e, idx) => ({ idx, score: retentionScore(e, now) }));
+    scored.sort((a, b) => a.score - b.score);
+    const drop = new Set(scored.slice(0, overflow).map((s) => s.idx));
+    this.entries = this.entries.filter((_, idx) => !drop.has(idx));
   }
 
   /** 取最近一条（用于去重合并判断）。 */
@@ -239,7 +274,10 @@ export class MemoryStore {
     try {
       fs.mkdirSync(this.dir(), { recursive: true });
       const text = this.entries.map((e) => JSON.stringify(e)).join('\n') + (this.entries.length ? '\n' : '');
-      fs.writeFileSync(this.filePath(), text, 'utf-8');
+      // 原子写：先写临时文件再 rename，避免写到一半崩溃截断整份记忆。
+      const tmp = this.filePath() + '.tmp';
+      fs.writeFileSync(tmp, text, 'utf-8');
+      fs.renameSync(tmp, this.filePath());
     } catch (e) {
       this.log(`[memory] 落盘失败：${e instanceof Error ? e.message : String(e)}`);
     }
@@ -249,6 +287,13 @@ export class MemoryStore {
     if (this.flushTimer) clearTimeout(this.flushTimer);
     this.flushTimer = setTimeout(() => this.flushNow(), FLUSH_DEBOUNCE_MS);
   }
+}
+
+/** 容量淘汰用的保留分（越低越先淘汰）。导出供测试。 */
+export function retentionScore(e: MemoryEntry, now: number): number {
+  const importance = Number.isFinite(e.importance) ? Math.max(0.05, e.importance) : 0.3;
+  const countBoost = 1 + Math.log(1 + (e.count || 1)) * 0.1;
+  return importance * recencyWeight(e.ts, now, 14) * countBoost;
 }
 
 /**
