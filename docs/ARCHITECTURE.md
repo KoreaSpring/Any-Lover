@@ -149,13 +149,15 @@ screen-sampler 定时截屏 → screen-gate 黑名单/去重门控
 | `sidecar-plugin-architecture.md` | **提案**：sidecar 统一插件契约（SidecarPlugin + 注册表），让各 sidecar 可插拔 |
 | `upgrade-roadmap.md` | **方案**：三项高风险工程（同步上游 / MCP 工具调用 / 对话链上移）的评估、分阶段与决策点 |
 | `mcp-integration-decisions.md` | MCP 工具调用的决策单（**已实施**：路线 A / prompt 模式 / 默认关门控） |
-| `dialogue-uplift-phase1.md` | 对话链上移阶段 1 的差距清单与决策点（切角色清历史已修，余项待确认） |
+| `dialogue-uplift-phase1.md` | 对话链上移阶段 1（**已实施**：历史持久化 + AI 回复进面板 + 人设随角色） |
 
 ---
 
 ## 7. 待办与演进方向（记录，勿丢）
 
-- **中枢对话 F-2 之后**：多角色切换时中枢历史/人设同步；最终关掉后端老对话链路；中枢会话历史持久化。
+- **对话链上移阶段 1（已实施）**：中枢会话历史已 jsonl 持久化、AI 回复进聊天面板、切角色清历史 + 人设随角色
+  （见 `docs/roadmap/dialogue-uplift-phase1.md`）。**后续**：读后端完整 persona_prompt、多模态图片输入；
+  阶段 2/3（中枢对话默认开 → 最终关掉后端老对话链路）见 `upgrade-roadmap.md`。
 - **物理重构（方案 Y）**：`agent/` 已按功能物理分子目录（memory/emotion/perception/dialogue/
   llm/vlm/render，core 三文件留 `agent/` 根），import 全改毕、`npm run build` 通过。
   经验：smart_relocate 在本项目不自动改 import，且 `tsc --noEmit` 通过不代表 vite/rollup 通过
