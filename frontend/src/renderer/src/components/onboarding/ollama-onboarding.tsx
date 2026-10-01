@@ -9,6 +9,9 @@
 
 import { useCallback, useEffect, useState } from 'react';
 
+// 启动页「手动设置（使用云端 API）」入口暂时隐藏，后续放开时改为 true 即可（manual 视图代码保留）。
+const SHOW_MANUAL_SETUP = false;
+
 interface ModelOption {
   id: string;
   name: string;
@@ -481,7 +484,7 @@ export default function OllamaOnboarding(): JSX.Element | null {
               </button>
             )}
             <div style={{ marginTop: 12 }}>
-              {!started && (
+              {SHOW_MANUAL_SETUP && !started && (
                 <button onClick={() => setView('manual')} disabled={busy} style={btnLink}>
                   手动设置（使用云端 API）
                 </button>
