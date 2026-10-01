@@ -78,6 +78,15 @@ git diff f5bf9f6 HEAD -- backend/src/open_llm_vtuber/<file>
 配置模型里这些字段默认 `None`，而 sherpa-onnx pybind 构造函数只收 `str`，否则报
 "incompatible constructor arguments"。桌宠默认 TTS 已改为 `sherpa_onnx_tts`（MeloTTS 离线）。
 
+### 6c. 可选 LLM / Agent 懒加载（瘦身打包）
+- `agent/stateless_llm_factory.py`：`stateless_llm_with_template`（jinja2）与 `claude_llm`（anthropic）
+  移入各自分支内导入。
+- `agent/agent_factory.py`：`letta_agent`（letta_client）移入 `letta_agent` 分支内导入。
+- `agent/agents/basic_memory_agent.py`：去掉顶层 `claude_llm` 导入，`isinstance(..., ClaudeAsyncLLM)`
+  改为 `_is_claude_llm()` 按类名 + 模块名判断。
+- 效果：`requirements-pet.txt` 去掉 anthropic / jinja2 / letta-client，冻结 exe 不再因缺包崩在 import 阶段。
+  选用这些 provider 时仍需自行安装对应包（开发环境 `uv sync` 已含）。
+
 ### 7. 小改动（各 1 行，接流式旁路的 token 回调点）
 - `agent/agents/basic_memory_agent.py`（5 处 1 行）：接 `emit_partial_text` 的 token 回调点。
 - `conversations/conversation_utils.py`（`finalize_conversation_turn` 内 1 行）。

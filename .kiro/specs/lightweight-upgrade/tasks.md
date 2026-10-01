@@ -34,9 +34,14 @@
     冻结 exe 启动约 5s 到 `Uvicorn running`，ASR(sherpa_onnx_asr) 与 TTS(sherpa_onnx_tts) 初始化成功。
 
 ## P2 懒加载上游 mcp / anthropic / letta
-- [ ] 2.1 找出启动链路里顶层 import 这三个包的位置（含 jinja2）
-- [ ] 2.2 改为用到时再 import（带中文注释，登记 `ANYLOVER_EXTENSIONS.md`）
-- [ ] 2.3 从 `requirements-pet.txt` 去掉桌宠用不到的包，重新冻结并启动验证；记录 exe 目录体积变化
+- [x] 2.1 找出启动链路里顶层 import 这三个包的位置（含 jinja2）
+  - stateless_llm_factory（jinja2、anthropic）、agent_factory（letta_client）、basic_memory_agent（claude_llm→anthropic）、
+    service_context（mcpp→mcp）
+- [x] 2.2 改为用到时再 import（带中文注释，登记 `ANYLOVER_EXTENSIONS.md` 6c）
+  - **mcp 保留**：中枢 hub-tool-* 仍借用后端 mcpp，P8 完成后再移除
+- [x] 2.3 从 `requirements-pet.txt` 去掉桌宠用不到的包，重新冻结并启动验证；记录 exe 目录体积变化
+  - 去掉 anthropic / jinja2 / letta-client；启动链路 `sys.modules` 无泄漏，冻结 exe 启动到 `Uvicorn running`
+  - 体积 302.5MB → 301.1MB（纯 Python 包压缩进 PYZ，省得不多）；主要收益是少了 3 个「缺包即崩」的启动风险
 
 ## P3 TEN-VAD 🔍
 - [ ] 3.1 调研：当前 VAD 在哪做（后端 `vad_model: null`，前端是否用 vad-web/Silero），打断与断句链路

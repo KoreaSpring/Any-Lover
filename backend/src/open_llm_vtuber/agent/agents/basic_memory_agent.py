@@ -12,7 +12,6 @@ from loguru import logger
 from .agent_interface import AgentInterface
 from ..output_types import SentenceOutput, DisplayText
 from ..stateless_llm.stateless_llm_interface import StatelessLLMInterface
-from ..stateless_llm.claude_llm import AsyncLLM as ClaudeAsyncLLM
 from ..stateless_llm.openai_compatible_llm import AsyncLLM as OpenAICompatibleAsyncLLM
 from ...chat_history_manager import get_history
 from ..transformers import (
@@ -29,6 +28,16 @@ from ...mcpp.json_detector import StreamJSONDetector
 from ...mcpp.types import ToolCallObject
 from ...mcpp.tool_executor import ToolExecutor
 from ...conversations.stream_hooks import emit_partial_text
+
+
+def _is_claude_llm(llm) -> bool:
+    """[any-lover] 判断是否为 claude_llm.AsyncLLM，而不在顶层导入它。
+
+    原先顶层 `from ..stateless_llm.claude_llm import AsyncLLM` 会连带导入 anthropic；
+    桌宠打包已不携带 anthropic，故改为按类所在模块判断。
+    """
+    cls = type(llm)
+    return cls.__name__ == "AsyncLLM" and cls.__module__.endswith("stateless_llm.claude_llm")
 
 
 class BasicMemoryAgent(AgentInterface):
@@ -609,7 +618,7 @@ class BasicMemoryAgent(AgentInterface):
 
             if self._use_mcpp and self._tool_manager:
                 tools = None
-                if isinstance(self._llm, ClaudeAsyncLLM):
+                if _is_claude_llm(self._llm):
                     tool_mode = "Claude"
                     tools = self._formatted_tools_claude
                     llm_supports_native_tools = True

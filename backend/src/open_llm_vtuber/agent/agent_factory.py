@@ -5,7 +5,8 @@ from .agents.agent_interface import AgentInterface
 from .agents.basic_memory_agent import BasicMemoryAgent
 from .stateless_llm_factory import LLMFactory as StatelessLLMFactory
 from .agents.hume_ai import HumeAIAgent
-from .agents.letta_agent import LettaAgent
+
+# [any-lover] letta_agent（依赖 letta_client）改为在 letta_agent 分支内懒加载，桌宠打包不携带该包。
 
 from ..mcpp.tool_manager import ToolManager
 from ..mcpp.tool_executor import ToolExecutor
@@ -117,6 +118,8 @@ class AgentFactory:
             )
 
         elif conversation_agent_choice == "letta_agent":
+            from .agents.letta_agent import LettaAgent
+
             settings = agent_settings.get("letta_agent", {})
             return LettaAgent(
                 live2d_model=live2d_model,

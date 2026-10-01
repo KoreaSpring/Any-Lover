@@ -3,12 +3,11 @@ from typing import Type
 from loguru import logger
 
 from .stateless_llm.stateless_llm_interface import StatelessLLMInterface
-from .stateless_llm.stateless_llm_with_template import (
-    AsyncLLMWithTemplate as StatelessLLMWithTemplate,
-)
 from .stateless_llm.openai_compatible_llm import AsyncLLM as OpenAICompatibleLLM
 from .stateless_llm.ollama_llm import OllamaLLM
-from .stateless_llm.claude_llm import AsyncLLM as ClaudeLLM
+
+# [any-lover] stateless_llm_with_template（依赖 jinja2）与 claude_llm（依赖 anthropic）
+# 改为在对应分支内懒加载：桌宠打包不再携带这两个包，顶层导入会让冻结 exe 启动即崩。
 
 
 class LLMFactory:
@@ -41,6 +40,10 @@ class LLMFactory:
                 temperature=kwargs.get("temperature"),
             )
         if llm_provider == "stateless_llm_with_template":
+            from .stateless_llm.stateless_llm_with_template import (
+                AsyncLLMWithTemplate as StatelessLLMWithTemplate,
+            )
+
             return StatelessLLMWithTemplate(
                 model=kwargs.get("model"),
                 base_url=kwargs.get("base_url"),
@@ -68,6 +71,8 @@ class LLMFactory:
                 model_path=kwargs.get("model_path"),
             )
         elif llm_provider == "claude_llm":
+            from .stateless_llm.claude_llm import AsyncLLM as ClaudeLLM
+
             return ClaudeLLM(
                 system=kwargs.get("system_prompt"),
                 base_url=kwargs.get("base_url"),
