@@ -6,6 +6,7 @@
 //（后端 sidecar + 设置 IPC + 快捷键/首启设置窗口），再 import 原版前端外壳 index.ts，
 // 让其原有的 Window/Pet 模式、托盘、菜单等逻辑保持完全不变。
 
+import path from 'node:path';
 import { app, globalShortcut, BrowserWindow, ipcMain } from 'electron';
 import log from 'electron-log/main';
 import { BackendManager } from './sidecar/backend-manager';
