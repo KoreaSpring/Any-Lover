@@ -46,7 +46,7 @@
 ## 1. 现状架构（Any-Lover）
 
 ```
-Electron 主进程 (frontend/src/main)
+Electron 主进程 (apps/desktop/src/main)
  ├─ bootstrap.ts         融合入口：拉起后端 sidecar + Ollama，再加载原版前端 index.ts
  ├─ backend-manager.ts   以子进程方式启动 Python 后端(out/stage/open-llm-vtuber)，就绪探测/优雅关闭
  └─ ollama-manager.ts    管理内置/系统 Ollama
@@ -54,13 +54,13 @@ Electron 主进程 (frontend/src/main)
 Python 后端 (backend/, 上游 Open-LLM-VTuber，黑盒)
  └─ WebSocket 服务 127.0.0.1:12393：ASR + LLM 对话 + TTS + 表情/口型信号
 
-前端渲染 (frontend/src/renderer)
+前端渲染 (apps/desktop/src/renderer)
  ├─ components/canvas/live2d.tsx   Live2D 画布组件（<canvas id="canvas">）
  ├─ hooks/canvas/use-live2d-*.ts   模型加载 / resize / 表情
  ├─ hooks/utils/use-audio-task.ts  播放 TTS 音频 + 驱动口型（关键：口型信号来源）
  └─ WebSDK/                        Live2D Cubism SDK（要在 Windows 方案下停用）
 
-打包链路 (tooling + frontend/electron-builder.yml)
+打包链路 (tooling + apps/desktop/electron-builder.yml)
  prepare-runtime.js → build-backend.js(PyInstaller) → tooling/package.js(electron-builder)
 ```
 

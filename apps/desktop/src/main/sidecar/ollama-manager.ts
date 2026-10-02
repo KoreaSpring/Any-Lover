@@ -22,7 +22,7 @@ export function resolveBundledOllama(): { exe: string; modelsDir: string } | nul
   const exeName = ollamaExeName();
   const roots = app.isPackaged
     ? [path.join(process.resourcesPath, 'ollama')]
-    : [path.join(app.getAppPath(), '..', 'out', 'downloads', 'ollama')];
+    : [path.join(app.getAppPath(), '..', '..', 'out', 'downloads', 'ollama')];
   for (const root of roots) {
     const exe = path.join(root, 'bin', exeName);
     const modelsDir = path.join(root, 'models');

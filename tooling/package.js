@@ -14,7 +14,7 @@
  *   node tooling/package.js --with-model    # 整合版：连模型一起打（完全离线）
  *   追加 --dir                                 # 只产出免安装目录（不压缩、不打 NSIS，最快，供测试）
  *
- * 实现：electron-builder 从 frontend/electron-builder.yml 读取基础配置；
+ * 实现：electron-builder 从 apps/desktop/electron-builder.yml 读取基础配置；
  * 本脚本通过 --config.extraResources 追加/覆盖，避免维护两份 yml。
  */
 
@@ -24,8 +24,8 @@ const os = require('os');
 const { spawnSync } = require('child_process');
 
 const ROOT = path.join(__dirname, '..');
-const DESKTOP = path.join(ROOT, 'frontend');
-// 安装包产物统一放在仓库根 out/release（electron-builder 的 output 相对 frontend/ 解析）
+const DESKTOP = path.join(ROOT, 'apps', 'desktop');
+// 安装包产物统一放在仓库根 out/release（electron-builder 的 output 相对 apps/desktop/ 解析）
 const RELEASE_ROOT = path.join(ROOT, 'out', 'release');
 const RELEASE_REL = path.relative(DESKTOP, RELEASE_ROOT).split(path.sep).join('/');
 const VENDOR_OLLAMA = path.join(ROOT, 'out', 'downloads', 'ollama');
@@ -83,7 +83,7 @@ function preparePackaging() {
 }
 
 /**
- * 决定本次打包的输出目录（相对 frontend）。
+ * 决定本次打包的输出目录（相对 apps/desktop）。
  * 正常情况下 preparePackaging 已清空 release/，这里使用固定目录 release/dist；
  * 若该目录仍存在且无法清空（被占用），回退到带时间戳的新目录，保证打包不中断。
  */
@@ -116,11 +116,11 @@ function buildDesktop() {
 const VENDOR_FFMPEG = path.join(ROOT, 'out', 'downloads', 'ffmpeg');
 
 function runBuilder() {
-  // 基础 extraResources：out/stage/open-llm-vtuber -> runtime（相对 frontend/ 即 projectDir）
+  // 基础 extraResources：out/stage/open-llm-vtuber -> runtime（相对 apps/desktop/ 即 projectDir）
   // 排除本机开发/调试产生的运行期数据（日志、TTS 缓存、聊天记录），以及冗余的 fp32 ASR 权重。
   const extra = [
     {
-      from: '../out/stage/open-llm-vtuber',
+      from: '../../out/stage/open-llm-vtuber',
       to: 'runtime',
       filter: [
         '**/*',
@@ -138,7 +138,7 @@ function runBuilder() {
   // 随包提供 ffmpeg：edge_tts（在线备选）输出 mp3，后端用 pydub 转 wav 需要 ffmpeg 解码。
   // 只打 ffmpeg/ffprobe；ffplay 是独立播放器，项目由前端播放音频，用不到（省约 100MB）。
   if (fs.existsSync(path.join(VENDOR_FFMPEG, 'bin', 'ffmpeg.exe'))) {
-    extra.push({ from: '../out/downloads/ffmpeg', to: 'ffmpeg', filter: ['**/*', '!**/ffplay*'] });
+    extra.push({ from: '../../out/downloads/ffmpeg', to: 'ffmpeg', filter: ['**/*', '!**/ffplay*'] });
     log('打入 out/downloads/ffmpeg（用于 TTS 音频转码）');
   } else {
     log('提示：未找到 out/downloads/ffmpeg/bin/ffmpeg.exe，产物将不含 ffmpeg，缺 ffmpeg 的机器语音会静音');
@@ -148,7 +148,7 @@ function runBuilder() {
   // 存在则打入 resources/tha-runtime；不存在（未跑 prepare-tha-runtime）则跳过，应用回退 Live2D。
   const thaRuntime = path.join(ROOT, 'out', 'stage', 'tha');
   if (fs.existsSync(path.join(thaRuntime, 'tha_server.py'))) {
-    extra.push({ from: '../out/stage/tha', to: 'tha-runtime', filter: ['**/*'] });
+    extra.push({ from: '../../out/stage/tha', to: 'tha-runtime', filter: ['**/*'] });
     log('打入 out/stage/tha（THA 源码 + 嵌入式 Python；依赖首启安装）');
   } else {
     log('提示：未找到 out/stage/tha（未运行 prepare-tha-runtime），产物将不含 THA，Windows 回退 Live2D');
@@ -159,7 +159,7 @@ function runBuilder() {
   // 缺失则跳过——摄像头视线跟随不可用，canStart 返 false 优雅降级，不影响其它功能。
   const osfDir = path.join(ROOT, 'out', 'downloads', 'openseeface');
   if (fs.existsSync(path.join(osfDir, 'facetracker.exe'))) {
-    extra.push({ from: '../out/downloads/openseeface', to: 'openseeface', filter: ['**/*'] });
+    extra.push({ from: '../../out/downloads/openseeface', to: 'openseeface', filter: ['**/*'] });
     log('打入 out/downloads/openseeface（facetracker + models，用于摄像头视线跟随，约 200MB）');
   } else {
     log('提示：未找到 out/downloads/openseeface（未运行 fetch-openseeface），产物将不含摄像头视线跟随');
@@ -177,7 +177,7 @@ function runBuilder() {
   } else if (withModel) {
     if (!hasOllamaBin) throw new Error(`未找到内置 Ollama 二进制：${ollamaBin}`);
     // 整合版：二进制 + 模型 全部打入 -> resources/ollama（含 models 子目录）
-    extra.push({ from: '../out/downloads/ollama', to: 'ollama', filter: ['**/*'] });
+    extra.push({ from: '../../out/downloads/ollama', to: 'ollama', filter: ['**/*'] });
     log('整合版：将打入 out/downloads/ollama（二进制 + 模型，完全离线）');
   } else {
     // 标准版（默认）：打二进制（bin），排除大模型；模型运行时 `ollama pull`。
@@ -186,7 +186,7 @@ function runBuilder() {
     // 触发 NSIS 的 "failed creating mmap" 失败）。
     if (!hasOllamaBin) throw new Error(`未找到内置 Ollama 二进制：${ollamaBin}`);
     extra.push({
-      from: '../out/downloads/ollama/bin',
+      from: '../../out/downloads/ollama/bin',
       to: 'ollama/bin',
       filter: ['**/*', '!lib/ollama/cuda_v12/**', '!lib/ollama/rocm_v7_1/**'],
     });

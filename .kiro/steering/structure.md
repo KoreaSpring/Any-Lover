@@ -4,25 +4,25 @@
 
 ```
 pet-bot/
-├─ frontend/            前端（Electron App）：主进程 + Live2D 主窗口渲染 + 设置窗口渲染
+├─ apps/
+│  ├─ desktop/          前端（Electron App）：主进程 + Live2D 主窗口渲染 + 设置窗口渲染
+│  └─ website/          官网（React + Vite + Tailwind，GitHub Pages 独立部署）
 ├─ backend/             后端（上游 Open-LLM-VTuber，Python，黑盒整体引入，勿拆）
-├─ site/               官网（React + Vite + Tailwind，GitHub Pages 独立部署）
 ├─ tooling/             构建 / 打包编排脚本（prepare-runtime / build-backend / package / release/ 分片）
 ├─ out/                 全部产物和下载缓存（不入 Git）：stage/<id> 组装好的运行时、downloads/ ollama 与 ffmpeg、
 │                       pyinstaller/ 冻结中间产物、release/ 安装包
-├─ release/             electron-builder 打包产物
 ├─ docs/                文档与 roadmap
 └─ requirements-pet.txt 冻结后端所需的最小 Python 依赖
 ```
 
-顶层三分：**frontend / backend / site**，各自可独立开发、构建、演进，通过协议边界解耦（见 architecture.md）。`tooling` 是跨层的构建编排。
+顶层三分：**apps/desktop / backend / apps/website**，各自可独立开发、构建、演进，通过协议边界解耦（见 architecture.md）。`tooling` 是跨层的构建编排。
 
 ## frontend（Electron App）
 
 一个 electron-vite 项目，主进程 + preload + 渲染进程共用一个 `package.json` 与 `electron.vite.config.ts`。**UI 都是前端**——主窗口和设置窗口都是这个项目的 renderer，不再拆成独立子项目。
 
 ```
-frontend/src/
+apps/desktop/src/
 ├─ main/                   Electron 主进程（Node 侧，当前为扁平结构）
 │  ├─ bootstrap.ts         【入口】融合引导：单例锁、日志、启动后端 sidecar、加载前端外壳
 │  ├─ index.ts             【入口】窗口创建、托盘、DevTools、second-instance

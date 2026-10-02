@@ -28,7 +28,7 @@
 | `emotion-expression-bridge.ts` | 共情表达：融合情绪 → 桌宠共情表情（关切而非复制）→ IPC 驱动 THA |
 
 > 面部情绪（MediaPipe）与语音情绪（声学特征）跑在 **renderer**（浏览器摄像头/麦克风 API），
-> 见 `frontend/src/renderer/src/utils/face-emotion.ts` / `voice-emotion.ts`，产出经 IPC 上报这里融合。
+> 见 `apps/desktop/src/renderer/src/utils/face-emotion.ts` / `voice-emotion.ts`，产出经 IPC 上报这里融合。
 
 ## perception — 感知层（就地处理，不走大模型）
 | 文件 | 职责 |

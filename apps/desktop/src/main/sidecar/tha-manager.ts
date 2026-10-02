@@ -47,7 +47,7 @@ export class ThaManager {
     if (app.isPackaged) {
       return path.join(process.resourcesPath, 'tha-runtime');
     }
-    return path.join(app.getAppPath(), '..', 'integrations', 'easyvtuber', 'runtime');
+    return path.join(app.getAppPath(), '..', '..', 'integrations', 'easyvtuber', 'runtime');
   }
 
   // 实际运行目录（需可写：首启要在此 pip 装依赖）。

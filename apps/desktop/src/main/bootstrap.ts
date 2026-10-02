@@ -151,7 +151,7 @@ const mcpHub = new McpHub(
   {
     configPath: app.isPackaged
       ? path.join(process.resourcesPath, 'runtime', 'mcp_servers.json')
-      : path.join(app.getAppPath(), '..', 'backend', 'mcp_servers.json'),
+      : path.join(app.getAppPath(), '..', '..', 'backend', 'mcp_servers.json'),
   },
   logToFile,
 );

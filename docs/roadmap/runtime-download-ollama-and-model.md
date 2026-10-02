@@ -74,8 +74,8 @@ out/downloads/ollama/models/  5.47 GB（预置大模型，标准版不打）
 - 安装器里看到的 `Downloading Ollama CUDA v12 Libraries` 进度，是 **Ollama 官方安装器/运行时自己**在下载 CUDA 后端库，不是 AnythingLLM 写的。其桌面打包仓库闭源、不在此。
 - 真正可借鉴的是它的 **Lemonade「运行时下载 + SSE 进度」三层模式**：
   - 后端 SSE 端点转发下游 `pull` 的进度：`server/endpoints/utils/lemonadeUtilsEndpoints.js`
-  - 前端用 `response.body.getReader()` 解析 SSE：`frontend/src/models/utils/lemonadeUtils.js`
-  - 通用「下载/进度/已安装」UI：`frontend/src/components/lib/ModelTable/index.jsx`
+  - 前端用 `response.body.getReader()` 解析 SSE：`apps/desktop/src/models/utils/lemonadeUtils.js`
+  - 通用「下载/进度/已安装」UI：`apps/desktop/src/components/lib/ModelTable/index.jsx`
 
 ### 1.2 对 any-lover 的启示
 
@@ -91,15 +91,15 @@ any-lover 已经具备把 Ollama 当外部 HTTP 服务使用的完整能力（`o
 
 | 关注点 | 现状 | 文件 |
 | --- | --- | --- |
-| 应用形态 | Electron（electron-vite + electron-builder ^24）外壳 + PyInstaller 冻结的 Python 后端 sidecar | `frontend/src/main/` |
-| 打包目标 | win=NSIS，mac=dmg(x64/arm64)，linux=AppImage/snap/deb（已声明） | `frontend/electron-builder.yml` |
+| 应用形态 | Electron（electron-vite + electron-builder ^24）外壳 + PyInstaller 冻结的 Python 后端 sidecar | `apps/desktop/src/main/` |
+| 打包目标 | win=NSIS，mac=dmg(x64/arm64)，linux=AppImage/snap/deb（已声明） | `apps/desktop/electron-builder.yml` |
 | 运行时打包 | `../out/stage/open-llm-vtuber` → `resources/runtime` | `electron-builder.yml` `extraResources` |
 | Ollama 打包开关 | `--with-model` 打入 `out/downloads/ollama`（ollama.exe + minicpm-v:8b）；默认轻量版不打 | `tooling/package.js` |
 | LLM 调用 | OpenAI 兼容 HTTP；provider=ollama 时拼 `ollamaHost + '/v1'` | `backend-manager.ts` `resolveLlm/writeConfig` |
-| Ollama 生命周期 | 解析内置/vendor、校验、列模型、serve、退出清理 | `frontend/src/main/ollama-manager.ts` |
-| 首次启动 | 写默认配置（provider=ollama, model=minicpm-v:8b），缺 exe **只记日志、不下载** | `frontend/src/main/bootstrap.ts` |
-| 设置存储 | `userData/settings.json` + safeStorage 加密的 apiKey | `frontend/src/main/settings-store.ts` |
-| 现有 IPC | settings:get/save、ollama:detect/browse、llm:test、pet:launch、app:quit | `frontend/src/main/aibot-ipc.ts` |
+| Ollama 生命周期 | 解析内置/vendor、校验、列模型、serve、退出清理 | `apps/desktop/src/main/ollama-manager.ts` |
+| 首次启动 | 写默认配置（provider=ollama, model=minicpm-v:8b），缺 exe **只记日志、不下载** | `apps/desktop/src/main/bootstrap.ts` |
+| 设置存储 | `userData/settings.json` + safeStorage 加密的 apiKey | `apps/desktop/src/main/settings-store.ts` |
+| 现有 IPC | settings:get/save、ollama:detect/browse、llm:test、pet:launch、app:quit | `apps/desktop/src/main/aibot-ipc.ts` |
 | 设置窗口 | `renderer/settings.html` + `renderer/settings/` + `preload/settings-preload.ts` | — |
 | 体积大件 | SenseVoice ASR ~300MB（打进 out/stage/open-llm-vtuber/models）、冻结后端、out/downloads/ollama(仅整合版) | `tooling/prepare-runtime.js` |
 
@@ -145,7 +145,7 @@ any-lover 已经具备把 Ollama 当外部 HTTP 服务使用的完整能力（`o
 - win32：`ollama.exe`
 - darwin/linux：`ollama`
 
-### 4.2 新增下载器模块 `frontend/src/main/ollama-installer.ts`
+### 4.2 新增下载器模块 `apps/desktop/src/main/ollama-installer.ts`
 
 职责：
 - `platformOllamaAsset()`：按 `process.platform` + `process.arch` 返回下载信息。**统一采用免安装压缩包 + 解压到用户选择的目录**（不走系统级安装器，规避管理员权限与卸载残留）。
@@ -209,11 +209,11 @@ any-lover 已经具备把 Ollama 当外部 HTTP 服务使用的完整能力（`o
 
 ## 5. 改动清单（实现 checklist）
 
-- [ ] 新增 `frontend/src/main/ollama-installer.ts`（下载器 + 安装 + pull + 平台 asset）
-- [ ] 改 `frontend/src/main/ollama-manager.ts`：`resolveBundledOllama` 多来源+多平台；可执行名/清理按平台
-- [ ] 改 `frontend/src/main/bootstrap.ts`：`ensureOllamaReady()` 编排；缺失时打开引导而非仅记日志
-- [ ] 扩 `frontend/src/main/aibot-ipc.ts`：install/pull/status/cancel + progress 事件
-- [ ] 扩 `frontend/src/preload/settings-preload.ts`：暴露上述 IPC
+- [ ] 新增 `apps/desktop/src/main/ollama-installer.ts`（下载器 + 安装 + pull + 平台 asset）
+- [ ] 改 `apps/desktop/src/main/ollama-manager.ts`：`resolveBundledOllama` 多来源+多平台；可执行名/清理按平台
+- [ ] 改 `apps/desktop/src/main/bootstrap.ts`：`ensureOllamaReady()` 编排；缺失时打开引导而非仅记日志
+- [ ] 扩 `apps/desktop/src/main/aibot-ipc.ts`：install/pull/status/cancel + progress 事件
+- [ ] 扩 `apps/desktop/src/preload/settings-preload.ts`：暴露上述 IPC
 - [ ] 引导 UI：`renderer/settings/` 新增首次安装视图
 - [ ] `settings-store.ts`：如需记录「ollama 安装目录 / 已就绪」新增字段
 - [ ] 文档与 README 更新（轻量版为默认、首启会联网下载的说明）

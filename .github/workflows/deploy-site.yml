@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
     paths:
-      - 'site/**'
+      - 'apps/website/**'
       - '.github/workflows/deploy-site.yml'
   # 允许在 Actions 页面手动触发
   workflow_dispatch:
@@ -32,14 +32,14 @@ jobs:
         with:
           node-version: '20'
           cache: npm
-          cache-dependency-path: site/package-lock.json
+          cache-dependency-path: apps/website/package-lock.json
 
       - name: Install dependencies
-        working-directory: site
+        working-directory: apps/website
         run: npm ci
 
       - name: Build
-        working-directory: site
+        working-directory: apps/website
         run: npm run build
 
       - name: Setup Pages
@@ -51,7 +51,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: site/dist
+          path: apps/website/dist
 
   deploy:
     needs: build

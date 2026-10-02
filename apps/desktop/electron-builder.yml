@@ -2,7 +2,7 @@ appId: com.anylover.charis
 productName: Any-Lover
 directories:
   buildResources: resources
-  output: ../out/release/${version}
+  output: ../../out/release/${version}
 files:
   - 'dist/**/*'
   - 'out/**/*'
@@ -25,10 +25,10 @@ files:
   - '!node_modules/eslint/**'
 extraResources:
   # 冻结的 Python 后端 + 前端静态资源 + 模型（组装在 <root>/out/stage/open-llm-vtuber）。
-  # 路径相对 frontend/（projectDir）。注意：tooling/package.js 会用 --config 覆盖 extraResources。
+  # 路径相对 apps/desktop/（projectDir）。注意：tooling/package.js 会用 --config 覆盖 extraResources。
   # 这里只保留 runtime、tha-runtime 两项，过滤规则与 tooling/package.js 一致，供直接用 electron-builder 构建时使用；
   # ffmpeg、openseeface、ollama 只由 tooling/package.js 按需追加。
-  - from: '../out/stage/open-llm-vtuber'
+  - from: '../../out/stage/open-llm-vtuber'
     to: 'runtime'
     filter:
       - '**/*'
@@ -43,7 +43,7 @@ extraResources:
       - '!node/**'
   # Windows THA 渲染运行时（源码 + 嵌入式 Python；由 integrations/easyvtuber/prepare.js 组装到 out/stage/tha）。
   # 仅 Windows 打包需要；其它平台该目录不存在时 electron-builder 会跳过。
-  - from: '../out/stage/tha'
+  - from: '../../out/stage/tha'
     to: 'tha-runtime'
     filter:
       - '**/*'

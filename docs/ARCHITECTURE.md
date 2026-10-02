@@ -29,7 +29,7 @@ Any-Lover 是一个桌面 AI 陪伴应用（Electron + Python 后端）：一个
 ```
 
 - **Main（主进程）= Agent 中枢**：本项目的大脑。管理所有 sidecar 生命周期，承载事件总线、
-  感知/记忆/决策/表达/资源五层，直连线上主模型（LLMProvider）。代码在 `frontend/src/main/`。
+  感知/记忆/决策/表达/资源五层，直连线上主模型（LLMProvider）。代码在 `apps/desktop/src/main/`。
 - **Renderer（渲染进程）**：React UI + 桌宠画布（Live2D 或 THA 帧流）+ 字幕/口型/表情播放。
   摄像头/麦克风相关的面部/语音情绪跑在这里（浏览器 API），产出信号经 IPC 上报中枢。
 - **Python 后端（`backend/`，vendored 上游 open_llm_vtuber，尽量不改）**：ASR（语音识别）、
@@ -40,7 +40,7 @@ Any-Lover 是一个桌面 AI 陪伴应用（Electron + Python 后端）：一个
 
 ---
 
-## 2. Agent 中枢五层（`frontend/src/main/agent/`）
+## 2. Agent 中枢五层（`apps/desktop/src/main/agent/`）
 
 中枢围绕一条 **事件总线**（观察者模式）解耦，分五层：
 
@@ -62,7 +62,7 @@ Any-Lover 是一个桌面 AI 陪伴应用（Electron + Python 后端）：一个
 - **表达层**：把情绪/视线映射为桌宠表现（经 IPC 驱动 THA）。
 - **资源协调**：统一管 THA / 采样 VLM 的显存占用，6GB 上互斥共存、按需加载。
 
-各文件归属见 `frontend/src/main/agent/README.md`。
+各文件归属见 `apps/desktop/src/main/agent/README.md`。
 
 ---
 
@@ -104,7 +104,7 @@ screen-sampler 定时截屏 → screen-gate 黑名单/去重门控
 
 ---
 
-## 4. 主进程模块地图（`frontend/src/main/`）
+## 4. 主进程模块地图（`apps/desktop/src/main/`）
 
 | 目录/文件 | 职责 |
 | --- | --- |
@@ -116,10 +116,10 @@ screen-sampler 定时截屏 → screen-gate 黑名单/去重门控
 | `core/` | 基础设施：settings-store（设置持久化+API Key 加密）/ gpu-fix |
 | `agent/` | **Agent 中枢**（五层，见该目录 README） |
 
-> 另有 `frontend/src/proto/`（与 main/ 平级）：跨边界通信协议的 TS 侧单一事实源。当前含 `ipc.ts`
+> 另有 `apps/desktop/src/proto/`（与 main/ 平级）：跨边界通信协议的 TS 侧单一事实源。当前含 `ipc.ts`
 > （全部 Electron IPC 通道名常量），main/preload/renderer 三处统一引用。见该目录 README。
 
-> 详细分组见 `frontend/src/main/README.md`。
+> 详细分组见 `apps/desktop/src/main/README.md`。
 
 ---
 
@@ -164,7 +164,7 @@ screen-sampler 定时截屏 → screen-gate 黑名单/去重门控
   （rollup 对相对路径更严格），需逐文件手动改相对路径 + 跑 `npm run build` 验证。
   `main/` 根目录也已按功能物理分子目录（sidecar/ipc/window/core，入口 bootstrap/index 留根），
   import 全改毕、`npm run build` 通过。
-- **协议单一事实源（`frontend/src/proto/`）**：Electron IPC（ipc.ts）、后端 WS（ws-backend.ts）、
+- **协议单一事实源（`apps/desktop/src/proto/`）**：Electron IPC（ipc.ts）、后端 WS（ws-backend.ts）、
   THA WS（ws-tha.ts）的 TS 侧已常量化并全项目接入；`protocol.proto` 为 TS↔Python 契约文档（不做 codegen）。
 - **sidecar 插件化（已实施首期）**：`SidecarPlugin` 契约 + `SidecarRegistry` + 各 manager 薄适配器已落地，
   bootstrap 的退出清理（stopAll/killAll）已收敛到注册表；启动仍保留各自编排（见

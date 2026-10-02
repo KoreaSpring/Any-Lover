@@ -18,7 +18,7 @@
 ┌─────────────────────┐   WebSocket 12393   ┌──────────────────────────────────┐
 │ 渲染进程 (前端)      │ ←─────────────────→ │ Python 后端 (backend/, 上游黑盒)  │
 │ React + Live2D       │  文字/语音/图片      │  server → conversations → agent   │
-│ frontend/            │                     │  → stateless_llm → LLM            │
+│ apps/desktop/            │                     │  → stateless_llm → LLM            │
 │   src/renderer       │                     │        │ OpenAI 兼容 /v1          │
 └─────────────────────┘                     └────────┼──────────────────────────┘
                                                       ▼
@@ -46,7 +46,7 @@
 
 - **现状**：智能体逻辑目前在后端 `backend/src/open_llm_vtuber/agent/`（上游黑盒），能力受限于上游实现；MCP 工具调用框架在 `backend/.../mcpp/`（已存在但桌宠默认关闭 `use_mcpp:False`）。
 - **候选接入点 A —— 扩展后端 agent**：在上游 agent 层新增 agent 实现 / 开启 MCP。优点：直接复用现有对话管线；缺点：改动上游黑盒，需评估 fork 成本。
-- **候选接入点 B —— 主进程侧"中台"编排层**：在 Electron 主进程新增独立模块（例如未来的 `frontend/src/main/orchestrator/` 或顶层独立的 `agent-service/`），负责工具执行、系统自动化、记忆存储，与前端 / 后端通过明确协议通信。优点：不动上游黑盒，符合"中台/agent 解耦"直觉；缺点：需新定义协议。
+- **候选接入点 B —— 主进程侧"中台"编排层**：在 Electron 主进程新增独立模块（例如未来的 `apps/desktop/src/main/orchestrator/` 或顶层独立的 `agent-service/`），负责工具执行、系统自动化、记忆存储，与前端 / 后端通过明确协议通信。优点：不动上游黑盒，符合"中台/agent 解耦"直觉；缺点：需新定义协议。
 - **原则**：无论走哪条，都保持"前端 / 后端 / 中台 / agent"通过**协议边界**解耦，不产生跨层代码级硬依赖。物理目录待方案确定后再建，避免空占位。
 
 > 该节为规划性内容，接入时应先补一份具体设计（可放 `docs/roadmap/`）再动手。

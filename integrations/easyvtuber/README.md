@@ -21,15 +21,15 @@ integrations/easyvtuber/
   README.md         本文件
 ```
 
-> 产物 `out/stage/tha/`（在仓库根，gitignore）由 `prepare.js` 生成；`frontend/electron-builder.yml`
+> 产物 `out/stage/tha/`（在仓库根，gitignore）由 `prepare.js` 生成；`apps/desktop/electron-builder.yml`
 > 和 `tooling/package.js` 从它打包到 `resources/tha-runtime`。
 
 ## 与主程序的边界（松耦合）
 
 - **通信**：WebSocket，端口 **12395**，JSON 文本控制消息 + 二进制帧流。协议的 TS 侧单一事实源在
-  `frontend/src/proto/ws-tha.ts`（出站 `mouth/expression/setImage/setPreset/gaze/gazeTarget`，
+  `apps/desktop/src/proto/ws-tha.ts`（出站 `mouth/expression/setImage/setPreset/gaze/gazeTarget`，
   入站 `setImageProgress`）。改协议需两端对齐（本运行时的 `tha_server.py` 的 `on_message`）。
-- **生命周期**：主进程 `frontend/src/main/sidecar/tha-manager.ts` 负责 spawn/就绪探测/清理，并已通过
+- **生命周期**：主进程 `apps/desktop/src/main/sidecar/tha-manager.ts` 负责 spawn/就绪探测/清理，并已通过
   `sidecar/plugins/tha-plugin.ts` 纳入 `SidecarRegistry` 的统一退出清理。
 - **显存**：`agent/render/tha-resource.ts` 把 THA 作为 `ManagedResource` 注册进资源协调器，与采样 VLM 互斥共存。
 - **渲染/驱动（renderer）**：`utils/tha-driver.ts`（控制连接）+ `components/canvas/tha-stage.tsx`（帧流画布）。

@@ -97,7 +97,7 @@ Set-Location D:\friends\any-lover
 
 # 1. 改版本号（安装包文件名和 latest.yml 里的版本都取自这里），提交并推到 main
 npm --prefix frontend version 0.2.0 --no-git-tag-version
-git add frontend/package.json frontend/package-lock.json
+git add apps/desktop/package.json apps/desktop/package-lock.json
 git commit -m "chore: 发布 v0.2.0"
 git push origin main
 
@@ -235,13 +235,14 @@ npm run pack -- --dir         # 轻量版免安装目录
 
 ```
 Any-Lover/
-├─ frontend/            # Electron App：主进程 + Live2D 主窗口渲染 + 设置窗口渲染
-│  └─ src/
-│     ├─ main/          #   主进程：bootstrap 入口 + 进程/窗口/配置/IPC 管理
-│     ├─ preload/       #   preload：主窗口 window.api + 设置窗口 window.aibot
-│     └─ renderer/      #   前端渲染：主窗口(React+Live2D) + settings/（设置窗口第二入口）
+├─ apps/
+│  ├─ desktop/          # Electron App：主进程 + Live2D 主窗口渲染 + 设置窗口渲染
+│  │  └─ src/
+│  │     ├─ main/       #   主进程：bootstrap 入口 + 进程/窗口/配置/IPC 管理
+│  │     ├─ preload/    #   preload：主窗口 window.api + 设置窗口 window.aibot
+│  │     └─ renderer/   #   前端渲染：主窗口(React+Live2D) + settings/（设置窗口第二入口）
+│  └─ website/          # React + Vite 官网（GitHub Pages 部署，分片下载安装包）
 ├─ backend/             # 上游 Open-LLM-VTuber 后端（vendored，改动登记在 ANYLOVER_EXTENSIONS.md）
-├─ site/                # React + Vite 官网（GitHub Pages 部署，分片下载安装包）
 ├─ integrations/        # EasyVTuber / THA 2D 形象渲染
 ├─ tooling/             # 构建、打包、发布脚本：prepare-runtime / build-backend / package / release/ 分片
 ├─ .github/workflows/   # 官网部署、前端 CI、Windows 发布（Release + downloads 分片分支）
@@ -259,7 +260,7 @@ Any-Lover/
 - `out/downloads/ffmpeg/bin/` — 由 `node tooling/fetch-ffmpeg.js` 拉取；
 - `out/downloads/ollama/bin/ollama.exe` + `out/downloads/ollama/models/` — 整合版打包所需的 Ollama 与模型。
 
-从旧目录布局升级的本机（仓库根还有 `dist-runtime/`、`dist-tha-runtime/`、`vendor/`、`build/pyinstaller/`）：把它们分别移到 `out/stage/open-llm-vtuber/`、`out/stage/tha/`、`out/downloads/`、`out/pyinstaller/` 即可继续使用，不必重新下载；`frontend/release/` 可直接删除。
+从旧目录布局升级的本机（仓库根还有 `dist-runtime/`、`dist-tha-runtime/`、`vendor/`、`build/pyinstaller/`）：把它们分别移到 `out/stage/open-llm-vtuber/`、`out/stage/tha/`、`out/downloads/`、`out/pyinstaller/` 即可继续使用，不必重新下载；`apps/desktop/release/` 可直接删除。
 
 </details>
 

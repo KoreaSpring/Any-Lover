@@ -232,9 +232,9 @@ python launcher2.py
   - `make_idle_pose(t, mouth, idle_mouth)`：外部 `mouth` 值叠加到 `mouth_eye[14]`（元音张合维度）。
   - `state.mouth_val/mouth_ts` + `current_mouth()`：口型值带 0.25s TTL，说话结束超时自动闭嘴，避免卡张嘴。
   - `handler` 用 `asyncio.gather(sender, receiver)`：sender 推帧、receiver 收文本控制消息；`apply_control` 解析 `{"type":"mouth","value":0..1}` 写入 state。`{"type":"expression"}` 已留占位（阶段5）。
-- **`frontend/.../utils/tha-driver.ts`（新增）**：控制驱动单例，维护一条到 THA 的控制 WS，暴露 `sendMouth/sendExpression/resetMouth/connect`。
-- **`frontend/.../hooks/utils/use-audio-task.ts`**：新增 `playThaAudio()` —— THA 模式下播放 TTS 音频，用 rAF 按 `audio.currentTime` 索引 `volumes` 调 `thaDriver.sendMouth`；复用全局 `audioManager`（model 传 null）使中断/停止逻辑对 THA 同样生效。`handleAudioPlayback` 在 `renderMode==='tha'` 时走此分支。
-- **`frontend/.../components/canvas/tha-stage.tsx`**：调用 `useAudioTask/useInterrupt/useIpcHandlers`（THA 模式下 Live2D 不挂载，需由 ThaStage 承接这些通用能力），并预连控制通道。
+- **`apps/desktop/.../utils/tha-driver.ts`（新增）**：控制驱动单例，维护一条到 THA 的控制 WS，暴露 `sendMouth/sendExpression/resetMouth/connect`。
+- **`apps/desktop/.../hooks/utils/use-audio-task.ts`**：新增 `playThaAudio()` —— THA 模式下播放 TTS 音频，用 rAF 按 `audio.currentTime` 索引 `volumes` 调 `thaDriver.sendMouth`；复用全局 `audioManager`（model 传 null）使中断/停止逻辑对 THA 同样生效。`handleAudioPlayback` 在 `renderMode==='tha'` 时走此分支。
+- **`apps/desktop/.../components/canvas/tha-stage.tsx`**：调用 `useAudioTask/useInterrupt/useIpcHandlers`（THA 模式下 Live2D 不挂载，需由 ThaStage 承接这些通用能力），并预连控制通道。
 
 ### 阶段 5 入口
 

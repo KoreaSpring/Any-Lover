@@ -8,7 +8,7 @@
 
 ## 1. 现状与已具备的条件
 
-- `frontend/electron-builder.yml` 已声明三端目标：
+- `apps/desktop/electron-builder.yml` 已声明三端目标：
   - win → NSIS（当前 `tooling/package.js` 只跑 `--win --x64`）
   - mac → dmg（x64 + arm64）
   - linux → AppImage / snap / deb
