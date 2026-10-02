@@ -18,7 +18,7 @@
 ## 2. 三个主要难点
 
 ### 2.1 冻结后端（PyInstaller）必须在目标平台上构建
-- 现状：`tooling/build-backend.js` 用 PyInstaller 把 Python 后端冻结为 `out/stage/open-llm-vtuber/python/aibot-backend.exe`（Windows 专用）。
+- 现状：`sidecars/open-llm-vtuber/scripts/freeze.js` 用 PyInstaller 把 Python 后端冻结为 `out/stage/open-llm-vtuber/python/aibot-backend.exe`（Windows 专用）。
 - PyInstaller **不能交叉编译**：Windows 产物只能在 Windows 上打，mac 产物只能在 mac 上打，Linux 同理。
 - 结论：多平台必须靠 **CI 矩阵**（GitHub Actions：windows-latest / macos-13(x64) / macos-14(arm64) / ubuntu-latest）分别构建各自的冻结后端 + Electron 包。
 

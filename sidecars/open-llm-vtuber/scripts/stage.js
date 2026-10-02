@@ -9,7 +9,7 @@
  *    不重排内部结构，以免破坏其相对路径假设）。
  *
  * 步骤：
- *  1. 从 ai-bot/backend 复制运行必需的后端源码与静态资源（排除 .git 等）。
+ *  1. 从 sidecars/open-llm-vtuber/upstream 复制运行必需的后端源码与静态资源（排除 .git 等）。
  *  2. 写入桌宠专用配置模板 config_templates/conf.pet.yaml（含占位符）。
  *  3. 复用源项目已下载并验证的 SenseVoice 本地 ASR 模型（缺失时下载），只保留 int8 版本。
  *  4. 备齐离线 TTS 模型 vits-melo-tts-zh_en（缺失时下载），桌宠默认用它朗读回复。
@@ -20,10 +20,10 @@ const path = require('path');
 const https = require('https');
 const { spawnSync } = require('child_process');
 
-// tooling -> 仓库根
-const ROOT = path.join(__dirname, '..');
-// 后端源码已自包含在 ai-bot/backend（不再依赖外部 Open-LLM-VTuber-main）
-const SRC = path.join(ROOT, 'backend');
+// sidecars/open-llm-vtuber/scripts -> 仓库根
+const ROOT = path.join(__dirname, '..', '..', '..');
+// 上游后端源码：sidecars/open-llm-vtuber/upstream
+const SRC = path.join(__dirname, '..', 'upstream');
 const RUNTIME = path.join(ROOT, 'out', 'stage', 'open-llm-vtuber');
 
 const SENSE_VOICE = {
@@ -260,7 +260,7 @@ function pruneUnused(dir, unused) {
 }
 
 /**
- * 备齐一个 sherpa-onnx 模型目录：out/stage/open-llm-vtuber 已有 → 源项目 backend/models 复制 → 官方归档下载。
+ * 备齐一个 sherpa-onnx 模型目录：out/stage/open-llm-vtuber 已有 → 源项目 upstream/models 复制 → 官方归档下载。
  * 复制时跳过 unused 文件；无论哪条路径，最后都清理 unused。
  */
 /** 删除已弃用的旧模型目录（如被 Kokoro 取代的 MeloTTS），避免被打进安装包。 */
@@ -303,7 +303,7 @@ async function ensureModel(label, spec, requiredFile) {
 
 async function main() {
   if (!fs.existsSync(SRC)) {
-    throw new Error(`未找到后端源码目录：${SRC}\n应位于 ai-bot/backend。`);
+    throw new Error(`未找到后端源码目录：${SRC}\n应位于 sidecars/open-llm-vtuber/upstream。`);
   }
   assembleSource();
   writePetConfigTemplate();

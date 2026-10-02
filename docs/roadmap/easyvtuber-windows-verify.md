@@ -211,7 +211,7 @@ python launcher2.py
 
 ### 关键发现：音量包络后端已现成，无需前端算 AnalyserNode
 
-`backend/src/open_llm_vtuber/utils/stream_audio.py` 的 `audio` 消息本就带：
+`sidecars/open-llm-vtuber/upstream/src/open_llm_vtuber/utils/stream_audio.py` 的 `audio` 消息本就带：
 - `volumes`：每 `slice_length` ms 一个的 RMS 值，**已归一化到 0..1**（除以 max）。
 - `slice_length`：默认 20ms。
 - `actions.expressions`：情绪标签（阶段5 用）。

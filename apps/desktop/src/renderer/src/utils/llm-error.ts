@@ -2,7 +2,7 @@
 //
 // 背景：open_llm_vtuber 的 stateless_llm 在捕获 APIConnectionError / RateLimitError /
 // APIError 时，直接 `yield` 一段英文错误字符串作为对话内容（见
-// backend/.../stateless_llm/openai_compatible_llm.py 与 ollama_llm.py）。
+// sidecars/open-llm-vtuber/upstream/.../stateless_llm/openai_compatible_llm.py 与 ollama_llm.py）。
 // 这段文本会顺着正常的 full-text / partial-text / audio(TTS) 链路显示并被念出来，
 // 让用户看到/听到 "Error calling the chat endpoint: Connection error..." 这样的堆栈式文案。
 //

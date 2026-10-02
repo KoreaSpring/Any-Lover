@@ -28,7 +28,7 @@
 | `npm run dev:setup` | 首次准备：装依赖 + 组装 out/stage/open-llm-vtuber + 构建设置面板 |
 | `npm run dev` | 日常启动：prepare-runtime + settings:build + electron-vite dev（自动托管后端 / Ollama） |
 | `npm run desktop:build` | 生产构建 Electron（含设置面板），不打安装包 |
-| `npm run prepare-runtime` | 从 `backend/` 组装可分发运行时到 `out/stage/open-llm-vtuber/`（首次含 ~300MB ASR 模型） |
+| `npm run prepare-runtime` | 从 `sidecars/open-llm-vtuber/upstream/` 组装可分发运行时到 `out/stage/open-llm-vtuber/`（首次含 ~300MB ASR 模型） |
 | `npm run build:backend` | PyInstaller 冻结后端到 `out/stage/open-llm-vtuber/python/`（需 prepare-runtime + `$env:AIBOT_PYTHON`） |
 | `npm run pack` / `pack:full` | 打**轻量版** / **整合版**安装包（只封装现有后端，不重新冻结） |
 | `npm run dist` / `dist:full` | 完整发布：prepare-runtime → build:backend → pack(`:full`) |
@@ -39,7 +39,7 @@
 ## 构建打包链路（数据流）
 
 ```
-backend/ (上游 Python 源码)
+sidecars/open-llm-vtuber/upstream/ (上游 Python 源码)
    │  prepare-runtime.js：复制源码+资源、写 conf.pet.yaml 模板、备齐 SenseVoice 模型
    ▼
 out/stage/open-llm-vtuber/ (可分发运行时布局)
@@ -62,7 +62,7 @@ release/dist/ (NSIS 安装包 或 win-unpacked 免安装目录)
 
 `tooling/*.js` 里的路径全部相对仓库根硬编码：
 - `ROOT = __dirname/..`（`tooling/release/` 下为 `../..`），`DESKTOP = ROOT/apps/desktop`，`SRC = ROOT/backend`，`RUNTIME = ROOT/out/stage/open-llm-vtuber`，`VENDOR_OLLAMA = ROOT/out/downloads/ollama`，`VENDOR_FFMPEG = ROOT/out/downloads/ffmpeg`。
-- **移动 `apps/desktop/` 或 `backend/` 会断掉这些脚本**，必须同步更新。
+- **移动 `apps/desktop/` 或 `sidecars/open-llm-vtuber/upstream/` 会断掉这些脚本**，必须同步更新。
 - electron-builder 的 `extraResources`（`apps/desktop/electron-builder.yml` 与 tooling/package.js 里的覆盖）用 `../../out/stage/open-llm-vtuber` 这类相对路径（相对 `apps/desktop/`，回退两级到仓库根），对目录布局敏感。
 - 主进程运行时也有基于 `app.getAppPath()` 的开发态回退路径（bootstrap、backend-manager、ollama-manager、openseeface-manager、tha-manager 里回退两级到仓库根，取 out/、backend/、sidecars/），移动 `apps/desktop/` 层级需同步。P3 计划收口到 `platform/paths.ts`。
 

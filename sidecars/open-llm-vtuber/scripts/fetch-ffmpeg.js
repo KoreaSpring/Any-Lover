@@ -21,7 +21,7 @@ const URL = `https://github.com/GyanD/codexffmpeg/releases/download/${VERSION}/f
 const SHA256 = '04861d3339c5ebe38b56c19a15cf2c0cc97f5de4fa8910e4d47e5e6404e4a2d4';
 const KEEP = ['ffmpeg.exe', 'ffprobe.exe'];
 
-const ROOT = path.join(__dirname, '..');
+const ROOT = path.join(__dirname, '..', '..', '..');
 const BIN = path.join(ROOT, 'out', 'downloads', 'ffmpeg', 'bin');
 
 function log(msg) {

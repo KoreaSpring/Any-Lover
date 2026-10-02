@@ -18,7 +18,7 @@ const fs = require('fs');
 const path = require('path');
 const { spawnSync } = require('child_process');
 
-const ROOT = path.join(__dirname, '..');
+const ROOT = path.join(__dirname, '..', '..', '..');
 const RUNTIME = path.join(ROOT, 'out', 'stage', 'open-llm-vtuber');
 const BUILD = path.join(ROOT, 'out', 'pyinstaller');
 const ENTRY = path.join(RUNTIME, 'run_server.py');

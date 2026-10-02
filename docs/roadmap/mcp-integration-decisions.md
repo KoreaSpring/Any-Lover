@@ -8,7 +8,7 @@
 > 事实依据见 `docs/roadmap/upgrade-roadmap.md` 第二节 + 本轮代码调查。
 
 ## 已确认的事实（不需你决策，供背景）
-- 后端 `backend/src/open_llm_vtuber/mcpp/` 完整：`server_registry`(读 mcp_servers.json) / `mcp_client`(stdio 连 MCP server + call_tool) / `tool_adapter`(发现+格式化) / `tool_manager`(持有) / `tool_executor.execute_tools(tool_calls, caller_mode)`(执行入口，异步生成器，yield 状态+最终结果)。
+- 后端 `sidecars/open-llm-vtuber/upstream/src/open_llm_vtuber/mcpp/` 完整：`server_registry`(读 mcp_servers.json) / `mcp_client`(stdio 连 MCP server + call_tool) / `tool_adapter`(发现+格式化) / `tool_manager`(持有) / `tool_executor.execute_tools(tool_calls, caller_mode)`(执行入口，异步生成器，yield 状态+最终结果)。
 - 上游工具循环范本：`agent/agents/basic_memory_agent.py` 的 `_openai_tool_interaction_loop`（LLM 决定调工具→execute_tools→结果回注 messages→再请求 LLM，循环到无工具）。
 - 中枢 `DialogueEngine.handle()` 是**单程流**，`LLMProvider.chat` **无 tools 支持**，`ChatChunk` **无法表达 tool_call**。
 - 中枢↔后端只有 **hub-speak 单向文本通道**（传成品句子做 TTS），**不是 RPC**，无法委托执行工具。

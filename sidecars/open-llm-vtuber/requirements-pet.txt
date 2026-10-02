@@ -39,10 +39,10 @@ pydub==0.25.1
 openai==2.15.0
 
 # MCP：中枢已改用官方 TS SDK 直连 MCP，不再经后端执行工具；但上游 service_context 顶层导入 mcpp，
-# 冻结后端仍需要这个包。版本与 backend/uv.lock 一致。
+# 冻结后端仍需要这个包。版本与 sidecars/open-llm-vtuber/upstream/uv.lock 一致。
 mcp==1.26.0
 # anthropic / jinja2 / letta-client 已改为在 claude_llm、stateless_llm_with_template、
-# letta_agent 分支内懒加载（见 backend/ANYLOVER_EXTENSIONS.md），桌宠不再打包。
+# letta_agent 分支内懒加载（见 sidecars/open-llm-vtuber/UPSTREAM.md），桌宠不再打包。
 
 # 打包
 pyinstaller==6.11.1

@@ -84,7 +84,7 @@ Electron 会自动拉起并管理 Python 后端（`127.0.0.1:12393`）和 Ollama
 
 产物输出到 `out/release/dist/`。打完安装包会自动切成 < 100MB 的分片放到 `split/`（附 `manifest.json`，含整包和每片的 SHA-256），并校验拼接后与原安装包一致；加 `--no-split` 可跳过。
 
-打包前先拉取 ffmpeg（固定版本，SHA-256 校验，只保留 ffmpeg / ffprobe）：`node tooling/fetch-ffmpeg.js`。
+打包前先拉取 ffmpeg（固定版本，SHA-256 校验，只保留 ffmpeg / ffprobe）：`node sidecars/open-llm-vtuber/scripts/fetch-ffmpeg.js`。
 
 ### 发布新版本
 
@@ -157,7 +157,7 @@ Set-ExecutionPolicy -Scope Process Bypass
 & .\.venv-pack\Scripts\Activate.ps1
 python --version                    # 必须显示 3.12.x（不是 3.13/3.14）
 
-npm run python:deps                 # 装 requirements-pet.txt（含 PyInstaller）
+npm run python:deps                 # 装 sidecars/open-llm-vtuber/requirements-pet.txt（含 PyInstaller）
 
 # 指定冻结后端使用当前虚拟环境，避免误用系统 Python
 $env:AIBOT_PYTHON = (Resolve-Path ".\.venv-pack\Scripts\python.exe").Path
@@ -219,8 +219,8 @@ npm run pack -- --dir         # 轻量版免安装目录
 | `npm run frontend:build` | 生产构建 Electron（含主窗口与设置窗口两个 renderer 入口），不打安装包 |
 | `npm run install:app` | 安装 `frontend` 依赖（含设置窗口，已并入前端） |
 | `npm run install:all` | 在 `install:app` 基础上再装 `site` 依赖 |
-| `npm run python:deps` | 用当前 Python 安装 `requirements-pet.txt`（建议在 3.10–3.12 venv 中） |
-| `npm run prepare-runtime` | 从 `backend/` 组装可分发运行时到 `out/stage/open-llm-vtuber`（首次下载 SenseVoice int8 + Kokoro，约 600MB） |
+| `npm run python:deps` | 用当前 Python 安装 `sidecars/open-llm-vtuber/requirements-pet.txt`（建议在 3.10–3.12 venv 中） |
+| `npm run prepare-runtime` | 从 `sidecars/open-llm-vtuber/upstream/` 组装可分发运行时到 `out/stage/open-llm-vtuber`（首次下载 SenseVoice int8 + Kokoro，约 600MB） |
 | `npm run build:backend` | PyInstaller 冻结后端到 `out/stage/open-llm-vtuber/python`（需 `prepare-runtime` + `AIBOT_PYTHON`） |
 | `npm run pack` / `pack:full` | 打**轻量版** / **整合版** 安装包（只封装现有后端），并自动切分片 |
 | `npm run dist` / `dist:full` / `dist:win` | 完整发布：`prepare-runtime` → `build:backend` → 打包 → 切分片 |
@@ -242,8 +242,11 @@ Any-Lover/
 │  │     ├─ preload/    #   preload：主窗口 window.api + 设置窗口 window.aibot
 │  │     └─ renderer/   #   前端渲染：主窗口(React+Live2D) + settings/（设置窗口第二入口）
 │  └─ website/          # React + Vite 官网（GitHub Pages 部署，分片下载安装包）
-├─ backend/             # 上游 Open-LLM-VTuber 后端（vendored，改动登记在 ANYLOVER_EXTENSIONS.md）
-├─ sidecars/            # 主进程托管的外部进程：tha（EasyVTuber / THA 2D 形象渲染）
+├─ sidecars/            # 主进程托管的外部进程，一个 sidecar 一个目录
+│  ├─ open-llm-vtuber/  #   上游 Open-LLM-VTuber 后端：upstream/（vendored）+ scripts/ + UPSTREAM.md（改动登记）
+│  ├─ tha/              #   EasyVTuber / THA 2D 形象渲染
+│  └─ openseeface/      #   摄像头面捕（只有获取脚本，二进制下载到 out/downloads）
+├─ packages/protocol/   # IPC 与 WebSocket 契约（main / preload / renderer 共用）
 ├─ tooling/             # 构建、打包、发布脚本：prepare-runtime / build-backend / package / release/ 分片
 ├─ .github/workflows/   # 官网部署、前端 CI、Windows 发布（Release + downloads 分片分支）
 └─ out/                 # 全部产物和下载缓存（不入 Git，可删可重建）
@@ -257,7 +260,7 @@ Any-Lover/
 
 `out/stage/open-llm-vtuber/` 与 `out/downloads/` 是本机构建资源，默认不入 Git：
 - `out/stage/open-llm-vtuber/python/aibot-backend.exe` — 由 `npm run build:backend` 生成；
-- `out/downloads/ffmpeg/bin/` — 由 `node tooling/fetch-ffmpeg.js` 拉取；
+- `out/downloads/ffmpeg/bin/` — 由 `node sidecars/open-llm-vtuber/scripts/fetch-ffmpeg.js` 拉取；
 - `out/downloads/ollama/bin/ollama.exe` + `out/downloads/ollama/models/` — 整合版打包所需的 Ollama 与模型。
 
 从旧目录布局升级的本机（仓库根还有 `dist-runtime/`、`dist-tha-runtime/`、`vendor/`、`build/pyinstaller/`）：把它们分别移到 `out/stage/open-llm-vtuber/`、`out/stage/tha/`、`out/downloads/`、`out/pyinstaller/` 即可继续使用，不必重新下载；`apps/desktop/release/` 可直接删除。
@@ -290,7 +293,7 @@ README 首屏与功能图来自上游项目，版权归原作者所有。
 ## 📄 许可
 
 - 本项目代码遵循 **MIT License**（见 [`LICENSE`](./LICENSE)）。
-- 后端与 Live2D 示例模型（Mao / Shizuku）等第三方资源遵循各自许可（见 `backend/LICENSE`、`backend/LICENSE-Live2D.md`）。Live2D 示例模型版权归 Live2D Inc.，分发与商用请遵循其条款。
+- 后端与 Live2D 示例模型（Mao / Shizuku）等第三方资源遵循各自许可（见 `sidecars/open-llm-vtuber/upstream/LICENSE`、`sidecars/open-llm-vtuber/upstream/LICENSE-Live2D.md`）。Live2D 示例模型版权归 Live2D Inc.，分发与商用请遵循其条款。
 - Ollama 与各模型权重（Qwen3、Gemma 3、Llama 3.2、SenseVoice、Kokoro 等）遵循各自上游许可；ffmpeg 为 GPL 构建（gyan.dev essentials），许可见 `out/downloads/ffmpeg/LICENSE`。
 
 <div align="center"><sub>Built on top of <a href="https://docs.llmvtuber.com">Open-LLM-VTuber</a> · MIT License</sub></div>

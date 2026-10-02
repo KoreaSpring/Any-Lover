@@ -6,7 +6,7 @@ node_modules/
 /out/
 
 # 后端 ASR/TTS 模型缓存（prepare-runtime 会复用或重新下载）
-backend/models/
+sidecars/open-llm-vtuber/upstream/models/
 
 # Python 字节码（任意目录）
 __pycache__/

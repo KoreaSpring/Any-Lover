@@ -1,27 +1,32 @@
-# any-lover 对 backend 的扩展清单
+# open-llm-vtuber：上游基线与本地改动登记
 
-`backend/` 是 **vendored 拷贝进来的上游 [open_llm_vtuber](https://github.com/Open-LLM-VTuber/Open-LLM-VTuber)**
-（不是 git submodule，`backend/.git` 不存在，全部文件由本仓库根 git 直接追踪）。原则：**尽量不改上游、
-保持可同步**。any-lover 在这份后端里加的扩展都混在上游文件内，本文件把它们**集中登记**，便于维护、
+`upstream/` 是 **vendored 拷贝进来的上游 [Open-LLM-VTuber](https://github.com/Open-LLM-VTuber/Open-LLM-VTuber)**
+（不是 git submodule，全部文件由本仓库根 git 直接追踪）。原则：**尽量不改上游、保持可同步**。
+any-lover 在这份后端里加的扩展都混在上游文件内，本文件把它们**集中登记**，便于维护、
 以及将来同步上游时快速识别我们的改动边界。
 
-## 上游基线版本
+同目录下的其余部分都是自有的：`scripts/`（stage / freeze / fetch-ffmpeg）、`requirements-pet.txt`（冻结用依赖）。
 
-| 上游 | 本仓库位置 | 基线 | 引入提交 |
-|---|---|---|---|
-| [Open-LLM-VTuber](https://github.com/Open-LLM-VTuber/Open-LLM-VTuber) | `backend/` | v1.2.1（`backend/pyproject.toml`）；上游 commit 未记录 | `f5bf9f6` |
-| [Open-LLM-VTuber-Web](https://github.com/Open-LLM-VTuber/Open-LLM-VTuber-Web) | `frontend/src/renderer`（当时在 `apps/desktop`） | 上游 commit 和版本均未记录（`backend/.gitmodules` 指向其 `build` 分支，但那是上游原有的 submodule 声明，本仓库未使用） | `f5bf9f6` |
-| [ezvtuber-rt](https://github.com/zpeng11/ezvtuber-rt) | `integrations/easyvtuber/runtime`（当时在 `tha-runtime/`） | 源码的上游 commit 未记录；THA 模型取自 release `0.0.1/20241220.zip`（见 `build/scripts/fetch-tha-models.js`） | `5539447` |
+## 上游基线
 
-三处"未记录"在导入时就没留下，事后无法从仓库内还原。P1c 改写为 UPSTREAM.md 时，需要拿本地代码和上游历史比对，定出最接近的 commit。
+| 项 | 值 |
+|---|---|
+| 上游仓库 | https://github.com/Open-LLM-VTuber/Open-LLM-VTuber |
+| 上游 commit | `992309c0aa19845960228f880013d4685fde93b5`（main，2026-05-15，`git describe` 为 `1.2.0-84-g992309c`；pyproject 标 1.2.1） |
+| 导入提交 | `f5bf9f6`（2026-09-18，当时路径 `backend/`）；P1 搬到 `sidecars/open-llm-vtuber/upstream/` |
+| 导入范围 | 上游的一个子集：没有导入 `.github/`、`scripts/`、`avatars/`、多数 `characters/` 和 `backgrounds/` 等 |
+
+核对方法（2026-10-01）：把 `f5bf9f6:backend` 里除 `live2d-models/`、`frontend/` 外的 175 个文件与上游 main 最近的提交逐一比对 blob。`992309c` 匹配 174 个，唯一不同的 `agent/agents/letta_agent.py` 只差行尾（上游是 CRLF，导入时转成了 LF），内容一致。
+
+## 相关上游：Open-LLM-VTuber-Web
+
+渲染层（`apps/desktop/src/renderer`）源自 [Open-LLM-VTuber-Web](https://github.com/Open-LLM-VTuber/Open-LLM-VTuber-Web)，基线为 main `d176e7df2366952e3bacbf12cf9a8b18a4315932`（2025-09-05），同在 `f5bf9f6` 导入。导入时的 200 个文件中 197 个与该提交一致，其余 3 个（`public/libs/live2d.min.js`、`components/canvas/background.tsx`、`assets/backgrounds/default-bg.svg`）是导入时新增或修改的。渲染层没有单独的 UPSTREAM.md，P4 决定 D2 后再定是否继续跟进上游。
+
+`upstream/.gitmodules` 是上游原有的 submodule 声明（指向 Web 的 `build` 分支），本仓库不使用。
 
 ## 如何区分「上游原有」与「我们加的」
 
-本仓库的 git 历史把两者干净地分开了：
-
-- **`f5bf9f6 feat: init项目`** —— 上游导入基线（一次性引入整个上游后端）。这个 commit 引入、之后未被改动的
-  即上游原有。
-- 其后所有触及 `backend/` 的 commit 都是 any-lover 扩展：
+`f5bf9f6` 是导入基线，之后所有触及这个目录的提交都是 any-lover 的改动：
 
 | 提交 | 内容 |
 |---|---|
@@ -30,32 +35,37 @@
 | `263b619` | 流式 partial-text 旁路 + 单句 TTS 容错 |
 | `7639cdd` | 随包 ffmpeg 定位 |
 | `745c7ee` / `d031705` | 中枢对话 F-1 / F-2（hub-speak-* 与 asr-only） |
-| `0a7a916` | 新增本清单 |
+| `0a7a916` | 新增本清单（当时名为 ANYLOVER_EXTENSIONS.md） |
 | `9724519` | 新增 hub-tool-list / hub-tool-call（已被 `7be0add` 删除） |
 | `daa20f1` | sherpa-onnx 可选路径 None 兜底 |
 | `33a9cb3` | claude / letta / template LLM 懒加载 |
 | `609b496` | sherpa-onnx 支持 Kokoro 模型类型 |
 | `7be0add` | 删除 hub-tool-*（中枢改用 McpHub 直连） |
+| P1c | 整体从 `backend/` 移到 `sidecars/open-llm-vtuber/upstream/`（纯移动，内容不变） |
 
-查看我们对某文件的完整改动（等价于「上游原版 vs 现状」的 diff）：
+目录搬迁后，`git diff f5bf9f6 HEAD -- <路径>` 两端路径不同，要改用"树对树"比较：
 
 ```bash
-git diff f5bf9f6 HEAD -- backend/src/open_llm_vtuber/<file>
+# 我们对上游的全部改动（等价于「上游原版 vs 现状」）
+git diff f5bf9f6:backend HEAD:sidecars/open-llm-vtuber/upstream -- src
+# 单个文件
+git diff f5bf9f6:backend HEAD:sidecars/open-llm-vtuber/upstream -- src/open_llm_vtuber/<file>
 ```
 
-同步上游时：先 `git diff f5bf9f6 HEAD -- backend/src` 导出我们的改动集，用新上游覆盖 `backend/` 后，
-对照本清单逐处回贴 / 解决冲突。
+搬迁前导出的同一份改动存档在 `docs/roadmap/baselines/backend-vs-f5bf9f6.patch`。
+
+同步上游时：先用上面的命令导出改动集，用新上游覆盖 `upstream/` 后，对照本清单逐处回贴、解决冲突，并更新"上游基线"一节。
 
 ## 扩展文件清单（相对 `f5bf9f6`，共 13 个 .py 文件 / +395 −38 行，4 个新增消息类型）
 
-> 统计不含本文件和 Live2D 模型资源。复核命令：`git diff --numstat f5bf9f6 HEAD -- 'backend/*.py'`。
+> 统计不含本文件和 Live2D 模型资源。复核命令：`git diff --numstat f5bf9f6:backend HEAD:sidecars/open-llm-vtuber/upstream -- '*.py'`。
 
 > 行号为撰写时的近似位置，随上游变动会漂移；**以中文注释和 git diff 为准**。所有扩展处均带成段中文注释。
 
 ### 1. `websocket_handler.py` —— 中枢对话核心（重心，+93 行）
-后端在「中枢对话」模式下退为**纯语音+表情服务**，对话生成移到主进程中枢（frontend 的 DialogueEngine）。
+后端在「中枢对话」模式下退为**纯语音+表情服务**，对话生成移到主进程中枢（apps/desktop 的 DialogueEngine）。
 - **实例字段** `self.hub_tts_managers: Dict[str, TTSTaskManager]`（每 client 一个 TTS 管理器）。
-- **`_init_message_handlers` 追加 4 个消息 type**（对应 frontend `proto/ws-backend.ts` 的 any-lover 扩展）：
+- **`_init_message_handlers` 追加 4 个消息 type**（对应 `packages/protocol/src/ws-backend.ts` 的 any-lover 扩展）：
   - `hub-speak-start` → `_handle_hub_speak_start`：新建本轮 hub TTS 管理器，发 `conversation-chain-start`。
   - `hub-speak` → `_handle_hub_speak`：一句文本 → `live2d_model.extract_emotion` 提表情 + `TTSTaskManager.speak`
     合成 → 复用现有 audio/口型/字幕链路。
@@ -124,4 +134,4 @@ git diff f5bf9f6 HEAD -- backend/src/open_llm_vtuber/<file>
 
 - 新增后端扩展时：优先放独立文件（如 stream_hooks.py 那样），实在要改上游文件就**带中文注释**并**更新本清单**。
 - 不要为「集中」而把依赖实例状态的 handler 硬抽出——会破坏封装、增大同步上游的冲突面。
-- 这些扩展都不改上游的导入结构，PyInstaller 冻结打包（`build:backend`）不受影响。
+- 这些扩展都不改上游的导入结构，PyInstaller 冻结打包（`npm run build:backend`，即 `scripts/freeze.js`）不受影响。

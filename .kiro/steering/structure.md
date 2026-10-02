@@ -7,15 +7,19 @@ pet-bot/
 ├─ apps/
 │  ├─ desktop/          前端（Electron App）：主进程 + Live2D 主窗口渲染 + 设置窗口渲染
 │  └─ website/          官网（React + Vite + Tailwind，GitHub Pages 独立部署）
-├─ backend/             后端（上游 Open-LLM-VTuber，Python，黑盒整体引入，勿拆）
-├─ tooling/             构建 / 打包编排脚本（prepare-runtime / build-backend / package / release/ 分片）
+├─ sidecars/            主进程托管的外部进程，一个 sidecar 一个目录
+│  ├─ open-llm-vtuber/  后端：upstream/（上游 Open-LLM-VTuber，Python，黑盒整体引入，勿拆）、
+│  │                    scripts/（stage / freeze / fetch-ffmpeg）、requirements-pet.txt、UPSTREAM.md（改动登记）
+│  ├─ tha/              THA 神经渲染：runtime/ + scripts/（stage / fetch-models）
+│  └─ openseeface/      摄像头面捕：scripts/fetch.js
+├─ packages/protocol/   IPC 与 WebSocket 契约（别名 @proto）
+├─ tooling/             跨 sidecar 的打包与发布：package.js、release/ 分片、resource-tree.js
 ├─ out/                 全部产物和下载缓存（不入 Git）：stage/<id> 组装好的运行时、downloads/ ollama 与 ffmpeg、
 │                       pyinstaller/ 冻结中间产物、release/ 安装包
-├─ docs/                文档与 roadmap
-└─ requirements-pet.txt 冻结后端所需的最小 Python 依赖
+└─ docs/                文档与 roadmap
 ```
 
-顶层三分：**apps/desktop / backend / apps/website**，各自可独立开发、构建、演进，通过协议边界解耦（见 architecture.md）。`tooling` 是跨层的构建编排。
+顶层按职责划分：**apps**（可交付的应用）/ **sidecars**（被托管的外部进程）/ **packages**（共享契约），通过协议边界解耦（见 architecture.md）。`tooling` 是跨层的构建编排。
 
 ## frontend（Electron App）
 
@@ -58,9 +62,9 @@ apps/desktop/src/
 - **zustand**：局部 / 组件族共享状态（沿用上游既有 store，不强制迁移）。
 - **React context**：跨组件依赖注入（Live2D、摄像头、屏幕采集等，沿用上游）。
 
-## backend 内部大模块（上游，仅供理解，勿改）
+## sidecars/open-llm-vtuber/upstream 内部大模块（上游，仅供理解，勿改）
 
-`backend/src/open_llm_vtuber/`：
+`sidecars/open-llm-vtuber/upstream/src/open_llm_vtuber/`：
 - `server.py` / `routes.py` / `websocket_handler.py` —— WebSocket 服务（端口 12393）与路由
 - `conversations/` —— 单人 / 群组对话编排
 - `agent/` —— 对话智能体层：`agents/` + `stateless_llm/`（各 LLM provider）+ `transformers/`

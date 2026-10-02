@@ -63,7 +63,7 @@ jobs:
         with:
           python-version: '3.12'
           cache: pip
-          cache-dependency-path: requirements-pet.txt
+          cache-dependency-path: sidecars/open-llm-vtuber/requirements-pet.txt
 
       - name: Sync app version with tag
         if: startsWith(github.ref, 'refs/tags/v')
@@ -76,27 +76,27 @@ jobs:
         run: npm --prefix apps/desktop ci
 
       - name: Install backend build dependencies
-        run: python -m pip install -r requirements-pet.txt
+        run: python -m pip install -r sidecars/open-llm-vtuber/requirements-pet.txt
 
-      # 模型体积大（SenseVoice int8 + Kokoro），按 tooling/prepare-runtime.js 内容缓存
+      # 模型体积大（SenseVoice int8 + Kokoro），按 stage.js 内容缓存
       - name: Cache models
         uses: actions/cache@v4
         with:
           path: out/stage/open-llm-vtuber/models
-          key: models-${{ hashFiles('tooling/prepare-runtime.js') }}
+          key: models-${{ hashFiles('sidecars/open-llm-vtuber/scripts/stage.js') }}
 
       - name: Fetch ffmpeg (pinned + SHA-256)
-        run: node tooling/fetch-ffmpeg.js
+        run: node sidecars/open-llm-vtuber/scripts/fetch-ffmpeg.js
 
       - name: Prepare runtime
         env:
           AIBOT_PYTHON: ${{ steps.py.outputs.python-path }}
-        run: node tooling/prepare-runtime.js
+        run: node sidecars/open-llm-vtuber/scripts/stage.js
 
       - name: Freeze backend (PyInstaller)
         env:
           AIBOT_PYTHON: ${{ steps.py.outputs.python-path }}
-        run: node tooling/build-backend.js
+        run: node sidecars/open-llm-vtuber/scripts/freeze.js
 
       - name: Unit tests
         working-directory: apps/desktop

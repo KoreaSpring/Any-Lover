@@ -13,7 +13,7 @@
  *   - Licenses/  （BSD-2 及第三方库许可，随分发）
  * facetracker 与 models 处于同级，openseeface-manager.ts 的 resolveExe 找 out/downloads/openseeface/facetracker.exe。
  *
- * 用法：node tooling/fetch-openseeface.js
+ * 用法：node sidecars/openseeface/scripts/fetch.js
  * 幂等：已存在 facetracker.exe + models 则跳过（删除 out/downloads/openseeface 可强制重取）。
  */
 
@@ -23,7 +23,7 @@ const path = require('path');
 const https = require('https');
 const { spawnSync } = require('child_process');
 
-const ROOT = path.join(__dirname, '..');
+const ROOT = path.join(__dirname, '..', '..', '..');
 const DST = path.join(ROOT, 'out', 'downloads', 'openseeface');
 const VERSION = 'v1.20.5';
 const URL = `https://github.com/emilianavt/OpenSeeFace/releases/download/${VERSION}/OpenSeeFace-${VERSION}.zip`;

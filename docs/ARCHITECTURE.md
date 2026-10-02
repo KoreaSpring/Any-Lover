@@ -32,7 +32,7 @@ Any-Lover 是一个桌面 AI 陪伴应用（Electron + Python 后端）：一个
   感知/记忆/决策/表达/资源五层，直连线上主模型（LLMProvider）。代码在 `apps/desktop/src/main/`。
 - **Renderer（渲染进程）**：React UI + 桌宠画布（Live2D 或 THA 帧流）+ 字幕/口型/表情播放。
   摄像头/麦克风相关的面部/语音情绪跑在这里（浏览器 API），产出信号经 IPC 上报中枢。
-- **Python 后端（`backend/`，vendored 上游 open_llm_vtuber，尽量不改）**：ASR（语音识别）、
+- **Python 后端（`sidecars/open-llm-vtuber/upstream/`，vendored 上游 open_llm_vtuber，尽量不改）**：ASR（语音识别）、
   TTS（语音合成）、Live2D 表情关键词映射、对话历史。**中枢对话模式**下它退为纯 ASR/TTS/表情服务。
 
 > 架构原则：**除对话主模型走线上外，其余模型全部本地**（屏幕理解 VLM、embedding、面捕、情绪）。
@@ -128,7 +128,7 @@ screen-sampler 定时截屏 → screen-gate 黑名单/去重门控
 - 打包命令 `npm run dist:win`：prepare-runtime（组装 out/stage/open-llm-vtuber 后端源码）→ build:backend
   （PyInstaller 冻结后端到 out/stage/open-llm-vtuber/python）→ prepare-tha-runtime（组装 out/stage/tha）
   → tooling/package.js（electron-builder 出 NSIS）。
-- **改了 `backend/` 源码，必须重新 `build:backend`**，否则冻结产物仍是旧后端。
+- **改了 `sidecars/open-llm-vtuber/upstream/` 源码，必须重新 `build:backend`**，否则冻结产物仍是旧后端。
 - **改了 `sidecars/tha/runtime/` 源码（如 tha_server.py），必须重新 `prepare-tha-runtime`**
   （THA/EasyVtuber 渲染后端已归拢为可插拔集成目录，见 `sidecars/tha/README.md`）。
 - 大模型/运行时（out/downloads/、out/stage/open-llm-vtuber/、out/stage/tha/）均 gitignore，不入库；由脚本下载/组装。

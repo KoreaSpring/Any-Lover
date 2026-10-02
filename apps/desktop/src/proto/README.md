@@ -30,7 +30,7 @@
 ## Python 侧手动对齐（重要）
 
 `ws-backend.ts` / `ws-tha.ts` 只统一了 **TS 侧**。对端是 Python，无法 import TS，改协议时必须手动同步：
-- `backend/src/open_llm_vtuber/websocket_handler.py` 的 `_init_message_handlers`（入站分发）与
+- `sidecars/open-llm-vtuber/upstream/src/open_llm_vtuber/websocket_handler.py` 的 `_init_message_handlers`（入站分发）与
   `json.dumps({"type": ...})`（出站）。
 - `out/stage/tha/tha_server.py` 的 `on_message`（THA 出站分发）与 `setImageProgress` 回发。
 

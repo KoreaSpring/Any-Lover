@@ -2,7 +2,7 @@
 //
 // 端点：ws://<host>:12393/client-ws（见 websocket-context 默认地址）。载荷：JSON 文本。
 //
-// ⚠️ 对端是 Python（backend/src/open_llm_vtuber/websocket_handler.py），无法 import 本文件。
+// ⚠️ 对端是 Python（sidecars/open-llm-vtuber/upstream/src/open_llm_vtuber/websocket_handler.py），无法 import 本文件。
 //    改动 type 时必须同步改后端 `_init_message_handlers` 分发表（见本目录 protocol.proto 契约文档）。
 //    标注 (any-lover) 的是本项目在 vendored 上游之外新增的扩展 type，改动尤需两端对齐。
 

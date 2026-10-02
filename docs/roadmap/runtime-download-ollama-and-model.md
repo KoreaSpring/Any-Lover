@@ -101,7 +101,7 @@ any-lover 已经具备把 Ollama 当外部 HTTP 服务使用的完整能力（`o
 | 设置存储 | `userData/settings.json` + safeStorage 加密的 apiKey | `apps/desktop/src/main/settings-store.ts` |
 | 现有 IPC | settings:get/save、ollama:detect/browse、llm:test、pet:launch、app:quit | `apps/desktop/src/main/aibot-ipc.ts` |
 | 设置窗口 | `renderer/settings.html` + `renderer/settings/` + `preload/settings-preload.ts` | — |
-| 体积大件 | SenseVoice ASR ~300MB（打进 out/stage/open-llm-vtuber/models）、冻结后端、out/downloads/ollama(仅整合版) | `tooling/prepare-runtime.js` |
+| 体积大件 | SenseVoice ASR ~300MB（打进 out/stage/open-llm-vtuber/models）、冻结后端、out/downloads/ollama(仅整合版) | `sidecars/open-llm-vtuber/scripts/stage.js` |
 
 **硬编码风险点（多平台阻碍）**：`ollama-manager.ts` 里 `resolveBundledOllama()` 写死 `ollama.exe`，`killAll()` win 用 `taskkill` + 镜像名。
 
