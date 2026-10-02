@@ -47,7 +47,7 @@ Electron 主进程：应用大脑。管理所有 sidecar（Python 后端 / Ollam
 | `settings-window.ts` | 独立设置窗口 |
 | `menu-manager.ts` | 应用/托盘菜单 |
 
-## core/ — 基础设施
+## platform/ — 基础设施（原 core/）
 | 文件 | 职责 |
 | --- | --- |
 | `settings-store.ts` | 设置持久化（userData/settings.json）+ API Key 加密存取 |

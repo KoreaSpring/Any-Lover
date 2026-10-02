@@ -7,8 +7,8 @@ import path from 'path';
 import http from 'http';
 import { spawn, spawnSync, ChildProcess } from 'child_process';
 import { app } from 'electron';
-import { readSettings, loadApiKey, clampTtsSid } from '../core/settings-store';
-import { largeDataDir, cleanupLegacy } from '../core/data-dir';
+import { readSettings, loadApiKey, clampTtsSid } from '../platform/settings-store';
+import { largeDataDir, cleanupLegacy } from '../platform/data-dir';
 
 const HOST = '127.0.0.1';
 const PORT = 12393;
@@ -45,7 +45,7 @@ export class BackendManager {
   }
 
   // 可写运行目录：用户在启动页选了安装位置则放到 <安装位置>/runtime，否则 userData/runtime；
-  // 首次解析时按需从旧位置迁移（见 core/data-dir）。
+  // 首次解析时按需从旧位置迁移（见 platform/data-dir）。
   private dataRoot(): string {
     return largeDataDir('runtime', this.log);
   }

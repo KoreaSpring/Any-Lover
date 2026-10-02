@@ -18,7 +18,7 @@ import net from 'net';
 import path from 'path';
 import { spawn, spawnSync, ChildProcess } from 'child_process';
 import { app } from 'electron';
-import { largeDataDir, cleanupLegacy } from '../core/data-dir';
+import { largeDataDir, cleanupLegacy } from '../platform/data-dir';
 import { installedHqTiers } from './tha-model-installer';
 
 const HOST = '127.0.0.1';
@@ -53,7 +53,7 @@ export class ThaManager {
   // 实际运行目录（需可写：首启要在此 pip 装依赖）。
   //   - 开发态：直接用仓库根 tha-runtime（可写，且含开发 .venv）。
   //   - 打包态：resources 通常只读，复制到可写目录再运行：用户在启动页选了安装位置则为
-  //     <安装位置>/tha-runtime，否则 userData/tha-runtime（见 core/data-dir，含旧位置迁移）。
+  //     <安装位置>/tha-runtime，否则 userData/tha-runtime（见 platform/data-dir，含旧位置迁移）。
   //     高画质模型（约 1.5GB）下载到其 data/models，随之落到同一位置。
   private thaDir(): string {
     const override = process.env.ANYLOVER_THA_DIR;

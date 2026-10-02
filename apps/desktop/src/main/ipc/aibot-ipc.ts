@@ -5,7 +5,7 @@ import path from 'path';
 import http from 'http';
 import https from 'https';
 import { ipcMain, dialog, BrowserWindow, app } from 'electron';
-import { readSettings, writeSettings, saveApiKey, loadApiKey, hasApiKey, clampTtsSid } from '../core/settings-store';
+import { readSettings, writeSettings, saveApiKey, loadApiKey, hasApiKey, clampTtsSid } from '../platform/settings-store';
 import { OllamaManager, resolveAnyOllama } from '../sidecar/ollama-manager';
 import { BackendManager } from '../sidecar/backend-manager';
 import {

@@ -2,7 +2,7 @@
 // 与 ProfileExtractor 同样的调用方式：温度 0、限长、超时；任何失败返回 null（上层按 ADD 处理）。
 
 import { LLMProviderRegistry } from '../llm/llm-provider';
-import { readSettings } from '../../core/settings-store';
+import { readSettings } from '../../platform/settings-store';
 import {
   MemoryJudge,
   MemoryOp,

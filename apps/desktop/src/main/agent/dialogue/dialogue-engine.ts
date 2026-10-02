@@ -14,7 +14,7 @@ import { ProfileStore } from '../memory/profile-store';
 import { RelationshipState } from '../memory/relationship-state';
 import { EmotionState } from '../emotion/emotion-state';
 import { eventBus, EventBus } from '../event-bus';
-import { readSettings } from '../../core/settings-store';
+import { readSettings } from '../../platform/settings-store';
 import {
   ToolCall, ToolResult, parseToolCalls, hasToolCall, stripToolCalls,
   buildToolSystemPrompt, formatToolResultsForContext,

@@ -46,7 +46,7 @@
 // 建议位置：main/sidecar/plugin.ts（与各 manager 同目录）
 export interface SidecarPluginContext {
   log: (msg: string) => void;
-  settings: () => AppSettings;      // 读设置（复用 core/settings-store）
+  settings: () => AppSettings;      // 读设置（复用 platform/settings-store）
   eventBus: EventBus;               // 需要发/收事件的插件用
   registerIpc: (register: () => void) => void; // 插件自注册 IPC
 }

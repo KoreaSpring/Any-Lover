@@ -5,14 +5,14 @@
 //   由 SidecarRegistry 统一装载/启停/清理，取代 bootstrap 里逐个手写的接线。
 //   显存资源维度是正交的另一层（ManagedResource / ResourceCoordinator），互不强制。
 
-import type { AppSettings } from '../core/settings-store';
+import type { AppSettings } from '../platform/settings-store';
 import type { EventBus } from '../agent/event-bus';
 
 /** 插件启动时拿到的上下文（由 bootstrap 组装、registry 透传）。 */
 export interface SidecarPluginContext {
   /** 诊断日志（通常接 electron-log）。 */
   log: (msg: string) => void;
-  /** 读当前设置（复用 core/settings-store）。 */
+  /** 读当前设置（复用 platform/settings-store）。 */
   settings: () => AppSettings;
   /** 主进程事件总线（需要发/收事件的插件用）。 */
   eventBus: EventBus;
