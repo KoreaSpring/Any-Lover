@@ -52,9 +52,11 @@
 - [x] 9. 补全方案文档的 §9 决策点、§10 风险与验证、附录 A/B
   - 结果：D6 标为已决（7be0add），其余 7 项给出推荐和备选，待确认；附录 B 共 15 项，已修 7 项，其余标明归属任务
 - [ ] 10. 生成打包资源树基线，供 P1、P2 比对
+  - 进度：脚本已加（`build/scripts/resource-tree.js`，根命令 `npm run pack:tree`，支持 `--compare`），已在临时目录自测。基线本身要在 Windows 上 `npm run pack -- --dir` 后生成，尚未生成，生成后存为 `docs/roadmap/baselines/resource-tree-p0.txt`
   - 新增脚本：列出 win-unpacked/resources 下所有文件的路径和大小
   - pack.js 会强制结束 Ollama 和后端进程，所以跑 `pack --dir` 之前先确认它们都没有在运行
-- [ ] 11. P0 收尾：全量验证，更新受影响的 steering 和文档，合入 main
+- [x] 11. P0 收尾：全量验证，更新受影响的 steering 和文档，合入 main
+  - 结果：typecheck:node、lint、check:deps、test（105 通过）、build、site:build、py_compile 全部通过；structure.md 去掉已删除的 index.d.ts，tech.md 补上质量检查命令和 pack:tree。任务 10 的基线还没生成，P1 开工前必须先在 Windows 上补齐
 
 ## P1 顶层搬迁（需确认 D1；只移动不改逻辑，打包资源树要和 P0 基线一致）
 

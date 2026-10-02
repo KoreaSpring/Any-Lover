@@ -36,8 +36,7 @@ frontend/src/
 │  └─ gpu-fix.ts           GPU 兼容性副作用修复
 ├─ preload/
 │  ├─ index.ts             主窗口 preload，暴露 window.api
-│  ├─ settings-preload.ts  设置窗口 preload，暴露 window.aibot
-│  └─ index.d.ts
+│  └─ settings-preload.ts  设置窗口 preload，暴露 window.aibot（window.api 的类型由 index.ts 推导为 PreloadApi）
 └─ renderer/               前端渲染进程（两个入口，共享 root/别名/依赖）
    ├─ index.html           主窗口入口
    ├─ settings.html        设置窗口入口（第二 renderer 入口）

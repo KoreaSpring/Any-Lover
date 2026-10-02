@@ -32,6 +32,9 @@
 | `npm run build:backend` | PyInstaller 冻结后端到 `dist-runtime/python/`（需 prepare-runtime + `$env:AIBOT_PYTHON`） |
 | `npm run pack` / `pack:full` | 打**轻量版** / **整合版**安装包（只封装现有后端，不重新冻结） |
 | `npm run dist` / `dist:full` | 完整发布：prepare-runtime → build:backend → pack(`:full`) |
+| `npm run pack:tree -- --out <文件>` | 列出 win-unpacked/resources 的文件和大小；`-- --compare <基线> <新>` 比对两份清单（重构期间用来确认打包内容没变） |
+
+质量检查（在 `frontend/` 下运行，CI 全部执行）：`npm run typecheck:node`、`npm run lint`（不自动修复，修复用 `lint:fix`）、`npm run check:deps`（dependency-cruiser，现有违规记在 baseline，只拦新增）、`npm test`、`npm run build`。渲染层 `typecheck:web` 因 WebSDK 的历史报错暂不进 CI。
 
 ## 构建打包链路（数据流）
 

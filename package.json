@@ -24,6 +24,7 @@
     "site:build": "npm --prefix site run build",
     "pack": "node build/scripts/pack.js",
     "pack:full": "node build/scripts/pack.js --with-model",
+    "pack:tree": "node build/scripts/resource-tree.js",
     "dist": "npm run prepare-runtime && npm run build:backend && npm run pack",
     "dist:full": "npm run prepare-runtime && npm run build:backend && npm run pack:full",
     "dist:win": "npm run prepare-runtime && npm run build:backend && npm run prepare-tha-runtime && node build/scripts/pack.js --no-ollama"
