@@ -1,13 +1,13 @@
 // THA 渲染控制 WebSocket 协议（renderer/tha-driver ↔ Python tha_server.py）——TS 侧单一事实源。
 //
-// 端点：ws://127.0.0.1:12395/（tha_server 双向：向所有连接推 RGBA 帧，同时收文本控制消息）。
+// 端点：ws://127.0.0.1:<端口>/（tha_server 双向：向所有连接推 RGBA 帧，同时收文本控制消息）。
+// 端口不在这里写死：默认值在 sidecars/tha/manifest.json（12395），可被 ANYLOVER_THA_PORT 覆盖，
+// 由主进程 tha-manager 决定，renderer 经 IPC.tha.wsUrl 取得实际地址。
 // 载荷：JSON 文本消息。二进制帧（推流）不在本协议内，由 ThaStage 直接解码绘制。
 //
 // ⚠️ 对端是 Python（out/stage/tha/tha_server.py），无法 import 本文件。改动 type/字段时，
 //    必须同步改 tha_server.py 的 on_message 分发（见本目录 protocol.proto 契约文档）。
 
-/** THA 控制 WS 地址（与主进程 tha-manager 默认端口一致）。 */
-export const THA_WS_URL = 'ws://127.0.0.1:12395/';
 
 /** 出站控制消息 type（renderer → tha_server）。 */
 export const THA_OUT = {

@@ -6,8 +6,9 @@
 // 帧连接解耦，便于 use-audio-task 这类非组件模块直接调用。
 
 import {
-  THA_WS_URL, THA_OUT, THA_IN, ThaSetImageProgress, ThaSegmentModel, ThaPreset, ThaGazeMode,
+  THA_OUT, THA_IN, ThaSetImageProgress, ThaSegmentModel, ThaPreset, ThaGazeMode,
 } from '@proto/ws-tha';
+import { getThaWsUrl } from './tha-endpoint';
 
 // 协议类型/常量统一在 proto/ws-tha.ts。此处 re-export ThaSetImageProgress 保持既有消费方 import 不变。
 export type { ThaSetImageProgress } from '@proto/ws-tha';
@@ -18,6 +19,8 @@ class ThaDriver {
   private connecting = false;
 
   private lastMouthSent = 0;
+  // THA WS 地址：首次连接时向主进程取（端口可被 ANYLOVER_THA_PORT 覆盖），之后复用
+  private url = '';
 
   private progressListeners = new Set<(p: ThaSetImageProgress) => void>();
 
@@ -33,8 +36,23 @@ class ThaDriver {
     }
     if (this.connecting) return;
     this.connecting = true;
+    if (this.url) {
+      this.open(this.url);
+      return;
+    }
+    void getThaWsUrl().then((url) => {
+      if (!url) {
+        this.connecting = false;
+        return;
+      }
+      this.url = url;
+      this.open(url);
+    });
+  }
+
+  private open(url: string): void {
     try {
-      const ws = new WebSocket(THA_WS_URL);
+      const ws = new WebSocket(url);
       ws.binaryType = 'blob';
       ws.onopen = (): void => {
         this.connecting = false;

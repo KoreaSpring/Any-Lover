@@ -10,7 +10,7 @@
 | --- | --- | --- |
 | `ipc.ts` | Electron IPC（main ↔ preload/renderer） | 全部通道名常量 `IPC.<域>.<动作>`，已在三处接入 |
 | `ws-backend.ts` | 后端对话 WS（renderer ↔ Python，12393） | 出站 `WS_OUT`、入站 `WS_IN`、control 子命令 `WS_CONTROL` + wire 数据形状（DisplayText/Actions/Message/BrowserViewData 等）。出站与入站 switch case 标签均已接入常量 |
-| `ws-tha.ts` | THA 渲染 WS（renderer ↔ Python tha_server，12395） | 出站 `THA_OUT`、入站 `THA_IN`、载荷枚举、`ThaSetImageProgress`、`THA_WS_URL`。tha-driver / render-mode-context 已接入 |
+| `ws-tha.ts` | THA 渲染 WS（renderer ↔ Python tha_server，默认 12395，端口见 sidecars/tha/manifest.json） | 出站 `THA_OUT`、入站 `THA_IN`、载荷枚举、`ThaSetImageProgress`。地址不写死，renderer 经 `IPC.tha.wsUrl` 向主进程取。tha-driver / render-mode-context 已接入 |
 | `protocol.proto` | 跨语言契约文档 | 用 protobuf IDL 语法列出上述全部协议，供 TS↔Python 人工对齐；**不参与构建、不做代码生成** |
 
 ## 如何 import

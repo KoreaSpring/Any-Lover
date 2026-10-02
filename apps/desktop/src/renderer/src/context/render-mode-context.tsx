@@ -1,5 +1,5 @@
-import React, { createContext, useContext, useMemo, useState } from 'react';
-import { THA_WS_URL } from '@proto/ws-tha';
+import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { getThaWsUrl } from '@/utils/tha-endpoint';
 
 // 渲染后端选择：
 //   'live2d' —— 现有前端 WebGL 渲染 .moc3（Mac / 回退 / 非 Windows）
@@ -7,12 +7,11 @@ import { THA_WS_URL } from '@proto/ws-tha';
 // 设计原则（见 docs/roadmap/easyvtuber-integration.md §5）：不删 Live2D，用开关切换。
 export type RenderModeType = 'live2d' | 'tha';
 
-// THA 帧流 WebSocket 地址：单一事实源在 proto/ws-tha.ts，此处 re-export 保持既有消费方 import 不变。
-export { THA_WS_URL } from '@proto/ws-tha';
 
 interface RenderModeContextType {
   renderMode: RenderModeType;
   setRenderMode: (m: RenderModeType) => void;
+  /** THA 帧流 WS 地址，向主进程取到之前为空串（此时不连接）。 */
   thaWsUrl: string;
 }
 
@@ -42,6 +41,17 @@ function resolveDefaultRenderMode(): RenderModeType {
 
 export const RenderModeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [renderMode, setRenderModeState] = useState<RenderModeType>(resolveDefaultRenderMode);
+  const [thaWsUrl, setThaWsUrl] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    void getThaWsUrl().then((url) => {
+      if (!cancelled) setThaWsUrl(url);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const setRenderMode = (m: RenderModeType): void => {
     setRenderModeState(m);
@@ -53,8 +63,8 @@ export const RenderModeProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   };
 
   const value = useMemo(
-    () => ({ renderMode, setRenderMode, thaWsUrl: THA_WS_URL }),
-    [renderMode],
+    () => ({ renderMode, setRenderMode, thaWsUrl }),
+    [renderMode, thaWsUrl],
   );
 
   return <RenderModeContext.Provider value={value}>{children}</RenderModeContext.Provider>;

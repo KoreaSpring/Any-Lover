@@ -20,6 +20,7 @@ import { spawn, spawnSync, ChildProcess } from 'child_process';
 import { app } from 'electron';
 import { largeDataDir, cleanupLegacy } from '../../platform/data-dir';
 import { BUNDLED, bundledDir } from '../../platform/paths';
+import { thaPort } from '../../platform/sidecar-manifests';
 import { installedHqTiers } from './tha-model-installer';
 
 const HOST = '127.0.0.1';
@@ -35,9 +36,11 @@ export class ThaManager {
 
   constructor(logger?: (msg: string) => void) {
     this.log = logger || (() => {});
-    this.port = Number(process.env.ANYLOVER_THA_PORT || '12395');
+    // 默认端口在 sidecars/tha/manifest.json（12395），ANYLOVER_THA_PORT 可覆盖
+    this.port = thaPort();
   }
 
+  /** 渲染 WebSocket 地址（renderer 经 IPC.tha.wsUrl 取得，不再自己写死端口）。 */
   wsUrl(): string {
     return `ws://${HOST}:${this.port}/`;
   }

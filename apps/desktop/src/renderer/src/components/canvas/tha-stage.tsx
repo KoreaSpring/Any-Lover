@@ -172,6 +172,8 @@ export const ThaStage = memo(({ showSidebar: _showSidebar }: ThaStageProps): JSX
   }, [isPet, electronApi]);
 
   useEffect(() => {
+    // 地址要向主进程取，取到之前不连接
+    if (!thaWsUrl) return undefined;
     closedRef.current = false;
     let retryTimer: ReturnType<typeof setTimeout> | null = null;
     // 待绘制的最新帧（只保留最新，丢弃积压，避免延迟累积）

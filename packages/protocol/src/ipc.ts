@@ -92,6 +92,8 @@ export const IPC = {
     pickImage: 'tha:pickImage',
     modelStatus: 'tha:modelStatus',
     downloadHQ: 'tha:downloadHQ',
+    // 只读：THA 渲染 WS 的实际地址（端口来自 manifest，可被 ANYLOVER_THA_PORT 覆盖）
+    wsUrl: 'tha:wsUrl',
     progress: 'tha:progress',
   },
 

@@ -63,6 +63,8 @@ const api = {
   getConfigFiles: () => ipcRenderer.invoke(IPC.config.getConfigFiles),
   // THA 立绘上传：打开选图框，返回本地绝对路径（renderer 再经 thaDriver 发 setImage）
   pickThaImage: (): Promise<{ path: string }> => ipcRenderer.invoke(IPC.tha.pickImage),
+  // THA 渲染 WS 地址（端口由主进程按 manifest 与 ANYLOVER_THA_PORT 决定）
+  getThaWsUrl: (): Promise<string> => ipcRenderer.invoke(IPC.tha.wsUrl),
   updateConfigFiles: (files: ConfigFile[]) => {
     ipcRenderer.send(IPC.config.updateConfigFiles, files);
   },

@@ -826,10 +826,10 @@ ANYLOVER_FFMPEG_DIR 这类由主进程注入给 sidecar 的变量，两端会一
 | `electron-builder.yml` 的 extraResources 没有过滤，日志、聊天记录、conf.yaml 会进安装包 | 已修（P0 任务 2.3） |
 | main、preload 实际不做类型检查；`preload/index.d.ts` 从未被加载 | 已修（P0 任务 5） |
 | ESLint 继承未安装的 airbnb，根本跑不起来 | 已修（P0 任务 6.1） |
-| `proto/ws-tha.ts` 把 THA 端口写死为 12395，不跟随 `ANYLOVER_THA_PORT` | 未修，P2 任务 17 随 manifest 处理 |
+| `proto/ws-tha.ts` 把 THA 端口写死为 12395，不跟随 `ANYLOVER_THA_PORT` | 已修（P2 任务 17）：默认值在 `sidecars/tha/manifest.json`，renderer 经 `IPC.tha.wsUrl` 取实际地址 |
 | 开发态读错 `mcp_servers.json` 所在目录 | 未修，P3 任务 19 随 `platform/paths.ts` 处理 |
-| prepare-runtime 不清空 dist-runtime，残留的 node/、webapps/ 会进包 | 未修，P2 任务 17 |
-| 只有 ffmpeg 下载做了 SHA-256 校验 | 未修，P2 任务 15 |
+| prepare-runtime 不清空 dist-runtime，残留的 node/、webapps/ 会进包 | 已修（P2 任务 17）：stage 前清空 out/stage/<id>，模型缓存在 out/downloads |
+| 只有 ffmpeg 下载做了 SHA-256 校验 | 部分修复（P2 任务 15、16）：嵌入式 Python、Ollama 已校验；SenseVoice、Kokoro、THA 模型包、OpenSeeFace、get-pip 官方未公布校验和，manifest 留空，check-sidecars 以警告列出 |
 | 主窗口标题仍为 Open-LLM-Vtuber | 未修，可随时单独改 |
 | `@motionsync` 别名指向不存在的 `src/renderer/MotionSync` | 未修，P4 任务 26 |
 | CI 发布物不含 THA，README 却说发布的是 dist:win | 未修，取决于 D8 |

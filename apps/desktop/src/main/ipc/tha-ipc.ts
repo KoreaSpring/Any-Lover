@@ -38,6 +38,9 @@ export function registerThaIpc(tha: ThaManager, log: (msg: string) => void = () 
     return { path: result.filePaths[0] };
   });
 
+  // THA 渲染 WS 地址：renderer 用它连帧流和控制通道（端口由主进程决定）。
+  ipcMain.handle(IPC.tha.wsUrl, () => tha.wsUrl());
+
   // 高画质模型状态：各档位是否已装 + 是否全部就绪。
   ipcMain.handle(IPC.tha.modelStatus, () => {
     try {

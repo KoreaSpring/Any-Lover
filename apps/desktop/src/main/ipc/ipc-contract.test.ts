@@ -1,6 +1,7 @@
 // IPC 注册契约：调用 ipc/ 下全部 registerXxxIpc 后，注册的通道集合必须与拆分前（任务 22 之前
 // lifecycle + window-shell + aibot-ipc + tha-ipc）注册的集合完全一致，且没有重复注册。
-// 期望集合是拆分前从源码统计后写死的（50 个），不要从被测代码推导。
+// 期望集合是拆分前从源码统计后写死的（50 个），之后新增通道逐个登记（P2 任务 17：tha.wsUrl，共 51 个），
+// 不要从被测代码推导。
 import { describe, it, expect, vi, beforeAll } from 'vitest';
 import { IPC } from '@proto/ipc';
 
@@ -51,8 +52,8 @@ const EXPECTED_KEYS = [
   'settings.get', 'settings.save', 'settings.close', 'ollama.detect', 'ollama.browse', 'ollama.chooseDir',
   'ollama.status', 'ollama.install', 'ollama.pull', 'ollama.recommend', 'ollama.ensureModel',
   'llm.test', 'pet.launch', 'pet.clickThrough', 'app.quit',
-  // ipc/tha-ipc.ts（3）
-  'tha.pickImage', 'tha.modelStatus', 'tha.downloadHQ',
+  // ipc/tha-ipc.ts（4；tha.wsUrl 为 P2 任务 17 新增）
+  'tha.pickImage', 'tha.modelStatus', 'tha.downloadHQ', 'tha.wsUrl',
 ];
 
 function resolveChannel(keyPath: string): string {
@@ -90,9 +91,9 @@ describe('ipc/ 注册契约', () => {
     registerWindowIpc({ windowManager: stub, menuManager: stub });
   });
 
-  it('期望集合本身有 50 个不同通道', () => {
+  it('期望集合本身有 51 个不同通道', () => {
     const channels = EXPECTED_KEYS.map(resolveChannel);
-    expect(new Set(channels).size).toBe(50);
+    expect(new Set(channels).size).toBe(51);
   });
 
   it('没有重复注册', () => {
