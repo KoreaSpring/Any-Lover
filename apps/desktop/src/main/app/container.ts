@@ -4,7 +4,7 @@ import path from 'node:path';
 import { app, BrowserWindow } from 'electron';
 import { BackendManager } from '../sidecar/backend-manager';
 import { ThaManager } from '../sidecars/tha/tha-manager';
-import { OpenSeeFaceManager } from '../sidecar/openseeface-manager';
+import { OpenSeeFaceManager } from '../sidecars/openseeface/openseeface-manager';
 import { eventBus } from '../agent/event-bus';
 import { GazeBridge } from '../agent/perception/gaze-bridge';
 import { ScreenSampler } from '../sidecar/screen-sampler';
