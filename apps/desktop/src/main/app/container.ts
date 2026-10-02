@@ -7,7 +7,7 @@ import { ThaManager } from '../sidecars/tha/tha-manager';
 import { OpenSeeFaceManager } from '../sidecars/openseeface/openseeface-manager';
 import { eventBus } from '../agent/event-bus';
 import { GazeBridge } from '../agent/perception/gaze-bridge';
-import { ScreenSampler } from '../sidecar/screen-sampler';
+import { ScreenSampler } from '../agent/perception/screen/screen-sampler';
 import { MemoryStore } from '../agent/memory/memory-store';
 import { ScreenMemoryBridge } from '../agent/memory/screen-memory-bridge';
 import { ResourceCoordinator } from '../agent/resource-coordinator';

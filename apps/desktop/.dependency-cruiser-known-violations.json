@@ -70,6 +70,20 @@
     }
   },
   {
+    "type": "dependency",
+    "from": "src/main/agent/perception/screen/screen-sampler.ts",
+    "to": "node_modules/electron/index.js",
+    "unresolvedTo": "electron",
+    "dependencyTypes": [
+      "npm-dev",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "agent-not-to-electron"
+    }
+  },
+  {
     "type": "cycle",
     "from": "src/renderer/src/components/canvas/live2d.tsx",
     "to": "src/renderer/src/hooks/utils/use-ipc-handlers.ts",
