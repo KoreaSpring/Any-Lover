@@ -25,9 +25,11 @@ files:
   - '!node_modules/eslint/**'
 extraResources:
   # 冻结的 Python 后端 + 前端静态资源 + 模型（组装在 <root>/out/stage/open-llm-vtuber）。
-  # 路径相对 apps/desktop/（projectDir）。注意：tooling/package.js 会用 --config 覆盖 extraResources。
-  # 这里只保留 runtime、tha-runtime 两项，过滤规则与 tooling/package.js 一致，供直接用 electron-builder 构建时使用；
-  # ffmpeg、openseeface、ollama 只由 tooling/package.js 按需追加。
+  # 路径相对 apps/desktop/（projectDir）。
+  # 这一段只在直接调用 electron-builder（如 npm run build:win）时生效；tooling/package.js 会按
+  # profile（packaging/profiles.json）和 sidecars/*/manifest.json 整体重新生成 extraResources。
+  # 这里只保留 runtime、tha-runtime 两项，from 与 filter 必须和 manifest 一致（tooling/check-sidecars.js 会比对）；
+  # ffmpeg、openseeface、ollama 只由 tooling/package.js 按 profile 追加。
   - from: '../../out/stage/open-llm-vtuber'
     to: 'runtime'
     filter:

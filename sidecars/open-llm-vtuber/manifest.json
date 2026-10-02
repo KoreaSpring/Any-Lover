@@ -1,0 +1,58 @@
+{
+  "id": "open-llm-vtuber",
+  "displayName": "Open-LLM-VTuber 对话后端",
+  "platforms": ["win32", "darwin"],
+  "optional": false,
+  "port": { "default": 12393, "env": null },
+  "envPrefix": "OLVT_",
+  "stage": { "script": "scripts/stage.js", "output": "out/stage/open-llm-vtuber" },
+  "package": {
+    "resourceName": "runtime",
+    "artifact": ["out/stage/open-llm-vtuber/run_server.py"],
+    "filter": [
+      "**/*",
+      "!logs/**",
+      "!cache/**",
+      "!chat_history/**",
+      "!conf.yaml",
+      "!models/sherpa-onnx-sense-voice-*/model.onnx",
+      "!node/**"
+    ],
+    "extraResources": [
+      {
+        "resourceName": "ffmpeg",
+        "from": "out/downloads/ffmpeg",
+        "artifact": ["out/downloads/ffmpeg/bin/ffmpeg.exe"],
+        "optional": true,
+        "filter": ["**/*", "!**/ffplay*"],
+        "note": "edge_tts 输出 mp3，后端 pydub 转 wav 需要 ffmpeg；缺失时只影响在线 TTS"
+      }
+    ]
+  },
+  "downloads": [
+    {
+      "name": "ffmpeg",
+      "version": "7.1.1",
+      "url": "https://github.com/GyanD/codexffmpeg/releases/download/7.1.1/ffmpeg-7.1.1-essentials_build.zip",
+      "sha256": "04861d3339c5ebe38b56c19a15cf2c0cc97f5de4fa8910e4d47e5e6404e4a2d4",
+      "sha256Source": "官方未提供校验文件，首次下载时记录（trust-on-first-use）"
+    },
+    {
+      "name": "sense-voice",
+      "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17.tar.bz2",
+      "sha256": "",
+      "sha256Source": "官方 release 未公布校验和，待补"
+    },
+    {
+      "name": "kokoro-tts",
+      "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/kokoro-multi-lang-v1_1.tar.bz2",
+      "sha256": "",
+      "sha256Source": "官方 release 未公布校验和，待补"
+    }
+  ],
+  "upstream": {
+    "repo": "https://github.com/Open-LLM-VTuber/Open-LLM-VTuber",
+    "ref": "992309c0aa19845960228f880013d4685fde93b5",
+    "paths": ["upstream"]
+  }
+}

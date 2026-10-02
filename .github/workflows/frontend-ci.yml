@@ -6,11 +6,15 @@ on:
     paths:
       - 'apps/desktop/**'
       - 'packages/protocol/**'
+      - 'sidecars/**'
+      - 'tooling/**'
       - '.github/workflows/frontend-ci.yml'
   pull_request:
     paths:
       - 'apps/desktop/**'
       - 'packages/protocol/**'
+      - 'sidecars/**'
+      - 'tooling/**'
       - '.github/workflows/frontend-ci.yml'
   workflow_dispatch:
 
@@ -59,6 +63,13 @@ jobs:
         working-directory: apps/desktop
         run: npm test
 
+      # sidecar manifest 与打包 profile 校验（id/目录名、必填字段、UPSTREAM.md、resourceName 唯一、
+      # profile 引用、electron-builder.yml 一致性；缺 sha256 只打警告）。依赖上一步装好的 js-yaml
+      - name: Check sidecars
+        run: node tooling/check-sidecars.js
+      # tooling/lib 与打包规则单测（node:test，无额外依赖）
+      - name: Tooling tests
+        run: node tooling/test/run.js
       # 三进程构建（main/preload/renderer）——重构的权威回归把关
       - name: Build
         working-directory: apps/desktop

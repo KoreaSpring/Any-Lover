@@ -18,11 +18,12 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { SIDECARS, log, run, download, extractZip, copyRecursive } = require('../../../tooling/lib');
+const { findDownload } = require('../../../tooling/lib/manifest');
+const manifest = require('../manifest.json');
 
 const MODELS = path.join(SIDECARS, 'tha', 'runtime', 'data', 'models');
-const URL = 'https://github.com/zpeng11/ezvtuber-rt/releases/download/0.0.1/20241220.zip';
-// 官方 release 未公布校验和（发布早于 GitHub 资产 digest），暂不校验，见 sidecars/tha/manifest.json
-const SHA256 = '';
+// URL、SHA-256 在 ../manifest.json（官方 release 未公布校验和，sha256 暂为空、不校验）
+const { url: URL, sha256: SHA256 } = findDownload(manifest, 'tha-models');
 // 第三方 release 原样复制，不套默认排除规则
 const AS_IS = { defaults: false };
 

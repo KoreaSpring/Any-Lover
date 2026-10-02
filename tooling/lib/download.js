@@ -130,4 +130,29 @@ async function download(url, dest, opts = {}) {
   }
 }
 
-module.exports = { download, normalizeSha256, verifySha256, resolveRedirect };
+/**
+ * 只取元数据不下载（--dry-run 用）：跟随重定向发 HEAD，返回最终地址与 content-length。
+ * @returns {Promise<{ url: string, bytes: number }>}
+ */
+function probe(url, redirectsLeft = MAX_REDIRECTS) {
+  return new Promise((resolve, reject) => {
+    const req = https.request(url, { method: 'HEAD', headers: { 'User-Agent': USER_AGENT } }, (res) => {
+      res.resume();
+      const { statusCode, headers } = res;
+      if (statusCode >= 300 && statusCode < 400 && headers.location) {
+        if (redirectsLeft <= 0) return reject(new Error(`重定向次数过多：${url}`));
+        try {
+          return resolve(probe(resolveRedirect(url, headers.location), redirectsLeft - 1));
+        } catch (err) {
+          return reject(err);
+        }
+      }
+      if (statusCode !== 200) return reject(new Error(`HTTP ${statusCode}：${url}`));
+      resolve({ url, bytes: Number(headers['content-length'] || 0) });
+    });
+    req.on('error', reject);
+    req.end();
+  });
+}
+
+module.exports = { download, probe, normalizeSha256, verifySha256, resolveRedirect };

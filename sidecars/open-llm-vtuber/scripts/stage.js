@@ -18,6 +18,8 @@
 const fs = require('fs');
 const path = require('path');
 const { STAGE, SIDECARS, log, run, download, extractTarBz2, copyRecursive } = require('../../../tooling/lib');
+const { findDownload } = require('../../../tooling/lib/manifest');
+const manifest = require('../manifest.json');
 
 // 上游后端源码：sidecars/open-llm-vtuber/upstream
 const SRC = path.join(SIDECARS, 'open-llm-vtuber', 'upstream');
@@ -25,11 +27,9 @@ const RUNTIME = path.join(STAGE, 'open-llm-vtuber');
 
 const SENSE_VOICE = {
   dirName: 'sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17',
-  url:
-    'https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17.tar.bz2',
+  // 归档 URL 与 sha256 在 ../manifest.json（官方 release 未公布校验和，sha256 暂为空、不校验）
+  download: findDownload(manifest, 'sense-voice'),
   // 运行时只用 int8；官方归档里的 fp32 版 model.onnx（约 938MB）效果相近但体积大 4 倍，不分发。
-  // 官方 release 未公布校验和（发布早于 GitHub 资产 digest），暂不校验
-  sha256: '',
   unused: ['model.onnx']
 };
 
@@ -37,11 +37,8 @@ const SENSE_VOICE = {
 // 选 fp32 而非 int8：实测 i5-12400F 4 线程，fp32 RTF≈0.45，int8 RTF≈1.5（慢于实时，会卡顿）。
 const KOKORO_TTS = {
   dirName: 'kokoro-multi-lang-v1_1',
-  url:
-    'https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/kokoro-multi-lang-v1_1.tar.bz2',
+  download: findDownload(manifest, 'kokoro-tts'),
   modelFile: 'model.onnx',
-  // 官方 release 未公布校验和（发布早于 GitHub 资产 digest），暂不校验
-  sha256: '',
   // sherpa-onnx 1.12.15+ 中文不再需要 jieba dict；只用美式英文词典。
   unused: ['dict', 'lexicon-gb-en.txt']
 };
@@ -230,7 +227,7 @@ async function ensureModel(label, spec, requiredFile) {
     if (!fs.existsSync(modelFile)) {
       const archive = path.join(modelsDir, `${spec.dirName}.tar.bz2`);
       log(`源项目未找到模型，改为下载 ${label} 归档 ...`);
-      await download(spec.url, archive, { sha256: spec.sha256, progress: true });
+      await download(spec.download.url, archive, { sha256: spec.download.sha256, progress: true });
       log('解压模型 ...');
       extractTarBz2(archive, modelsDir);
       fs.rmSync(archive, { force: true });

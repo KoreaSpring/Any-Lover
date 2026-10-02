@@ -1,0 +1,40 @@
+{
+  "id": "ollama",
+  "displayName": "Ollama 本地推理",
+  "platforms": ["win32"],
+  "optional": true,
+  "port": { "default": 11434, "env": null },
+  "envPrefix": "OLLAMA_",
+  "stage": { "script": "scripts/fetch.js", "output": "out/downloads/ollama" },
+  "package": {
+    "resourceName": "ollama",
+    "artifact": [
+      "out/downloads/ollama/bin/ollama.exe",
+      "out/downloads/ollama/bin/ollama app.exe",
+      "out/downloads/ollama/bin/ollama"
+    ],
+    "variants": {
+      "bin": {
+        "from": "out/downloads/ollama/bin",
+        "to": "ollama/bin",
+        "filter": ["**/*", "!lib/ollama/cuda_v12/**", "!lib/ollama/rocm_v7_1/**"],
+        "note": "只打二进制：CPU + CUDA v13，排除 cuda_v12 与 ROCm；模型首启按硬件推荐下载"
+      },
+      "full": {
+        "from": "out/downloads/ollama",
+        "to": "ollama",
+        "filter": ["**/*"],
+        "note": "二进制 + 预置模型（models/），完全离线"
+      }
+    }
+  },
+  "downloads": [
+    {
+      "name": "ollama-windows-amd64",
+      "version": "v0.34.4",
+      "url": "https://github.com/ollama/ollama/releases/download/v0.34.4/ollama-windows-amd64.zip",
+      "sha256": "535193f38f3344e5b08f5d1c171c31ce11aa17f0124ff69ae26d8ec7fe06fa62",
+      "sha256Source": "官方 release 资产 sha256sum.txt（与 GitHub 资产 digest 一致）"
+    }
+  ]
+}

@@ -80,7 +80,31 @@
   - 与原来的差别：THA 的复制规则从"排除 .venv/__pycache__/.git"扩为统一默认规则（多排除 .gitignore/.gitattributes/.DS_Store，sidecars/tha/runtime 里现在没有这些文件）；第三方 release 解压结果用 `defaults: false` 原样复制；ffmpeg 在 Windows 上改用 Expand-Archive 解 zip（失败回退 tar，原来直接用 tar）
   - 验证：所有脚本 `node --check`；`npm run test:tooling`（node:test，12 个用例：sha 规范化与比对、重定向解析、失败不留 .part、排除规则、硬链接、PowerShell 转义、tar.bz2 解压、Python 解析、路径）；用 lib 实际下载 Ollama 的 sha256sum.txt，校验通过与故意给错 sha 两种情况都符合预期（错时目标文件和 .part 都不存在）；fetch-openseeface 在 macOS 上按原逻辑跳过
   - 未验证：Windows 上 Expand-Archive 解压、实际下载大文件（嵌入式 Python、模型）
-- [ ] 16. 给每个 sidecar 写 manifest；`tooling/package.js` 改为由 profile 和 manifest 驱动；`check-sidecars.js` 加进 CI
+- [x] 16. 给每个 sidecar 写 manifest；`tooling/package.js` 改为由 profile 和 manifest 驱动；`check-sidecars.js` 加进 CI
+  - 结果：open-llm-vtuber、tha、openseeface 各写 `manifest.json`，新建 `sidecars/ollama/`（manifest + `scripts/fetch.js`，fetch 本该属于任务 17，因为 manifest 的 stage.script 指向它、check-sidecars 要校验脚本存在，所以随本任务提交，细节记在任务 17）。字段按方案 §4.2，另加两项：`package.artifact`（判断产物是否存在，沿用原来的探测文件，runtime 新增 run_server.py）和 `package.variants`（ollama 的 bin / full 两种打法）。ffmpeg 作为 open-llm-vtuber 的 `package.extraResources`（optional，有就带，同原来）。resourceName 保持 runtime、ffmpeg、tha-runtime、openseeface、ollama。下载项（URL、版本、sha256 及来源说明）挪进 manifest，各脚本用 `findDownload` 读取，不再各写一份常量
+  - profile（D8）：`apps/desktop/packaging/profiles.json` 定义 lite / win / standard / full，每项按顺序列出 sidecar 和 `include`（required 缺产物失败；ifPresent 有产物就带）。standard 的 THA、OpenSeeFace 是 ifPresent，"按需"即"产物在就带"
+  - package.js：`--profile <name> [--dir] [--no-split]`，新增 `--print-config`（别名 `--dry-run`，只打印生成的 extraResources，不清理不构建，任意平台可跑）。生成逻辑在 `tooling/lib/packaging.js`（纯函数，文件存在与否由调用方注入）。正式打包时先确认产物齐全再清理 out/release，缺东西不会删掉上一次的安装包。旧开关保留一个版本并打印弃用提示：`--no-ollama` → lite、`--with-model` → full、不带开关 → standard
+  - check-sidecars：`tooling/check-sidecars.js`。错误：id 与目录名、必填字段与类型、stage.script 存在、有 upstream 必须有 UPSTREAM.md 且 upstream.paths 存在、下载项 url 为 https 且 name 不重复、sha256 格式、resourceName 跨 sidecar 不重复、profile 引用的 sidecar / include / variant 有效、electron-builder.yml 里直接写的 extraResources（runtime、tha-runtime）与 manifest 的 from 和 filter 完全一致。警告：下载项没有 sha256（现有 5 项：sense-voice、kokoro-tts、openseeface、get-pip、tha-models）。加进 frontend-ci.yml（npm ci 之后，需要 js-yaml），触发路径加上 `sidecars/**`、`tooling/**`；单测也在同一 workflow 里跑
+  - electron-builder.yml：extraResources 不变，注释写明只在直接调用 electron-builder 时生效，并由 check-sidecars 保证与 manifest 一致
+  - 核心验收（extraResources 对比）：在 /tmp 搭一个假仓库根，用占位文件模拟 5 种产物状态，旧 package.js（拦截 spawnSync 和写临时配置，读出它要传给 electron-builder 的 extraResources）与新 package.js `--print-config` 逐项比较 from / to / filter 的 JSON。结果（"失败"指缺 Ollama 时旧脚本抛错，或缺 required 产物时新脚本报错）：
+
+    | 产物状态 | 旧开关 → profile | 旧 | 新 | 结论 |
+    | --- | --- | --- | --- | --- |
+    | runtime+ffmpeg（CI） | --no-ollama → lite | runtime+ffmpeg | runtime+ffmpeg | 一致 |
+    | 只有 runtime | --no-ollama → lite | runtime | runtime | 一致 |
+    | runtime+ffmpeg+tha+osf | --no-ollama → win | 四项 | 四项 | 一致 |
+    | 全部 | --no-ollama → win | 四项 | 四项 | 一致 |
+    | runtime+ffmpeg+ollama | (无) → standard | runtime+ffmpeg+ollama/bin | 同左 | 一致 |
+    | 全部 | (无) → standard | runtime+ffmpeg+tha-runtime+openseeface+ollama/bin | 同左 | 一致 |
+    | 全部 | --with-model → full | runtime+ffmpeg+tha-runtime+openseeface+ollama | 同左 | 一致 |
+    | 缺 Ollama 的三种状态 | (无) → standard、--with-model → full | 失败 | 失败 | 一致 |
+    | 有 tha+osf | --no-ollama → lite | 带 tha-runtime、openseeface | 不带 | 按 D8 预期：lite 不含 THA/OSF |
+    | 缺 tha 或 osf | --no-ollama → win | 静默跳过 | 失败 | 按方案预期：required 缺产物失败 |
+    | 缺 tha 或 osf，有 ollama | --with-model → full | 静默跳过 | 失败 | 同上 |
+
+    20 组里 8 组完全一致（含 standard 的 cuda_v12/rocm_v7_1 排除规则、runtime 的 7 条过滤规则），另外 6 组两边都失败，剩下 6 组的差别都是 D8 和"缺产物就失败"带来的预期差别。另一处预期差别：out/stage/open-llm-vtuber 没有 run_server.py 时旧脚本照样打包，新脚本失败
+  - 验证：`node --check` 全部脚本；`npm run test:tooling` 26 个用例（新增 14 个：四个 profile 的生成结果、runtime 过滤规则逐条、ffmpeg 可选、未知 profile、旧开关映射，以及 check-sidecars 的各项校验）；`node tooling/check-sidecars.js` 通过（5 个警告）；本机 `--profile lite --print-config` 输出正确，`--no-ollama` 打印弃用提示，未知 profile 退出码 1
+  - 未验证：Windows 上按 profile 实际跑 electron-builder 打包（本机 macOS 跑不了 `--win`），打出的资源树也还没和 P0 基线比（任务 10 的基线仍未生成）
 - [ ] 17. stage 前先清空目标目录；conf.pet.yaml 挪成独立的模板文件；Ollama 改为脚本获取；THA 端口从 manifest 和环境变量读取
 - [ ] 18. 根脚本收敛为 setup / dev / dist:&lt;profile&gt; / check 四类，同步 README 和 CI
 

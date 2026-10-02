@@ -763,7 +763,7 @@ ANYLOVER_FFMPEG_DIR 这类由主进程注入给 sidecar 的变量，两端会一
 | D5 | P7 引入 workspace 时用 npm 还是 pnpm | npm workspaces：不换包管理器，electron-builder 兼容性已知 | pnpm：安装更快、依赖更严格，但 electron-builder 需要额外配置 `node-linker=hoisted` | P7 | 待定（立项时再定） |
 | D6 | 是否删除 MCP 旧转发链（hub-tool-* 与 `agent.tool*` IPC） | 删除，McpHub 已直连 MCP server | — | P0 任务 3 | 已决，见 `7be0add` |
 | D7 | WS 消息是否从 `hub-*` 改名为 `agent-*`，与 IPC 域统一 | 改，在 P5 迁入 `anylover_ext` 时一并改，两端同版本发布 | 不改：术语继续一分为二（6.2），但少一次跨语言改名 | P5 | 待定 |
-| D8 | 打包 profile 的名字和组合；CI 发布物是否包含 THA | 采用 4.6 的四个 profile；CI 发布 `lite`，README 改为如实描述 | CI 改发 `win`：和 README 现在的说法一致，但安装包和 CI 时长都会显著增加 | P2 | 待定 |
+| D8 | 打包 profile 的名字和组合；CI 发布物是否包含 THA | 采用 4.6 的四个 profile；CI 发布 `lite`，README 改为如实描述 | CI 改发 `win`：和 README 现在的说法一致，但安装包和 CI 时长都会显著增加 | P2 | 已决，按推荐：lite / win / standard / full 定义在 `apps/desktop/packaging/profiles.json`，standard 的 THA、OpenSeeFace 为"有产物就带"，其余 profile 列出的 sidecar 缺产物即失败；CI 发布 lite（P2 任务 16、18） |
 
 ## 10. 风险与验证
 

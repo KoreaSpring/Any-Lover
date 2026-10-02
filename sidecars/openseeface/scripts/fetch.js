@@ -21,12 +21,12 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { DOWNLOADS, log, run, download, extractZip, copyRecursive } = require('../../../tooling/lib');
+const { findDownload } = require('../../../tooling/lib/manifest');
+const manifest = require('../manifest.json');
 
 const DST = path.join(DOWNLOADS, 'openseeface');
-const VERSION = 'v1.20.5';
-const URL = `https://github.com/emilianavt/OpenSeeFace/releases/download/${VERSION}/OpenSeeFace-${VERSION}.zip`;
-// 官方 release 未公布校验和（发布早于 GitHub 资产 digest），暂不校验，见 sidecars/openseeface/manifest.json
-const SHA256 = '';
+// 版本、URL、SHA-256 在 ../manifest.json（官方 release 未公布校验和，sha256 暂为空、不校验）
+const { version: VERSION, url: URL, sha256: SHA256 } = findDownload(manifest, 'openseeface');
 // 第三方 release 原样复制，不套默认排除规则
 const AS_IS = { defaults: false };
 

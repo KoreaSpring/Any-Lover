@@ -21,17 +21,17 @@ const fs = require('fs');
 const path = require('path');
 const { spawnSync } = require('child_process');
 const { STAGE, SIDECARS, log, run, download, extractZip, copyRecursive } = require('../../../tooling/lib');
+const { findDownload } = require('../../../tooling/lib/manifest');
+const manifest = require('../manifest.json');
 
 const SRC = path.join(SIDECARS, 'tha', 'runtime'); // THA/EasyVtuber 源：sidecars/tha/runtime/
 const OUT = path.join(STAGE, 'tha'); // 组装产物（tooling/package.js、electron-builder 从此处打包）
-// 嵌入式 Python 版本（THA/onnxruntime 支持 3.10–3.12；用 3.12 补丁版）。
-const PY_VERSION = '3.12.10';
-const PY_ZIP = `python-${PY_VERSION}-embed-amd64.zip`;
-const PY_URL = `https://www.python.org/ftp/python/${PY_VERSION}/${PY_ZIP}`;
-// 来源：python.org 随文件发布的 sigstore 签名包（${PY_URL}.sigstore）里的 messageDigest（SHA2_256）。
-const PY_SHA256 = '4acbed6dd1c744b0376e3b1cf57ce906f9dc9e95e68824584c8099a63025a3c3';
-// get-pip.py 是不带版本的滚动地址，官方不公布固定校验和，暂不校验。
-const GET_PIP_URL = 'https://bootstrap.pypa.io/get-pip.py';
+// 嵌入式 Python（THA/onnxruntime 支持 3.10–3.12；用 3.12 补丁版）与 get-pip：版本、URL、SHA-256 在 ../manifest.json。
+// get-pip.py 是不带版本的滚动地址，官方不公布固定校验和，sha256 为空、不校验。
+const PY_EMBED = findDownload(manifest, 'python-embed');
+const PY_VERSION = PY_EMBED.version;
+const PY_ZIP = path.basename(new URL(PY_EMBED.url).pathname);
+const GET_PIP = findDownload(manifest, 'get-pip');
 // 组装时排除：默认规则（.git、__pycache__、.venv 等）之外，再跳过单下划线开头的临时验证文件（如 _probe.py）。
 // 注意不能用 startsWith('_')，否则会误删 __init__.py 等双下划线文件。
 const COPY_OPTS = { skipFile: (name) => /^_[^_]/.test(name) };
@@ -93,7 +93,7 @@ async function preparePython() {
     fs.mkdirSync(pyDir, { recursive: true });
     const zipPath = path.join(OUT, PY_ZIP);
     log(`下载嵌入式 Python ${PY_VERSION} ...`);
-    await download(PY_URL, zipPath, { sha256: PY_SHA256 });
+    await download(PY_EMBED.url, zipPath, { sha256: PY_EMBED.sha256 });
     log('解压嵌入式 Python ...');
     extractZip(zipPath, pyDir);
     fs.rmSync(zipPath, { force: true });
@@ -106,7 +106,7 @@ async function preparePython() {
   const getPip = path.join(pyDir, 'get-pip.py');
   if (!fs.existsSync(path.join(pyDir, 'Scripts', 'pip.exe'))) {
     log('下载 get-pip.py 并安装 pip ...');
-    await download(GET_PIP_URL, getPip);
+    await download(GET_PIP.url, getPip, { sha256: GET_PIP.sha256 });
     const res = spawnSync(pyExe, [getPip, '--no-warn-script-location'], { stdio: 'inherit' });
     if (res.status !== 0) throw new Error('安装 pip 失败');
     fs.rmSync(getPip, { force: true });

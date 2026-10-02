@@ -5,16 +5,16 @@
  * 用途：在线备选 TTS（edge_tts）输出 mp3，后端 pydub 需要 ffmpeg 解码；默认离线 Kokoro 直接出 wav，不依赖它。
  * 来源：GyanD/codexffmpeg（gyan.dev 官方 GitHub 发布）固定版本 essentials 构建。
  * 完整性：官方未提供校验文件，SHA-256 为首次下载时记录的固定值（trust-on-first-use），
- *         不匹配立即中止并删除下载物。升级版本时须同时更新 URL 与 SHA256。
+ *         不匹配立即中止并删除下载物。版本、URL、SHA-256 都在 ../manifest.json 的 downloads.ffmpeg，升级时一起改。
  */
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const { DOWNLOADS, rel, log, run, download, extractZip } = require('../../../tooling/lib');
+const { findDownload } = require('../../../tooling/lib/manifest');
+const manifest = require('../manifest.json');
 
-const VERSION = '7.1.1';
-const URL = `https://github.com/GyanD/codexffmpeg/releases/download/${VERSION}/ffmpeg-${VERSION}-essentials_build.zip`;
-const SHA256 = '04861d3339c5ebe38b56c19a15cf2c0cc97f5de4fa8910e4d47e5e6404e4a2d4';
+const { version: VERSION, url: URL, sha256: SHA256 } = findDownload(manifest, 'ffmpeg');
 const KEEP = ['ffmpeg.exe', 'ffprobe.exe'];
 const BIN = path.join(DOWNLOADS, 'ffmpeg', 'bin');
 

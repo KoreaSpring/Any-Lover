@@ -1,49 +1,42 @@
 'use strict';
 
 /*
- * 打包编排：三种产物形态
- *   - 标准版（默认）：内置 Ollama「二进制」(out/downloads/ollama/bin，约数十 MB，不含大模型)。
- *     首次启动按硬件推荐并静默 `ollama pull` 模型（对齐 AnythingLLM 桌面版）。
- *   - 纯轻量版（--no-ollama）：连 Ollama 二进制都不打。用户自备 Ollama 或用云端 API。
- *   - 整合版（--with-model）：把 out/downloads/ollama 整个（二进制 + minicpm-v:8b 模型）打入，
- *     安装后完全离线开箱即用、无需任何下载。
+ * 打包编排：由 profile（apps/desktop/packaging/profiles.json）+ 各 sidecar 的 manifest 生成
+ * electron-builder 的 extraResources，再调用 electron-builder（Windows NSIS）。
  *
- * 用法（在 ai-bot/ 下）：
- *   node tooling/package.js                 # 标准版：内置 ollama 二进制，模型运行时下载
- *   node tooling/package.js --no-ollama     # 纯轻量版：不含 ollama
- *   node tooling/package.js --with-model    # 整合版：连模型一起打（完全离线）
- *   追加 --dir                                 # 只产出免安装目录（不压缩、不打 NSIS，最快，供测试）
+ * 用法（在仓库根）：
+ *   node tooling/package.js --profile <lite|win|standard|full> [--dir] [--no-split]
+ *   node tooling/package.js --profile <name> --print-config   # 只打印生成的 extraResources，不清理、不构建（任意平台可跑）
+ *     --dir         只产出免安装目录（不压缩、不打 NSIS，最快，供测试）
+ *     --no-split    不切分片
+ *
+ * profile 要求（include=required）的 sidecar 缺产物直接失败；include=ifPresent 的有产物才带。
+ * 规则与形态说明见 profiles.json 和 docs/roadmap/repo-restructure-plan.md §4.6。
+ *
+ * 旧开关（保留一个版本，打印弃用提示）：--no-ollama → lite，--with-model → full，不带开关 → standard。
+ * 注意 --no-ollama 原来会顺带打入已存在的 THA / OpenSeeFace，lite 不再带；要它们请用 --profile win。
  *
  * 实现：electron-builder 从 apps/desktop/electron-builder.yml 读取基础配置；
- * 本脚本通过 --config.extraResources 追加/覆盖，避免维护两份 yml。
+ * 本脚本整体替换 extraResources 后写临时 JSON 配置，避免维护两份 yml。
  */
-
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
 const { spawnSync } = require('child_process');
+const { ROOT, DESKTOP, RELEASE, rel, log, warn } = require('./lib');
+const { loadAllManifests, loadProfiles } = require('./lib/manifest');
+const { buildExtraResources, profileFromArgs } = require('./lib/packaging');
 
-const ROOT = path.join(__dirname, '..');
-const DESKTOP = path.join(ROOT, 'apps', 'desktop');
 // 安装包产物统一放在仓库根 out/release（electron-builder 的 output 相对 apps/desktop/ 解析）
-const RELEASE_ROOT = path.join(ROOT, 'out', 'release');
+const RELEASE_ROOT = RELEASE;
 const RELEASE_REL = path.relative(DESKTOP, RELEASE_ROOT).split(path.sep).join('/');
-const VENDOR_OLLAMA = path.join(ROOT, 'out', 'downloads', 'ollama');
 
-// 形态开关：
-//   默认           = 标准版：内置 ollama 二进制（bin，不含模型）
-//   --no-ollama    = 纯轻量版：不打 ollama
-//   --with-model   = 整合版：连模型一起打（out/downloads/ollama 整个目录）
-const noOllama = process.argv.includes('--no-ollama');
-const withModel = process.argv.includes('--with-model');
-const dirOnly = process.argv.includes('--dir');
-
-function log(msg) {
-  process.stdout.write(msg + '\n');
-}
+const argv = process.argv.slice(2);
+const dirOnly = argv.includes('--dir');
+const printOnly = argv.includes('--print-config') || argv.includes('--dry-run');
 
 /**
- * 打包前清理：终止会锁定产物文件的残留进程，并删除旧的 win-unpacked。
+ * 打包前清理：终止会锁定产物文件的残留进程，并删除旧的 release 目录。
  *
  * 打包/测试时启动过的整合版会拉起 Ollama 及其 llama-server 子进程；这些进程
  * 若未退出，会占用 release/.../win-unpacked/resources/ollama 下的 CUDA DLL，
@@ -58,24 +51,19 @@ function preparePackaging() {
       // taskkill 找不到进程会返回非 0，属正常情况，忽略即可
       spawnSync('taskkill', ['/F', '/T', '/IM', image], { stdio: 'ignore', shell: true });
     }
-  }
-
-  // 等待被 taskkill 结束的进程释放文件句柄，否则紧接着删目录仍会 EBUSY
-  if (os.platform() === 'win32') {
+    // 等待被 taskkill 结束的进程释放文件句柄，否则紧接着删目录仍会 EBUSY
     spawnSync('cmd', ['/c', 'ping', '-n', '3', '127.0.0.1'], { stdio: 'ignore' });
   }
-
   // 整体删除 release/，保证每次打包都是全新产物，不堆积历史目录
-  const releaseRoot = RELEASE_ROOT;
-  if (fs.existsSync(releaseRoot)) {
+  if (fs.existsSync(RELEASE_ROOT)) {
     try {
-      fs.rmSync(releaseRoot, { recursive: true, force: true, maxRetries: 10, retryDelay: 400 });
-      log(`已清空旧产物目录：${path.relative(ROOT, releaseRoot)}`);
+      fs.rmSync(RELEASE_ROOT, { recursive: true, force: true, maxRetries: 10, retryDelay: 400 });
+      log(`已清空旧产物目录：${rel(RELEASE_ROOT)}`);
     } catch (err) {
       // 极端情况下仍被占用（杀软/资源管理器句柄）：不阻断打包，
       // makeOutputDir 会回退到带时间戳的新目录，产物仍然完整。
       log(
-        `提示：未能完整清空 ${path.relative(ROOT, releaseRoot)}（${err.code || err.message}）；` +
+        `提示：未能完整清空 ${rel(RELEASE_ROOT)}（${err.code || err.message}）；` +
           '将输出到新目录，可稍后手动删除该目录下的残留。'
       );
     }
@@ -90,7 +78,6 @@ function preparePackaging() {
 function makeOutputDir() {
   const fixedRel = path.posix.join(RELEASE_REL, 'dist');
   const fixedAbs = path.join(RELEASE_ROOT, 'dist');
-
   if (!fs.existsSync(fixedAbs)) {
     return { rel: fixedRel, abs: fixedAbs };
   }
@@ -113,91 +100,37 @@ function buildDesktop() {
   if (res.status !== 0) throw new Error('desktop 构建失败');
 }
 
-const VENDOR_FFMPEG = path.join(ROOT, 'out', 'downloads', 'ffmpeg');
-
-function runBuilder() {
-  // 基础 extraResources：out/stage/open-llm-vtuber -> runtime（相对 apps/desktop/ 即 projectDir）
-  // 排除本机开发/调试产生的运行期数据（日志、TTS 缓存、聊天记录），以及冗余的 fp32 ASR 权重。
-  const extra = [
-    {
-      from: '../../out/stage/open-llm-vtuber',
-      to: 'runtime',
-      filter: [
-        '**/*',
-        '!logs/**',
-        '!cache/**',
-        '!chat_history/**',
-        '!conf.yaml',
-        '!models/sherpa-onnx-sense-voice-*/model.onnx',
-        // 历史遗留的独立 node.exe（约 68MB），没有任何代码引用；MCP 等需要 Node 时用 Electron 自身即可
-        '!node/**',
-      ],
-    },
-  ];
-
-  // 随包提供 ffmpeg：edge_tts（在线备选）输出 mp3，后端用 pydub 转 wav 需要 ffmpeg 解码。
-  // 只打 ffmpeg/ffprobe；ffplay 是独立播放器，项目由前端播放音频，用不到（省约 100MB）。
-  if (fs.existsSync(path.join(VENDOR_FFMPEG, 'bin', 'ffmpeg.exe'))) {
-    extra.push({ from: '../../out/downloads/ffmpeg', to: 'ffmpeg', filter: ['**/*', '!**/ffplay*'] });
-    log('打入 out/downloads/ffmpeg（用于 TTS 音频转码）');
-  } else {
-    log('提示：未找到 out/downloads/ffmpeg/bin/ffmpeg.exe，产物将不含 ffmpeg，缺 ffmpeg 的机器语音会静音');
+/** 解析 profile 并生成 extraResources；缺 required 产物时抛错。 */
+function resolveExtraResources() {
+  const { profile, deprecated } = profileFromArgs(argv);
+  if (deprecated) {
+    warn(
+      `${deprecated} 已弃用，按 --profile ${profile} 处理；下个版本起请显式写 --profile <lite|win|standard|full>。` +
+        (deprecated === '--no-ollama' ? '（--no-ollama 原来会顺带打入已有的 THA/OpenSeeFace，lite 不再带，要它们用 --profile win）' : '')
+    );
   }
+  const result = buildExtraResources({
+    profileName: profile,
+    profiles: loadProfiles(),
+    manifests: loadAllManifests(),
+    exists: fs.existsSync,
+    root: ROOT,
+    desktopDir: DESKTOP,
+  });
+  return { profile, ...result };
+}
 
-  // Windows THA 渲染运行时（源码 + 嵌入式 Python）：由 prepare-tha-runtime.js 组装到 out/stage/tha。
-  // 存在则打入 resources/tha-runtime；不存在（未跑 prepare-tha-runtime）则跳过，应用回退 Live2D。
-  const thaRuntime = path.join(ROOT, 'out', 'stage', 'tha');
-  if (fs.existsSync(path.join(thaRuntime, 'tha_server.py'))) {
-    extra.push({ from: '../../out/stage/tha', to: 'tha-runtime', filter: ['**/*'] });
-    log('打入 out/stage/tha（THA 源码 + 嵌入式 Python；依赖首启安装）');
-  } else {
-    log('提示：未找到 out/stage/tha（未运行 prepare-tha-runtime），产物将不含 THA，Windows 回退 Live2D');
-  }
+function report({ profile, included, notes }) {
+  log(`profile：${profile}；打包：${included.join('、')}`);
+  for (const note of notes) log(`提示：${note}`);
+}
 
-  // OpenSeeFace 摄像头面捕（可选，仅 Windows）：由 fetch-openseeface.js 拉到 out/downloads/openseeface。
-  // 存在则打入 resources/openseeface（openseeface-manager.ts resolveExe 找此路径）；
-  // 缺失则跳过——摄像头视线跟随不可用，canStart 返 false 优雅降级，不影响其它功能。
-  const osfDir = path.join(ROOT, 'out', 'downloads', 'openseeface');
-  if (fs.existsSync(path.join(osfDir, 'facetracker.exe'))) {
-    extra.push({ from: '../../out/downloads/openseeface', to: 'openseeface', filter: ['**/*'] });
-    log('打入 out/downloads/openseeface（facetracker + models，用于摄像头视线跟随，约 200MB）');
-  } else {
-    log('提示：未找到 out/downloads/openseeface（未运行 fetch-openseeface），产物将不含摄像头视线跟随');
-  }
-
-  // Ollama 打包形态
-  const ollamaBin = path.join(VENDOR_OLLAMA, 'bin');
-  const hasOllamaBin =
-    fs.existsSync(path.join(ollamaBin, 'ollama.exe')) ||
-    fs.existsSync(path.join(ollamaBin, 'ollama app.exe')) ||
-    fs.existsSync(path.join(ollamaBin, 'ollama'));
-
-  if (noOllama) {
-    log('纯轻量版：不含 Ollama（用户自备或用云端 API）');
-  } else if (withModel) {
-    if (!hasOllamaBin) throw new Error(`未找到内置 Ollama 二进制：${ollamaBin}`);
-    // 整合版：二进制 + 模型 全部打入 -> resources/ollama（含 models 子目录）
-    extra.push({ from: '../../out/downloads/ollama', to: 'ollama', filter: ['**/*'] });
-    log('整合版：将打入 out/downloads/ollama（二进制 + 模型，完全离线）');
-  } else {
-    // 标准版（默认）：打二进制（bin），排除大模型；模型运行时 `ollama pull`。
-    // 方案 Z1：仅保留 CPU 后端 + CUDA v13，排除 cuda_v12(1.16GB) 与 rocm_v7_1(1GB)，
-    // 把内置 ollama 从 ~2.96GB 降到 ~700MB，使 NSIS 能打出安装包（否则 5.4GB 包会
-    // 触发 NSIS 的 "failed creating mmap" 失败）。
-    if (!hasOllamaBin) throw new Error(`未找到内置 Ollama 二进制：${ollamaBin}`);
-    extra.push({
-      from: '../../out/downloads/ollama/bin',
-      to: 'ollama/bin',
-      filter: ['**/*', '!lib/ollama/cuda_v12/**', '!lib/ollama/rocm_v7_1/**'],
-    });
-    log('标准版：内置 Ollama（CPU + CUDA v13，排除 cuda_v12 与 ROCm；模型首启按硬件推荐并静默下载）');
-  }
-
-  // 读取基础 yml，合并 extraResources，写入临时 JSON 配置，避免命令行引号问题
+function runBuilder(extraResources) {
+  // 读取基础 yml，替换 extraResources，写入临时 JSON 配置，避免命令行引号问题
   const yamlPath = path.join(DESKTOP, 'electron-builder.yml');
   const yaml = require(path.join(DESKTOP, 'node_modules', 'js-yaml'));
   const baseConfig = yaml.load(fs.readFileSync(yamlPath, 'utf-8'));
-  baseConfig.extraResources = extra;
+  baseConfig.extraResources = extraResources;
   // 禁用发布/自动更新信息生成：无 git repository 时 updateInfoBuilder 计算 channel 会崩，
   // 且本地打包不需要 latest.yml。置 null 彻底跳过该阶段（NSIS 产物本身已生成）。
   // 注意：electron-builder 24 的配置 schema 没有 publishAutoUpdate 顶级项，
@@ -210,52 +143,62 @@ function runBuilder() {
   } else {
     baseConfig.publish = null;
   }
-
-  // 输出到带时间戳的唯一目录，避免复用可能被占用的旧 win-unpacked
   const out = makeOutputDir();
   baseConfig.directories = { ...(baseConfig.directories || {}), output: out.rel };
-
   const tmpConfig = path.join(DESKTOP, 'electron-builder.pack.json');
   fs.writeFileSync(tmpConfig, JSON.stringify(baseConfig, null, 2), 'utf-8');
-
   // --publish never：不生成/上传自动更新信息（避免无 git repository 时 updateInfo 计算 channel 报错）
   const args = ['electron-builder', '--win', '--x64', '--publish', 'never', '--config', 'electron-builder.pack.json'];
   if (dirOnly) {
     args.push('--dir');
     log('测试模式：仅产出免安装目录（不压缩、不打 NSIS）');
   }
-  log(`输出目录：${path.relative(ROOT, out.abs)}`);
+  log(`输出目录：${rel(out.abs)}`);
   log('> npx ' + args.join(' '));
   const res = spawnSync('npx', args, { cwd: DESKTOP, stdio: 'inherit', shell: true });
   fs.rmSync(tmpConfig, { force: true });
   if (res.status !== 0) throw new Error('electron-builder 失败');
-
   return out.abs;
 }
 
-try {
+/** 打完安装包切成 < 100MB 的分片 + manifest.json（官网分片下载用），并校验可还原。 */
+function splitInstaller(outDir) {
+  const exe = fs
+    .readdirSync(outDir)
+    .filter((f) => /-setup\.exe$/i.test(f))
+    .map((f) => path.join(outDir, f))[0];
+  if (!exe) return;
+  const splitDir = path.join(outDir, 'split');
+  for (const [script, args] of [
+    ['split-release.js', [exe, '--out', splitDir]],
+    ['verify-split.js', [splitDir]],
+  ]) {
+    const res = spawnSync(process.execPath, [path.join(__dirname, 'release', script), ...args], { stdio: 'inherit' });
+    if (res.status !== 0) throw new Error(`${script} 失败`);
+  }
+}
+
+function main() {
+  const resolved = resolveExtraResources();
+  if (printOnly) {
+    report(resolved);
+    process.stdout.write(JSON.stringify(resolved.extraResources, null, 2) + '\n');
+    if (resolved.errors.length) throw new Error(resolved.errors.join('\n'));
+    return;
+  }
+  // 先确认产物齐全再清理旧产物、构建，缺东西时不浪费时间也不删掉上一次的安装包
+  if (resolved.errors.length) throw new Error(resolved.errors.join('\n'));
+  report(resolved);
   preparePackaging();
   buildDesktop();
-  const outDir = runBuilder();
+  const outDir = runBuilder(resolved.extraResources);
   log(`\n打包完成。产物目录：${outDir}`);
-  // 打完安装包自动切成 < 100MB 的分片 + manifest.json（官网分片下载 / 浏览器组装用），并校验可还原。
   // --dir 只出免安装目录、没有 setup.exe，跳过；--no-split 可手动关闭。
-  if (!dirOnly && !process.argv.includes('--no-split')) {
-    const exe = fs
-      .readdirSync(outDir)
-      .filter((f) => /-setup\.exe$/i.test(f))
-      .map((f) => path.join(outDir, f))[0];
-    if (exe) {
-      const splitDir = path.join(outDir, 'split');
-      for (const [script, args] of [
-        ['split-release.js', [exe, '--out', splitDir]],
-        ['verify-split.js', [splitDir]],
-      ]) {
-        const res = spawnSync(process.execPath, [path.join(__dirname, 'release', script), ...args], { stdio: 'inherit' });
-        if (res.status !== 0) throw new Error(`${script} 失败`);
-      }
-    }
-  }
+  if (!dirOnly && !argv.includes('--no-split')) splitInstaller(outDir);
+}
+
+try {
+  main();
 } catch (err) {
   console.error('[pack] 失败：', err.message);
   process.exit(1);
