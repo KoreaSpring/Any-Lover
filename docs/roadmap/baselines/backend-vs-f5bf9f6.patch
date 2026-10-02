@@ -1,0 +1,736 @@
+diff --git a/backend/src/open_llm_vtuber/agent/agent_factory.py b/backend/src/open_llm_vtuber/agent/agent_factory.py
+index 4892a23..cd65da2 100644
+--- a/backend/src/open_llm_vtuber/agent/agent_factory.py
++++ b/backend/src/open_llm_vtuber/agent/agent_factory.py
+@@ -5,7 +5,8 @@ from .agents.agent_interface import AgentInterface
+ from .agents.basic_memory_agent import BasicMemoryAgent
+ from .stateless_llm_factory import LLMFactory as StatelessLLMFactory
+ from .agents.hume_ai import HumeAIAgent
+-from .agents.letta_agent import LettaAgent
++
++# [any-lover] letta_agent（依赖 letta_client）改为在 letta_agent 分支内懒加载，桌宠打包不携带该包。
+ 
+ from ..mcpp.tool_manager import ToolManager
+ from ..mcpp.tool_executor import ToolExecutor
+@@ -117,6 +118,8 @@ class AgentFactory:
+             )
+ 
+         elif conversation_agent_choice == "letta_agent":
++            from .agents.letta_agent import LettaAgent
++
+             settings = agent_settings.get("letta_agent", {})
+             return LettaAgent(
+                 live2d_model=live2d_model,
+diff --git a/backend/src/open_llm_vtuber/agent/agents/basic_memory_agent.py b/backend/src/open_llm_vtuber/agent/agents/basic_memory_agent.py
+index 403b559..5efec82 100644
+--- a/backend/src/open_llm_vtuber/agent/agents/basic_memory_agent.py
++++ b/backend/src/open_llm_vtuber/agent/agents/basic_memory_agent.py
+@@ -12,7 +12,6 @@ from loguru import logger
+ from .agent_interface import AgentInterface
+ from ..output_types import SentenceOutput, DisplayText
+ from ..stateless_llm.stateless_llm_interface import StatelessLLMInterface
+-from ..stateless_llm.claude_llm import AsyncLLM as ClaudeAsyncLLM
+ from ..stateless_llm.openai_compatible_llm import AsyncLLM as OpenAICompatibleAsyncLLM
+ from ...chat_history_manager import get_history
+ from ..transformers import (
+@@ -28,6 +27,17 @@ from ...mcpp.tool_manager import ToolManager
+ from ...mcpp.json_detector import StreamJSONDetector
+ from ...mcpp.types import ToolCallObject
+ from ...mcpp.tool_executor import ToolExecutor
++from ...conversations.stream_hooks import emit_partial_text
++
++
++def _is_claude_llm(llm) -> bool:
++    """[any-lover] 判断是否为 claude_llm.AsyncLLM，而不在顶层导入它。
++
++    原先顶层 `from ..stateless_llm.claude_llm import AsyncLLM` 会连带导入 anthropic；
++    桌宠打包已不携带 anthropic，故改为按类所在模块判断。
++    """
++    cls = type(llm)
++    return cls.__name__ == "AsyncLLM" and cls.__module__.endswith("stateless_llm.claude_llm")
+ 
+ 
+ class BasicMemoryAgent(AgentInterface):
+@@ -307,6 +317,7 @@ class BasicMemoryAgent(AgentInterface):
+                 if event["type"] == "text_delta":
+                     text = event["text"]
+                     current_turn_text += text
++                    emit_partial_text(text)  # 旁路推送 token，实现前端流式文本
+                     yield text
+                     if (
+                         not current_assistant_message_content
+@@ -456,10 +467,12 @@ class BasicMemoryAgent(AgentInterface):
+                                     yield f"[Error parsing tool JSON: {e}]"
+                                     goto_next_while_iteration = True
+                                     break
++                        emit_partial_text(event)  # 旁路推送 token（prompt 模式）
+                         yield event
+                 else:
+                     if isinstance(event, str):
+                         current_turn_text += event
++                        emit_partial_text(event)  # 旁路推送 token（OpenAI 工具模式）
+                         yield event
+                     elif isinstance(event, list) and all(
+                         isinstance(tc, ToolCallObject) for tc in event
+@@ -605,7 +618,7 @@ class BasicMemoryAgent(AgentInterface):
+ 
+             if self._use_mcpp and self._tool_manager:
+                 tools = None
+-                if isinstance(self._llm, ClaudeAsyncLLM):
++                if _is_claude_llm(self._llm):
+                     tool_mode = "Claude"
+                     tools = self._formatted_tools_claude
+                     llm_supports_native_tools = True
+@@ -654,6 +667,7 @@ class BasicMemoryAgent(AgentInterface):
+                     else:
+                         continue
+                     if text_chunk:
++                        emit_partial_text(text_chunk)  # 旁路推送 token，实现前端流式文本
+                         yield text_chunk
+                         complete_response += text_chunk
+                 if complete_response:
+diff --git a/backend/src/open_llm_vtuber/agent/stateless_llm/openai_compatible_llm.py b/backend/src/open_llm_vtuber/agent/stateless_llm/openai_compatible_llm.py
+index 6242c63..45a8861 100644
+--- a/backend/src/open_llm_vtuber/agent/stateless_llm/openai_compatible_llm.py
++++ b/backend/src/open_llm_vtuber/agent/stateless_llm/openai_compatible_llm.py
+@@ -21,6 +21,55 @@ from .stateless_llm_interface import StatelessLLMInterface
+ from ...mcpp.types import ToolCallObject
+ 
+ 
++# 提示模型不支持图片/多模态输入的错误特征（不同后端措辞不一，做小写子串匹配）
++_VISION_UNSUPPORTED_HINTS = (
++    "does not support multimodal",
++    "does not support image",
++    "multimodal data provided",
++    "image input is not supported",
++    "no image support",
++    "vision is not supported",
++)
++
++
++def _looks_like_vision_unsupported(error: Exception) -> bool:
++    """判断错误是否为“模型不支持图片输入”。"""
++    text = str(error).lower()
++    return any(hint in text for hint in _VISION_UNSUPPORTED_HINTS)
++
++
++def _strip_images_from_messages(
++    messages: List[Dict[str, Any]],
++) -> tuple[List[Dict[str, Any]], bool]:
++    """把消息中的多模态 content 降级为纯文本，丢弃 image_url。
++
++    返回 (新消息列表, 是否发生过剥离)。用于在纯文本模型上回退，
++    避免因附带屏幕/摄像头图片被后端拒绝（HTTP 400）。
++    """
++    stripped = False
++    new_messages: List[Dict[str, Any]] = []
++
++    for message in messages:
++        content = message.get("content")
++        if not isinstance(content, list):
++            new_messages.append(message)
++            continue
++
++        text_parts = []
++        for item in content:
++            if not isinstance(item, dict):
++                continue
++            if item.get("type") == "text":
++                text_parts.append(item.get("text", ""))
++            elif item.get("type") == "image_url":
++                stripped = True
++
++        # 仅保留文本；即使没有文本也放空串，保持角色结构完整
++        new_messages.append({**message, "content": "\n".join(text_parts).strip()})
++
++    return new_messages, stripped
++
++
+ class AsyncLLM(StatelessLLMInterface):
+     def __init__(
+         self,
+@@ -52,6 +101,9 @@ class AsyncLLM(StatelessLLMInterface):
+             api_key=llm_api_key,
+         )
+         self.support_tools = True
++        # 记忆本模型是否支持图片输入。一旦被后端拒绝一次，后续直接发纯文本，
++        # 避免每轮都白发一次大图并触发 400。
++        self.support_vision = True
+ 
+         logger.info(
+             f"Initialized AsyncLLM with the parameters: {self.base_url}, {self.model}"
+@@ -93,19 +145,46 @@ class AsyncLLM(StatelessLLMInterface):
+                     {"role": "system", "content": system},
+                     *messages,
+                 ]
++            # 若已知该模型不支持图片，提前剥离，省去必然失败的一次请求
++            if not self.support_vision:
++                messages_with_system, _ = _strip_images_from_messages(
++                    messages_with_system
++                )
++
+             logger.debug(f"Messages: {messages_with_system}")
+ 
+             available_tools = tools if self.support_tools else NOT_GIVEN
+ 
+-            stream: AsyncStream[
+-                ChatCompletionChunk
+-            ] = await self.client.chat.completions.create(
+-                messages=messages_with_system,
+-                model=self.model,
+-                stream=True,
+-                temperature=self.temperature,
+-                tools=available_tools,
+-            )
++            try:
++                stream = await self.client.chat.completions.create(
++                    messages=messages_with_system,
++                    model=self.model,
++                    stream=True,
++                    temperature=self.temperature,
++                    tools=available_tools,
++                )
++            except APIError as e:
++                # 纯文本模型收到图片会返回 400；剥离图片后仅重试一次
++                if self.support_vision and _looks_like_vision_unsupported(e):
++                    self.support_vision = False
++                    logger.warning(
++                        f"{self.model} does not support image input. "
++                        "Retrying without images."
++                    )
++                    messages_with_system, stripped = _strip_images_from_messages(
++                        messages_with_system
++                    )
++                    if not stripped:
++                        raise
++                    stream = await self.client.chat.completions.create(
++                        messages=messages_with_system,
++                        model=self.model,
++                        stream=True,
++                        temperature=self.temperature,
++                        tools=available_tools,
++                    )
++                else:
++                    raise
+             logger.debug(
+                 f"Tool Support: {self.support_tools}, Available tools: {available_tools}"
+             )
+diff --git a/backend/src/open_llm_vtuber/agent/stateless_llm_factory.py b/backend/src/open_llm_vtuber/agent/stateless_llm_factory.py
+index c5d8112..ed3d66e 100644
+--- a/backend/src/open_llm_vtuber/agent/stateless_llm_factory.py
++++ b/backend/src/open_llm_vtuber/agent/stateless_llm_factory.py
+@@ -3,12 +3,11 @@ from typing import Type
+ from loguru import logger
+ 
+ from .stateless_llm.stateless_llm_interface import StatelessLLMInterface
+-from .stateless_llm.stateless_llm_with_template import (
+-    AsyncLLMWithTemplate as StatelessLLMWithTemplate,
+-)
+ from .stateless_llm.openai_compatible_llm import AsyncLLM as OpenAICompatibleLLM
+ from .stateless_llm.ollama_llm import OllamaLLM
+-from .stateless_llm.claude_llm import AsyncLLM as ClaudeLLM
++
++# [any-lover] stateless_llm_with_template（依赖 jinja2）与 claude_llm（依赖 anthropic）
++# 改为在对应分支内懒加载：桌宠打包不再携带这两个包，顶层导入会让冻结 exe 启动即崩。
+ 
+ 
+ class LLMFactory:
+@@ -41,6 +40,10 @@ class LLMFactory:
+                 temperature=kwargs.get("temperature"),
+             )
+         if llm_provider == "stateless_llm_with_template":
++            from .stateless_llm.stateless_llm_with_template import (
++                AsyncLLMWithTemplate as StatelessLLMWithTemplate,
++            )
++
+             return StatelessLLMWithTemplate(
+                 model=kwargs.get("model"),
+                 base_url=kwargs.get("base_url"),
+@@ -68,6 +71,8 @@ class LLMFactory:
+                 model_path=kwargs.get("model_path"),
+             )
+         elif llm_provider == "claude_llm":
++            from .stateless_llm.claude_llm import AsyncLLM as ClaudeLLM
++
+             return ClaudeLLM(
+                 system=kwargs.get("system_prompt"),
+                 base_url=kwargs.get("base_url"),
+diff --git a/backend/src/open_llm_vtuber/config_manager/tts.py b/backend/src/open_llm_vtuber/config_manager/tts.py
+index 9822bff..afeb6cb 100644
+--- a/backend/src/open_llm_vtuber/config_manager/tts.py
++++ b/backend/src/open_llm_vtuber/config_manager/tts.py
+@@ -362,9 +362,17 @@ class CoquiTTSConfig(I18nMixin):
+ class SherpaOnnxTTSConfig(I18nMixin):
+     """Configuration for Sherpa Onnx TTS."""
+ 
+-    vits_model: str = Field(..., alias="vits_model")
++    # [any-lover] 新增 kokoro 模型类型（sherpa-onnx 1.13 原生支持），默认 vits 保持上游行为。
++    # model_type='kokoro' 时使用 kokoro_* 字段，vits_* 可不填。
++    model_type: Literal["vits", "kokoro"] = Field("vits", alias="model_type")
++    kokoro_model: Optional[str] = Field(None, alias="kokoro_model")
++    kokoro_voices: Optional[str] = Field(None, alias="kokoro_voices")
++    kokoro_tokens: Optional[str] = Field(None, alias="kokoro_tokens")
++    kokoro_data_dir: Optional[str] = Field(None, alias="kokoro_data_dir")
++    kokoro_lexicon: Optional[str] = Field(None, alias="kokoro_lexicon")
++    vits_model: Optional[str] = Field(None, alias="vits_model")
+     vits_lexicon: Optional[str] = Field(None, alias="vits_lexicon")
+-    vits_tokens: str = Field(..., alias="vits_tokens")
++    vits_tokens: Optional[str] = Field(None, alias="vits_tokens")
+     vits_data_dir: Optional[str] = Field(None, alias="vits_data_dir")
+     vits_dict_dir: Optional[str] = Field(None, alias="vits_dict_dir")
+     tts_rule_fsts: Optional[str] = Field(None, alias="tts_rule_fsts")
+@@ -376,6 +384,18 @@ class SherpaOnnxTTSConfig(I18nMixin):
+     debug: bool = Field(False, alias="debug")
+ 
+     DESCRIPTIONS: ClassVar[Dict[str, Description]] = {
++        "model_type": Description(
++            en="Model type: vits or kokoro", zh="模型类型：vits 或 kokoro"
++        ),
++        "kokoro_model": Description(en="Path to Kokoro model file", zh="Kokoro 模型文件路径"),
++        "kokoro_voices": Description(en="Path to Kokoro voices.bin", zh="Kokoro 音色文件 voices.bin 路径"),
++        "kokoro_tokens": Description(en="Path to Kokoro tokens.txt", zh="Kokoro tokens.txt 路径"),
++        "kokoro_data_dir": Description(
++            en="Path to Kokoro espeak-ng-data directory", zh="Kokoro espeak-ng-data 目录路径"
++        ),
++        "kokoro_lexicon": Description(
++            en="Comma-separated Kokoro lexicon files", zh="Kokoro 词典文件（逗号分隔）"
++        ),
+         "vits_model": Description(en="Path to VITS model file", zh="VITS 模型文件路径"),
+         "vits_lexicon": Description(
+             en="Path to lexicon file (optional)", zh="词典文件路径（可选）"
+diff --git a/backend/src/open_llm_vtuber/conversations/conversation_handler.py b/backend/src/open_llm_vtuber/conversations/conversation_handler.py
+index 02780b4..a33bacb 100644
+--- a/backend/src/open_llm_vtuber/conversations/conversation_handler.py
++++ b/backend/src/open_llm_vtuber/conversations/conversation_handler.py
+@@ -16,6 +16,25 @@ from .types import GroupConversationState
+ from prompts import prompt_loader
+ 
+ 
++def _make_safe_websocket_send(websocket: WebSocket) -> Callable:
++    """包装 websocket.send_text，使其在连接关闭/并发写时不抛出异常。
++
++    打断（interrupt）会让底层 websockets 连接进入关闭流程，此时对话协程仍可能
++    尝试发送剩余消息，导致 websockets 库在 _drain_helper 抛 AssertionError，
++    进而炸穿对话链并向前端显示 "Conversation error"。这里统一吞掉这类由连接
++    状态引起的发送异常，只记录日志，不影响其余业务逻辑。
++    """
++
++    async def safe_send(text: str) -> None:
++        try:
++            await websocket.send_text(text)
++        except (AssertionError, RuntimeError, ConnectionError) as e:
++            # 连接已关闭或正在关闭时的发送失败属于预期情况，静默跳过
++            logger.debug(f"Skipped websocket send on closing connection: {e}")
++
++    return safe_send
++
++
+ async def handle_conversation_trigger(
+     msg_type: str,
+     data: dict,
+@@ -99,7 +118,7 @@ async def handle_conversation_trigger(
+         current_conversation_tasks[client_uid] = asyncio.create_task(
+             process_single_conversation(
+                 context=context,
+-                websocket_send=websocket.send_text,
++                websocket_send=_make_safe_websocket_send(websocket),
+                 client_uid=client_uid,
+                 user_input=user_input,
+                 images=images,
+diff --git a/backend/src/open_llm_vtuber/conversations/conversation_utils.py b/backend/src/open_llm_vtuber/conversations/conversation_utils.py
+index 02286e9..5cd5e8b 100644
+--- a/backend/src/open_llm_vtuber/conversations/conversation_utils.py
++++ b/backend/src/open_llm_vtuber/conversations/conversation_utils.py
+@@ -167,7 +167,8 @@ async def finalize_conversation_turn(
+ ) -> None:
+     """Finalize a conversation turn"""
+     if tts_manager.task_list:
+-        await asyncio.gather(*tts_manager.task_list)
++        # return_exceptions=True：单句 TTS 失败不冒泡为整段异常
++        await asyncio.gather(*tts_manager.task_list, return_exceptions=True)
+         await websocket_send(json.dumps({"type": "backend-synth-complete"}))
+ 
+         response = await message_handler.wait_for_response(
+diff --git a/backend/src/open_llm_vtuber/conversations/group_conversation.py b/backend/src/open_llm_vtuber/conversations/group_conversation.py
+index 0bec7e5..8ef6f54 100644
+--- a/backend/src/open_llm_vtuber/conversations/group_conversation.py
++++ b/backend/src/open_llm_vtuber/conversations/group_conversation.py
+@@ -268,7 +268,8 @@ async def handle_group_member_turn(
+     )
+ 
+     if tts_manager.task_list:
+-        await asyncio.gather(*tts_manager.task_list)
++        # return_exceptions=True：单句 TTS 失败不冒泡为整段异常
++        await asyncio.gather(*tts_manager.task_list, return_exceptions=True)
+         await current_ws_send(json.dumps({"type": "backend-synth-complete"}))
+ 
+         broadcast_ctx = BroadcastContext(
+diff --git a/backend/src/open_llm_vtuber/conversations/single_conversation.py b/backend/src/open_llm_vtuber/conversations/single_conversation.py
+index 493fa9c..ed319f8 100644
+--- a/backend/src/open_llm_vtuber/conversations/single_conversation.py
++++ b/backend/src/open_llm_vtuber/conversations/single_conversation.py
+@@ -15,6 +15,7 @@ from .conversation_utils import (
+ )
+ from .types import WebSocketSend
+ from .tts_manager import TTSTaskManager
++from .stream_hooks import set_partial_text_emitter, reset_partial_text_emitter
+ from ..chat_history_manager import store_message
+ from ..service_context import ServiceContext
+ 
+@@ -85,6 +86,22 @@ async def process_single_conversation(
+         if images:
+             logger.info(f"With {len(images)} images")
+ 
++        # 注册 token 旁路回调：agent 逐 token 产出时，额外发送 partial-text 消息，
++        # 让前端字幕流式显示。该通道独立于句子/音频通道，不影响 TTS 与最终字幕。
++        loop = asyncio.get_running_loop()
++
++        def _emit_partial(text: str) -> None:
++            def _send() -> None:
++                try:
++                    asyncio.ensure_future(
++                        websocket_send(json.dumps({"type": "partial-text", "text": text}))
++                    )
++                except Exception:
++                    pass
++
++            loop.call_soon_threadsafe(_send)
++
++        emitter_token = set_partial_text_emitter(_emit_partial)
+         try:
+             # agent.chat yields Union[SentenceOutput, Dict[str, Any]]
+             agent_output_stream = context.agent_engine.chat(batch_input)
+@@ -135,11 +152,16 @@ async def process_single_conversation(
+                 )
+             )
+             # full_response will contain partial response before error
++        finally:
++            # token 流结束后注销旁路回调，避免影响后续会话
++            reset_partial_text_emitter(emitter_token)
+         # --- End processing agent response ---
+ 
+-        # Wait for any pending TTS tasks
++        # Wait for any pending TTS tasks.
++        # return_exceptions=True：个别 TTS/转码失败（如缺 ffmpeg）不冒泡为整段
++        # 对话异常，避免误弹 "Conversation error"；这些失败已在 _process_tts 内退化为静音。
+         if tts_manager.task_list:
+-            await asyncio.gather(*tts_manager.task_list)
++            await asyncio.gather(*tts_manager.task_list, return_exceptions=True)
+             await websocket_send(json.dumps({"type": "backend-synth-complete"}))
+ 
+         await finalize_conversation_turn(
+@@ -164,11 +186,24 @@ async def process_single_conversation(
+     except asyncio.CancelledError:
+         logger.info(f"🤡👍 Conversation {session_emoji} cancelled because interrupted.")
+         raise
++    except (AssertionError, ConnectionError, RuntimeError) as e:
++        # 打断（interrupt）会让底层 WebSocket 进入关闭流程，此时向其发送剩余消息会
++        # 触发 websockets 库的 AssertionError（_drain_helper）。这类异常源于连接状态，
++        # 对话内容通常已成功生成，不应再向前端弹出 "Conversation error"（且消息体为空），
++        # 也不应尝试再次发送（会二次抛错）。仅记录日志后正常结束。
++        logger.warning(
++            f"Conversation {session_emoji} ended while connection was closing: {type(e).__name__}"
++        )
++        return full_response
+     except Exception as e:
+         logger.error(f"Error in conversation chain: {e}")
+-        await websocket_send(
+-            json.dumps({"type": "error", "message": f"Conversation error: {str(e)}"})
+-        )
++        try:
++            await websocket_send(
++                json.dumps({"type": "error", "message": f"Conversation error: {str(e)}"})
++            )
++        except Exception as send_err:
++            # 连接可能已关闭，发送失败不应掩盖原始错误
++            logger.debug(f"Failed to send conversation error to client: {send_err}")
+         raise
+     finally:
+         cleanup_conversation(tts_manager, session_emoji)
+diff --git a/backend/src/open_llm_vtuber/conversations/stream_hooks.py b/backend/src/open_llm_vtuber/conversations/stream_hooks.py
+new file mode 100644
+index 0000000..b9ba508
+--- /dev/null
++++ b/backend/src/open_llm_vtuber/conversations/stream_hooks.py
+@@ -0,0 +1,42 @@
++"""Token 级流式文本旁路。
++
++现有输出链路把 LLM token 聚合成整句后才随 audio 消息发给前端，字幕因此“整句跳出”。
++本模块提供一个基于 ContextVar 的回调注入点：agent 在逐 token yield 时，若当前
++会话设置了回调，则同步把 token 交给回调，由会话层额外发送 partial-text 消息，
++实现视觉上的流式文本。该旁路完全独立于原有句子/音频通道，不影响 TTS 与最终字幕。
++"""
++
++from contextvars import ContextVar
++from typing import Callable, Optional
++
++# 当前会话的 token 回调；未设置时 emit 静默无操作
++_partial_text_emitter: ContextVar[Optional[Callable[[str], None]]] = ContextVar(
++    "partial_text_emitter", default=None
++)
++
++
++def set_partial_text_emitter(emitter: Optional[Callable[[str], None]]):
++    """设置当前上下文的 token 回调，返回 token 以便调用方 reset。"""
++    return _partial_text_emitter.set(emitter)
++
++
++def reset_partial_text_emitter(token) -> None:
++    """恢复到设置前的回调状态。"""
++    try:
++        _partial_text_emitter.reset(token)
++    except Exception:
++        pass
++
++
++def emit_partial_text(text: str) -> None:
++    """把一个 token/文本片段推送到前端（若已注册回调）。绝不抛出异常。"""
++    if not text:
++        return
++    emitter = _partial_text_emitter.get()
++    if emitter is None:
++        return
++    try:
++        emitter(text)
++    except Exception:
++        # 流式仅为视觉增强，任何失败都不应影响主对话链路
++        pass
+diff --git a/backend/src/open_llm_vtuber/tts/sherpa_onnx_tts.py b/backend/src/open_llm_vtuber/tts/sherpa_onnx_tts.py
+index 6b2f666..014f82c 100644
+--- a/backend/src/open_llm_vtuber/tts/sherpa_onnx_tts.py
++++ b/backend/src/open_llm_vtuber/tts/sherpa_onnx_tts.py
+@@ -13,7 +13,7 @@ sys.path.append(current_dir)
+ class TTSEngine(TTSInterface):
+     def __init__(
+         self,
+-        vits_model,
++        vits_model=None,
+         vits_lexicon="",
+         vits_tokens="",
+         vits_data_dir="",
+@@ -25,13 +25,28 @@ class TTSEngine(TTSInterface):
+         num_threads=1,
+         speed=1.0,
+         debug=False,
++        # [any-lover] Kokoro 支持（sherpa-onnx 1.13+）。model_type='kokoro' 时使用以下字段。
++        model_type="vits",
++        kokoro_model=None,
++        kokoro_voices=None,
++        kokoro_tokens=None,
++        kokoro_data_dir=None,
++        kokoro_lexicon=None,
+     ):
++        self.model_type = model_type or "vits"
++        self.kokoro_model = kokoro_model or ""
++        self.kokoro_voices = kokoro_voices or ""
++        self.kokoro_tokens = kokoro_tokens or ""
++        self.kokoro_data_dir = kokoro_data_dir or ""
++        self.kokoro_lexicon = kokoro_lexicon or ""
++        # [any-lover] 配置里的可选路径未填时为 None，而 sherpa-onnx 的 pybind 构造函数
++        # 只接受 str，传 None 会报 "incompatible constructor arguments"，统一转成 ""。
+         self.vits_model = vits_model
+-        self.vits_lexicon = vits_lexicon
+-        self.vits_tokens = vits_tokens
+-        self.vits_data_dir = vits_data_dir
+-        self.vits_dict_dir = vits_dict_dir
+-        self.tts_rule_fsts = tts_rule_fsts
++        self.vits_lexicon = vits_lexicon or ""
++        self.vits_tokens = vits_tokens or ""
++        self.vits_data_dir = vits_data_dir or ""
++        self.vits_dict_dir = vits_dict_dir or ""
++        self.tts_rule_fsts = tts_rule_fsts or ""
+         self.max_num_sentences = max_num_sentences
+         self.sid = sid  # Speaker ID
+         self.provider = provider  # Computation provider (e.g., "cpu", "cuda")
+@@ -51,16 +66,32 @@ class TTSEngine(TTSInterface):
+         """
+         Initialize the sherpa-onnx TTS engine.
+         """
+-        # Construct the configuration for the TTS engine
+-        tts_config = sherpa_onnx.OfflineTtsConfig(
+-            model=sherpa_onnx.OfflineTtsModelConfig(
+-                vits=sherpa_onnx.OfflineTtsVitsModelConfig(
+-                    model=self.vits_model,
++        # [any-lover] 按 model_type 构造 vits 或 kokoro 子配置
++        if self.model_type == "kokoro":
++            model_part = {
++                "kokoro": sherpa_onnx.OfflineTtsKokoroModelConfig(
++                    model=self.kokoro_model,
++                    voices=self.kokoro_voices,
++                    tokens=self.kokoro_tokens,
++                    data_dir=self.kokoro_data_dir,
++                    lexicon=self.kokoro_lexicon,
++                )
++            }
++        else:
++            model_part = {
++                "vits": sherpa_onnx.OfflineTtsVitsModelConfig(
++                    model=self.vits_model or "",
+                     lexicon=self.vits_lexicon,
+                     data_dir=self.vits_data_dir,
+                     dict_dir=self.vits_dict_dir,
+                     tokens=self.vits_tokens,
+-                ),
++                )
++            }
++
++        # Construct the configuration for the TTS engine
++        tts_config = sherpa_onnx.OfflineTtsConfig(
++            model=sherpa_onnx.OfflineTtsModelConfig(
++                **model_part,
+                 provider=self.provider,
+                 debug=self.debug,
+                 num_threads=self.num_threads,
+diff --git a/backend/src/open_llm_vtuber/utils/stream_audio.py b/backend/src/open_llm_vtuber/utils/stream_audio.py
+index c8ae52b..565abb4 100644
+--- a/backend/src/open_llm_vtuber/utils/stream_audio.py
++++ b/backend/src/open_llm_vtuber/utils/stream_audio.py
+@@ -1,9 +1,23 @@
+ import base64
++import os
+ from pydub import AudioSegment
+ from pydub.utils import make_chunks
+ from ..agent.output_types import Actions
+ from ..agent.output_types import DisplayText
+ 
++# 显式指向随包 ffmpeg（由 Electron 通过 AIBOT_FFMPEG_DIR 注入）。
++# edge_tts 输出 mp3，pydub 解码 mp3 依赖 ffmpeg；打包环境里 PATH 未必可靠，
++# 因此在此显式设置 converter/ffprobe，确保用户机器无需自行安装 ffmpeg。
++_ffmpeg_dir = os.environ.get("AIBOT_FFMPEG_DIR", "").strip()
++if _ffmpeg_dir and os.path.isdir(_ffmpeg_dir):
++    _ffmpeg_exe = os.path.join(_ffmpeg_dir, "ffmpeg.exe")
++    _ffprobe_exe = os.path.join(_ffmpeg_dir, "ffprobe.exe")
++    if os.path.isfile(_ffmpeg_exe):
++        AudioSegment.converter = _ffmpeg_exe
++        AudioSegment.ffmpeg = _ffmpeg_exe
++    if os.path.isfile(_ffprobe_exe):
++        AudioSegment.ffprobe = _ffprobe_exe
++
+ 
+ def _get_volume_by_chunks(audio: AudioSegment, chunk_length_ms: int) -> list:
+     """
+diff --git a/backend/src/open_llm_vtuber/websocket_handler.py b/backend/src/open_llm_vtuber/websocket_handler.py
+index 41368a6..8d70dc5 100644
+--- a/backend/src/open_llm_vtuber/websocket_handler.py
++++ b/backend/src/open_llm_vtuber/websocket_handler.py
+@@ -27,6 +27,8 @@ from .conversations.conversation_handler import (
+     handle_group_interrupt,
+     handle_individual_interrupt,
+ )
++from .conversations.tts_manager import TTSTaskManager
++from .agent.output_types import DisplayText, Actions
+ 
+ 
+ class MessageType(Enum):
+@@ -69,6 +71,9 @@ class WebSocketHandler:
+         self.current_conversation_tasks: Dict[str, Optional[asyncio.Task]] = {}
+         self.default_context_cache = default_context_cache
+         self.received_data_buffers: Dict[str, np.ndarray] = {}
++        # 中枢对话（hub-speak）专用 TTS 管理器：中枢生成回复后逐句灌来做 TTS+表情，
++        # 每个 client 一个，保证一轮内多句有序播放。见 _handle_hub_speak。
++        self.hub_tts_managers: Dict[str, TTSTaskManager] = {}
+ 
+         # Message handlers mapping
+         self._message_handlers = self._init_message_handlers()
+@@ -95,6 +100,14 @@ class WebSocketHandler:
+             "audio-play-start": self._handle_audio_play_start,
+             "request-init-config": self._handle_init_config_request,
+             "heartbeat": self._handle_heartbeat,
++            # 中枢对话（F-1）：中枢在主进程用注入了记忆/画像/关系/情绪的上下文生成回复，
++            # 逐句灌来这里做 TTS + 表情；后端在此仅充当"语音+表情服务"，不参与对话生成。
++            "hub-speak-start": self._handle_hub_speak_start,
++            "hub-speak": self._handle_hub_speak,
++            "hub-speak-end": self._handle_hub_speak_end,
++            # 中枢对话语音路径（F-2）：只做 ASR 出文本回发，不在后端生成回复
++            # （生成交给中枢 DialogueEngine，避免双回复）。
++            "mic-audio-end-asr-only": self._handle_asr_only,
+         }
+ 
+     async def handle_new_connection(
+@@ -510,6 +523,86 @@ class WebSocketHandler:
+                         json.dumps({"type": "control", "text": "mic-audio-end"})
+                     )
+ 
++    async def _handle_hub_speak_start(
++        self, websocket: WebSocket, client_uid: str, data: WSMessage
++    ) -> None:
++        """中枢对话开始：新建本轮 hub TTS 管理器并发 conversation-chain-start。"""
++        self.hub_tts_managers[client_uid] = TTSTaskManager()
++        await websocket.send_text(
++            json.dumps({"type": "control", "text": "conversation-chain-start"})
++        )
++
++    async def _handle_hub_speak(
++        self, websocket: WebSocket, client_uid: str, data: WSMessage
++    ) -> None:
++        """中枢对话逐句：给一句文本 → 表情提取 + TTS 合成 → 发 audio（口型/表情/字幕复用现有链路）。"""
++        text = (data.get("text") or "").strip()
++        if not text:
++            return
++        context = self.client_contexts.get(client_uid)
++        if not context:
++            return
++        tts_manager = self.hub_tts_managers.get(client_uid)
++        if tts_manager is None:
++            tts_manager = TTSTaskManager()
++            self.hub_tts_managers[client_uid] = tts_manager
++
++        name = data.get("name") or context.character_config.character_name
++        display_text = DisplayText(
++            text=text,
++            name=name,
++            avatar=context.character_config.avatar,
++        )
++        # 表情：复用 live2d 模型的关键词→情绪映射（与老对话链路一致，表情/口型不退化）。
++        expressions = context.live2d_model.extract_emotion(text)
++        actions = Actions(expressions=expressions) if expressions else None
++
++        await tts_manager.speak(
++            tts_text=text,
++            display_text=display_text,
++            actions=actions,
++            live2d_model=context.live2d_model,
++            tts_engine=context.tts_engine,
++            websocket_send=websocket.send_text,
++        )
++
++    async def _handle_hub_speak_end(
++        self, websocket: WebSocket, client_uid: str, data: WSMessage
++    ) -> None:
++        """中枢对话结束：等本轮所有 TTS 任务完成 → backend-synth-complete + conversation-chain-end。"""
++        tts_manager = self.hub_tts_managers.get(client_uid)
++        if tts_manager and tts_manager.task_list:
++            try:
++                await asyncio.gather(*tts_manager.task_list, return_exceptions=True)
++            except Exception as e:
++                logger.warning(f"hub-speak-end 等待 TTS 异常：{e}")
++        await websocket.send_text(json.dumps({"type": "backend-synth-complete"}))
++        await websocket.send_text(
++            json.dumps({"type": "control", "text": "conversation-chain-end"})
++        )
++        if tts_manager:
++            tts_manager.clear()
++
++    async def _handle_asr_only(
++        self, websocket: WebSocket, client_uid: str, data: WSMessage
++    ) -> None:
++        """中枢对话语音路径：把累积的 mic 音频做 ASR，回发 user-input-transcription，不生成回复。
++        生成由中枢 DialogueEngine 负责（renderer 收到转录文本后走 agent:dialogue）。"""
++        context = self.client_contexts.get(client_uid)
++        audio = self.received_data_buffers.get(client_uid)
++        # 取出并清空 buffer（与 mic-audio-end 一致的取用方式）。
++        self.received_data_buffers[client_uid] = np.array([])
++        if context is None or audio is None or len(audio) == 0:
++            return
++        try:
++            text = await context.asr_engine.async_transcribe_np(audio)
++        except Exception as e:
++            logger.error(f"asr-only 转录失败：{e}")
++            return
++        await websocket.send_text(
++            json.dumps({"type": "user-input-transcription", "text": text})
++        )
++
+     async def _handle_conversation_trigger(
+         self, websocket: WebSocket, client_uid: str, data: WSMessage
+     ) -> None:
