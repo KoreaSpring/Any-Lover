@@ -67,7 +67,7 @@ function testChatCompletion(baseUrl: string, model: string, apiKey: string): Pro
   });
 }
 
-export function registerAibotIpc(deps: Deps): void {
+export function registerSettingsIpc(deps: Deps): void {
   const { backend, ollama, log, onLaunch, getSettingsWindow } = deps;
   void backend;
 

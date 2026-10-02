@@ -7,7 +7,7 @@ import { llmProviderRegistry } from '../agent/llm/llm-provider';
 import { keepProvidersInSync } from '../agent/llm/providers/provider-factory';
 import { onSettingsChanged } from '../platform/settings-store';
 import { resolveAnyOllama } from '../sidecars/ollama/ollama-manager';
-import { registerAibotIpc } from '../ipc/settings-ipc';
+import { registerSettingsIpc } from '../ipc/settings-ipc';
 import { openSettingsWindow, getSettingsWindow } from '../window/settings-window';
 import { readSettings } from '../platform/settings-store';
 import { checkForUpdates, scheduleStartupCheck } from '../platform/auto-updater';
@@ -44,7 +44,7 @@ export function registerLifecycle(container: Container, gotSingleInstanceLock: b
 
   app.whenReady().then(() => {
     // 设置相关 IPC（供设置窗口使用）
-    registerAibotIpc({
+    registerSettingsIpc({
       backend,
       ollama,
       log: logToFile,
