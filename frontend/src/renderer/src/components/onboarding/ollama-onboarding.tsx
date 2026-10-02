@@ -586,7 +586,8 @@ const overlay = (fadingOut: boolean): React.CSSProperties => ({
   opacity: fadingOut ? 0 : 1,
   transition: 'opacity 0.6s ease',
   fontFamily: '"Noto Sans SC", system-ui, sans-serif',
-  WebkitAppRegion: 'no-drag' as any,
+  // Electron 专有的拖拽区域属性，csstype 里没有，经断言绕过多余属性检查
+  ...({ WebkitAppRegion: 'no-drag' } as React.CSSProperties),
   overflow: 'auto',
   padding: '24px 0',
 });
@@ -628,17 +629,6 @@ const btnPrimary: React.CSSProperties = {
   fontSize: 15,
   fontWeight: 600,
   cursor: 'pointer',
-};
-const btnDisabled: React.CSSProperties = {
-  width: '100%',
-  padding: '12px 0',
-  borderRadius: 999,
-  border: 'none',
-  background: '#d8cfc4',
-  color: '#fff',
-  fontSize: 15,
-  fontWeight: 600,
-  cursor: 'not-allowed',
 };
 const btnMini: React.CSSProperties = {
   padding: '0 14px',

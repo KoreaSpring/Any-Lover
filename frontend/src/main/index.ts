@@ -60,11 +60,9 @@ function setupIPC(): void {
     },
   );
 
-  ipcMain.handle(IPC.config.getConfigFiles, () => {
-    const configFiles = JSON.parse(localStorage.getItem("configFiles") || "[]");
-    menuManager.updateConfigFiles(configFiles);
-    return configFiles;
-  });
+  // 配置列表由 renderer 经 updateConfigFiles 推送、缓存在 menuManager。
+  // 主进程没有 localStorage（上游原实现在这里读 localStorage，一调用就抛 ReferenceError）。
+  ipcMain.handle(IPC.config.getConfigFiles, () => menuManager.getConfigFiles());
 
   ipcMain.on(IPC.config.updateConfigFiles, (_event, files) => {
     menuManager.updateConfigFiles(files);
@@ -87,7 +85,9 @@ app.on('second-instance', () => {
 });
 
 app.whenReady().then(() => {
-  electronApp.setAppUserModelId("com.electron");
+  // 必须与 electron-builder.yml 的 appId 一致：NSIS 快捷方式用 appId 作 AppUserModelID，
+  // 不一致时任务栏固定图标与运行中的窗口会分成两个，通知也归到错误的应用名下。
+  electronApp.setAppUserModelId("com.anylover.charis");
 
   windowManager = new WindowManager();
   menuManager = new MenuManager((mode) => windowManager.setWindowMode(mode));

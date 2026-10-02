@@ -1,4 +1,3 @@
-/* eslint-disable import/first */
 // 融合引导入口：在不改动前端外壳（index.ts 原样保留）的前提下，
 // 额外负责启动内置 Python 后端 sidecar，并提供大模型/Ollama 设置窗口。
 //

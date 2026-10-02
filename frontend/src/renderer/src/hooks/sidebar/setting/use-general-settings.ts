@@ -1,4 +1,3 @@
-/* eslint-disable import/order */
 /* eslint-disable no-use-before-define */
 import { useState, useEffect } from 'react';
 import { BgUrlContextState } from '@/context/bgurl-context';

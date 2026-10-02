@@ -1,4 +1,3 @@
-/* eslint-disable import/no-extraneous-dependencies */
 import { useTranslation } from "react-i18next";
 import { Stack, createListCollection } from "@chakra-ui/react";
 import { useBgUrl } from "@/context/bgurl-context";

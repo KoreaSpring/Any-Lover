@@ -1,22 +1,14 @@
-/* eslint-disable @typescript-eslint/ban-ts-comment */
 import electron from 'electron';
 const { contextBridge, ipcRenderer, desktopCapturer } = electron;
 import { electronAPI } from '@electron-toolkit/preload';
 import 'electron-log/preload';
-import { ConfigFile } from '../main/window/menu-manager';
-import { IPC } from '../proto/ipc';
+import { IPC, type ConfigFile } from '../proto/ipc';
 
-// electron-log/preload 会在 window 上桥接一个 IPC 通道，配合渲染进程里
-// `electron-log/renderer` 的 initialize()，让 renderer 侧的 console.* / log.*
-// 调用统一转发到主进程落盘，与主进程日志汇总到同一份文件，方便按时间线排查问题。
-
-declare global {
-  interface Window {
-    electron: typeof electronAPI;
-    // @ts-ignore
-    api: typeof api;
-  }
-}
+// electron-log/preload 在 window 上桥接一个 IPC 通道，renderer 侧经 `electron-log/renderer`
+// 写的日志会转发到主进程落盘，与主进程日志汇总到同一份文件，方便按时间线排查问题。
+//
+// window.api 的类型由下面的 api 实现推导（PreloadApi），renderer 的 env.d.ts 直接引用，
+// 不再手写一份容易漂移的声明。
 
 const api = {
   setIgnoreMouseEvents: (ignore: boolean) => {
@@ -84,20 +76,25 @@ const api = {
   },
 };
 
+/** 暴露为 window.api 的接口类型，renderer 的 env.d.ts 引用它。 */
+export type PreloadApi = typeof api;
+
+type IpcListener = Parameters<typeof ipcRenderer.on>[1];
+
 if (process.contextIsolated) {
   try {
     contextBridge.exposeInMainWorld('electron', {
       ...electronAPI,
       desktopCapturer: {
-        getSources: (options) => desktopCapturer.getSources(options),
+        getSources: (options: Electron.SourcesOptions) => desktopCapturer.getSources(options),
       },
       ipcRenderer: {
-        invoke: (channel, ...args) => ipcRenderer.invoke(channel, ...args),
-        on: (channel, func) => ipcRenderer.on(channel, func),
-        once: (channel, func) => ipcRenderer.once(channel, func),
-        removeListener: (channel, func) => ipcRenderer.removeListener(channel, func),
-        removeAllListeners: (channel) => ipcRenderer.removeAllListeners(channel),
-        send: (channel, ...args) => ipcRenderer.send(channel, ...args),
+        invoke: (channel: string, ...args: unknown[]) => ipcRenderer.invoke(channel, ...args),
+        on: (channel: string, func: IpcListener) => ipcRenderer.on(channel, func),
+        once: (channel: string, func: IpcListener) => ipcRenderer.once(channel, func),
+        removeListener: (channel: string, func: IpcListener) => ipcRenderer.removeListener(channel, func),
+        removeAllListeners: (channel: string) => ipcRenderer.removeAllListeners(channel),
+        send: (channel: string, ...args: unknown[]) => ipcRenderer.send(channel, ...args),
       },
       process: {
         platform: process.platform,
@@ -108,6 +105,8 @@ if (process.contextIsolated) {
     console.error(error);
   }
 } else {
-  window.electron = electronAPI;
-  (window as any).api = api;
+  // 未开启 contextIsolation 时 preload 与页面共享全局对象，globalThis 即 window。
+  // 用 globalThis 而非 window：preload 按 Node 侧 tsconfig 检查，不引入 DOM 类型。
+  (globalThis as any).electron = electronAPI;
+  (globalThis as any).api = api;
 }

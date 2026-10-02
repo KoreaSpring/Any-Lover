@@ -94,7 +94,7 @@ any-lover 已经具备把 Ollama 当外部 HTTP 服务使用的完整能力（`o
 | 应用形态 | Electron（electron-vite + electron-builder ^24）外壳 + PyInstaller 冻结的 Python 后端 sidecar | `frontend/src/main/` |
 | 打包目标 | win=NSIS，mac=dmg(x64/arm64)，linux=AppImage/snap/deb（已声明） | `frontend/electron-builder.yml` |
 | 运行时打包 | `../dist-runtime` → `resources/runtime` | `electron-builder.yml` `extraResources` |
-| Ollama 打包开关 | `--with-ollama` 打入 `vendor/ollama`（ollama.exe + minicpm-v:8b）；默认轻量版不打 | `build/scripts/pack.js` |
+| Ollama 打包开关 | `--with-model` 打入 `vendor/ollama`（ollama.exe + minicpm-v:8b）；默认轻量版不打 | `build/scripts/pack.js` |
 | LLM 调用 | OpenAI 兼容 HTTP；provider=ollama 时拼 `ollamaHost + '/v1'` | `backend-manager.ts` `resolveLlm/writeConfig` |
 | Ollama 生命周期 | 解析内置/vendor、校验、列模型、serve、退出清理 | `frontend/src/main/ollama-manager.ts` |
 | 首次启动 | 写默认配置（provider=ollama, model=minicpm-v:8b），缺 exe **只记日志、不下载** | `frontend/src/main/bootstrap.ts` |
@@ -196,7 +196,7 @@ any-lover 已经具备把 Ollama 当外部 HTTP 服务使用的完整能力（`o
 
 ### 4.6 打包侧（`pack.js` / `electron-builder.yml`）
 
-- **默认产物 = 轻量版**：确认不含 `vendor/ollama`（现状默认已是）。整合版 `--with-ollama` 保留为可选。
+- **默认产物 = 轻量版**：确认不含 `vendor/ollama`（现状默认已是）。整合版 `--with-model` 保留为可选。
 - 无需 NSIS 自定义脚本；下载全部发生在**首次运行时**，而非安装器阶段（比 AnythingLLM 内嵌 Ollama 安装器更简单、更跨平台）。
 - 未来可选：把 SenseVoice ASR（~300MB）也改成首启下载，进一步瘦身安装包（本次不做，列入后续）。
 

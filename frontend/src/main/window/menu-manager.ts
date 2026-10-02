@@ -1,15 +1,8 @@
-/* eslint-disable @typescript-eslint/ban-ts-comment */
 import {
   Tray, nativeImage, Menu, BrowserWindow, ipcMain, screen, MenuItemConstructorOptions, app,
 } from 'electron';
-// @ts-expect-error
 import trayIcon from '../../../resources/icon.png?asset';
-import { IPC } from '../../proto/ipc';
-
-export interface ConfigFile {
-  filename: string;
-  name: string;
-}
+import { IPC, type ConfigFile } from '../../proto/ipc';
 
 export class MenuManager {
   private tray: Tray | null = null;
@@ -208,6 +201,10 @@ export class MenuManager {
   destroy(): void {
     this.tray?.destroy();
     this.tray = null;
+  }
+
+  getConfigFiles(): ConfigFile[] {
+    return this.configFiles;
   }
 
   updateConfigFiles(files: ConfigFile[]): void {

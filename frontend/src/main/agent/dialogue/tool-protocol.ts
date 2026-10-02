@@ -15,7 +15,7 @@ export interface ToolCall {
   args: Record<string, unknown>;
 }
 
-/** 工具执行结果（来自后端 hub-tool-result 的项）。 */
+/** 工具执行结果（由 ToolBridge 实现返回，当前实现是 McpHub）。 */
 export interface ToolResult {
   id: string;
   content: string;
@@ -67,7 +67,7 @@ export function stripToolCalls(text: string): string {
 
 /**
  * 构造注入 system prompt 的工具使用说明。
- * @param toolPrompt 后端 hub-tool-info 返回的工具清单文本（各工具名/描述/参数）。
+ * @param toolPrompt ToolBridge.list 返回的工具清单文本（各工具名/描述/参数）。
  * @param names 可用工具名（用于兜底提示）。
  * 无可用工具时返回空串（调用方据此不注入）。
  */

@@ -10,8 +10,7 @@ declare global {
       };
       // Add other methods or properties exposed by preload script if any
     };
-    // Add other custom window properties if needed
-    api?: unknown; // Keep existing check if needed
+    // window.api 的类型见同目录 env.d.ts（由 preload 实现推导）
   }
 }
 

@@ -111,7 +111,7 @@ any-lover/
   - 相对导入基线 `f5bf9f6`，改了 13 个上游文件（+452/−38 行）。
   - 仅 `websocket_handler.py` 一个文件就 +150 行，而且正好落在上游最常改的消息调度和对话主循环上。
   - 只有 `stream_hooks.py` 是物理上独立的扩展。
-  - `ANYLOVER_EXTENSIONS.md` 已过期：写的是 9 个文件、4 个消息类型，实际是 14 个 .py 文件、6 个消息类型。
+  - `ANYLOVER_EXTENSIONS.md` 已过期：写的是 9 个文件、4 个消息类型，实际是 14 个 .py 文件、6 个消息类型。（P0 删除 hub-tool-* 后为 13 个文件、4 个消息类型，清单已在 P0 任务 8 中更正。）
   - 没有记录上游 commit。
 - **依赖事实源分裂**：
   - uv.lock（开发用）和根目录 requirements-pet.txt（打包和 CI 用）之间只靠注释手工对齐。
@@ -597,7 +597,7 @@ ANYLOVER_FFMPEG_DIR 这类由主进程注入给 sidecar 的变量，两端会一
 | `site/` | `apps/website/` | P1b |
 | `frontend/src/proto/` | `packages/protocol/src/`（`ws-backend.ts` 改名为 `ws/open-llm-vtuber.ts`，`ws-tha.ts` 改名为 `ws/tha.ts`） | P1c |
 | `backend/` | `sidecars/open-llm-vtuber/upstream/` | P1c |
-| `backend/ANYLOVER_EXTENSIONS.md` | `sidecars/open-llm-vtuber/UPSTREAM.md`（重写，补全 14 个文件和 6 个消息类型） | P1c |
+| `backend/ANYLOVER_EXTENSIONS.md` | `sidecars/open-llm-vtuber/UPSTREAM.md`（重写；文件数和消息类型数已在 P0 更正） | P1c |
 | `requirements-pet.txt`、`.venv-pack/` | `sidecars/open-llm-vtuber/requirements-pet.txt`、`.venv/` | P1c |
 | `build/scripts/prepare-runtime.js` | `sidecars/open-llm-vtuber/scripts/stage.js`（P2 时把模板拆出到 `config/conf.pet.yaml`） | P1c / P2 |
 | `build/scripts/build-backend.js`、`fetch-ffmpeg.js` | `sidecars/open-llm-vtuber/scripts/freeze.js`、`fetch-ffmpeg.js` | P1c |
@@ -752,16 +752,85 @@ ANYLOVER_FFMPEG_DIR 这类由主进程注入给 sidecar 的变量，两端会一
 
 ## 9. 需要确认的决策点
 
-（待补充）
+每项给出推荐和不选推荐的代价。标"已决"的已按推荐执行。
+
+| 编号 | 问题 | 推荐 | 备选及代价 | 阻塞 | 状态 |
+| --- | --- | --- | --- | --- | --- |
+| D1 | 顶层是否改为 `apps / sidecars / packages / tooling / out`，并把 frontend、backend 改回 `apps/desktop`、`sidecars/open-llm-vtuber` | 改。理由见 4.1：frontend/backend 已和职责不符，且 Web/Android 需要 `apps/` | 只做 P1a（产物进 `out/`、脚本进 `tooling/`），保留 frontend/backend：改动小，但"大脑在 frontend"的误导和 sidecar 四种放法继续存在 | P1 | 待定 |
+| D2 | 渲染层是否按功能域整体重组（会和上游 Open-LLM-VTuber-Web 的目录分叉） | 整体重组。上游 Web 已被大量改动，实际也没在同步 | 保守版：上游文件原地不动，只把自有代码收进 `features/`。能继续挑拣上游修复，但上帝组件和"一个功能横跨 5–7 个目录"只解决一半 | P4 | 待定 |
+| D3 | 跨功能的响应式状态用哪种 store；`store/`（只有一个无人使用的 appSlice）去留 | 删除 Redux 骨架；局部状态继续用 context，主进程持有的开关走 settings-store + IPC 订阅 | 保留 Redux Toolkit 作为唯一 store：需要把 mode-context、wsState 迁进去，工作量大，收益要等状态真正复杂后才体现 | P4 任务 25 | 待定 |
+| D4 | P5 用什么方式让上游实例化我们的 WebSocketHandler 子类 | 自有入口在服务初始化前替换 `routes` 模块里的名字，上游零改动；先用冒烟测试确认生效 | 在 `routes.py` 留一个登记过的 1 行钩子：更直白，但同步上游时多一处冲突点 | P5 | 待定 |
+| D5 | P7 引入 workspace 时用 npm 还是 pnpm | npm workspaces：不换包管理器，electron-builder 兼容性已知 | pnpm：安装更快、依赖更严格，但 electron-builder 需要额外配置 `node-linker=hoisted` | P7 | 待定（立项时再定） |
+| D6 | 是否删除 MCP 旧转发链（hub-tool-* 与 `agent.tool*` IPC） | 删除，McpHub 已直连 MCP server | — | P0 任务 3 | 已决，见 `7be0add` |
+| D7 | WS 消息是否从 `hub-*` 改名为 `agent-*`，与 IPC 域统一 | 改，在 P5 迁入 `anylover_ext` 时一并改，两端同版本发布 | 不改：术语继续一分为二（6.2），但少一次跨语言改名 | P5 | 待定 |
+| D8 | 打包 profile 的名字和组合；CI 发布物是否包含 THA | 采用 4.6 的四个 profile；CI 发布 `lite`，README 改为如实描述 | CI 改发 `win`：和 README 现在的说法一致，但安装包和 CI 时长都会显著增加 | P2 | 待定 |
 
 ## 10. 风险与验证
 
-（待补充）
+### 10.1 风险
+
+| 风险 | 影响 | 应对 |
+| --- | --- | --- |
+| P1 大面积移动和在途分支冲突 | 合并成本高，可能丢改动 | 开工前 `git branch -a --no-merged main` 清点；纯移动单独提交，便于 rebase |
+| 开发态路径拼接（`getAppPath()/..`）漏改 | 开发态找不到 backend / THA / 模型，打包态正常，容易漏测 | P1b 逐处 grep 修改；P3 收口到 `platform/paths.ts` 后只剩一处 |
+| tsc 通过但 rollup 失败（相对路径、别名） | CI 通过、构建失败 | 每次移动都跑完整 `npm run build`，CI 已包含 build |
+| 搬迁后 `git diff f5bf9f6 HEAD -- backend` 失效 | 丢失"上游 vs 现状"的对照 | P1c 前导出存档；UPSTREAM.md 改用新路径的命令 |
+| 打包内容悄悄变化 | 用户装到缺文件或多出敏感文件的包 | P0 生成资源树基线，P1、P2 逐期比对 |
+| 安装包内 resource 名或 userData 目录改动 | 老用户升级后丢数据、找不到运行时 | 第 7 节约定这些名字保持不变；改名只发生在源码和构建期 |
+| 替换 routes 模块（D4）在上游升级后失效 | 中枢对话静默退回老链路 | P5 冒烟测试覆盖 hub-speak-start，进 CI |
+| THA、OpenSeeFace 只在 Windows 有意义，CI 跑在 Linux | Windows 专属回归测不到 | 每期合入前在 Windows 上手工跑 10.2 的打包与运行项 |
+| WebSDK 的 582 个类型错误 | 渲染层无法进 CI 类型检查 | P4 移到 third_party 后单独配置或排除 |
+
+### 10.2 每期验证清单
+
+自动（CI 已覆盖，在 `frontend` 下）：
+
+- `npm run typecheck:node`、`npm run lint`、`npm run check:deps`、`npm test`、`npm run build` 全部通过。
+- P5 起加 Python 任务：ruff、import-linter、WebSocket 冒烟测试。
+- P2 起加 `check-sidecars.js`。
+
+手工（Windows，涉及打包或运行时的期次必做）：
+
+- 打包：`pack --dir` 后的资源树与上一期基线比对，差异都能解释。
+- 首启：全新 userData 下首启引导、Ollama 安装和模型下载能走完。
+- 对话：文字对话、语音对话、语音打断、字幕流式显示。
+- 渲染：Live2D 与 THA 互相切换；THA 闲置后延迟卸载。
+- 感知：摄像头视线跟随、情绪感知、屏幕观察开关。
+- 退出：关闭应用后任务管理器里没有残留的 ollama、python 进程。
 
 ## 附录 A：重构后"改什么动哪里"
 
-（待补充）
+目标结构下常见改动的入口。P6 时移到 `docs/README.md` 或 CONTRIBUTING。
+
+| 要做的事 | 改哪里 |
+| --- | --- |
+| 新增一个 IPC 通道 | `packages/protocol/src/ipc.ts` 加契约 → `main/ipc/<域>-ipc.ts` 加控制器 → 渲染层通过 `shared/platform/ipc-client.ts` 调用 |
+| 新增一种后端 WS 消息 | `packages/protocol/src/ws/open-llm-vtuber.ts` → `sidecars/open-llm-vtuber/ext/anylover_ext/` 的 handler → 契约测试自动比对两端 |
+| 新增或替换一个 sidecar | 新建 `sidecars/<id>/`（manifest、README、scripts）→ `main/sidecars/<id>/` 写宿主适配器 → 在 registry 注册 → 需要打包时加进 profile |
+| 改端口、资源名、环境变量 | 只改对应 sidecar 的 `manifest.json` |
+| 改打包形态 | `apps/desktop/packaging/profiles.json` |
+| 新增一个 Agent 能力（感知、记忆、工具） | `main/agent/<子域>/`；需要外部依赖就在 `agent/ports.ts` 加接口，由 sidecars 或 windows 实现，在 `app/container.ts` 接线 |
+| 新增渲染层功能 | `renderer/src/features/<功能>/`，对外只通过 `index.ts`；需要和其他 feature 组合就放到 `windows/*` |
+| 新增设置项 | settings-store 加字段 → `features/settings` 加面板 → 消费方订阅 `settings.changed` |
+| 同步上游 Open-LLM-VTuber | 按 `sidecars/open-llm-vtuber/UPSTREAM.md` 的步骤覆盖 `upstream/`，再逐个核对登记的钩子 |
+| 改构建脚本的公共逻辑（下载、解压、校验） | `tooling/lib/` |
 
 ## 附录 B：调研中发现、可先单独修的缺陷
 
-（待补充）
+| 缺陷 | 状态 |
+| --- | --- |
+| `pack:full` 传 `--with-ollama`，pack.js 只认 `--with-model`，`dist:full` 等于 `dist` | 已修（P0 任务 1.1） |
+| `site:dev` / `site:build` 调用不存在的 `sync:live2d`；文档把官网写成 Vue | 已修（P0 任务 1.2） |
+| 主进程 `getConfigFiles` 调用 `localStorage`，一调用就抛错 | 已修（P0 任务 2.1） |
+| `setAppUserModelId` 写成 `com.electron`，和 appId 不一致 | 已修（P0 任务 2.2） |
+| `electron-builder.yml` 的 extraResources 没有过滤，日志、聊天记录、conf.yaml 会进安装包 | 已修（P0 任务 2.3） |
+| main、preload 实际不做类型检查；`preload/index.d.ts` 从未被加载 | 已修（P0 任务 5） |
+| ESLint 继承未安装的 airbnb，根本跑不起来 | 已修（P0 任务 6.1） |
+| `proto/ws-tha.ts` 把 THA 端口写死为 12395，不跟随 `ANYLOVER_THA_PORT` | 未修，P2 任务 17 随 manifest 处理 |
+| 开发态读错 `mcp_servers.json` 所在目录 | 未修，P3 任务 19 随 `platform/paths.ts` 处理 |
+| prepare-runtime 不清空 dist-runtime，残留的 node/、webapps/ 会进包 | 未修，P2 任务 17 |
+| 只有 ffmpeg 下载做了 SHA-256 校验 | 未修，P2 任务 15 |
+| 主窗口标题仍为 Open-LLM-Vtuber | 未修，可随时单独改 |
+| `@motionsync` 别名指向不存在的 `src/renderer/MotionSync` | 未修，P4 任务 26 |
+| CI 发布物不含 THA，README 却说发布的是 dist:win | 未修，取决于 D8 |
+| 上游预构建前端 `backend/frontend` 被打包两份 | 未修，P5 |

@@ -7,7 +7,7 @@
 | 桌面外壳 | Electron 31 + electron-vite + electron-builder（`frontend/`） |
 | 前端渲染 | React 18 + Chakra UI + Redux Toolkit + zustand + Live2D Cubism WebSDK + Pixi |
 | 设置窗口 | 前端的第二个 renderer 入口（`frontend/src/renderer/settings/`，React jsx） |
-| 官网 | Vue 3 + Vite（`site/`，独立部署） |
+| 官网 | React 18 + Vite + Tailwind（`site/`，独立部署） |
 | 后端 | Python 3.10–3.12（**3.13/3.14 不支持**）· FastAPI · WebSocket |
 | ASR / TTS | Sherpa-ONNX SenseVoice（本地）· edge-tts（输出 mp3，经 pydub+ffmpeg 转 wav） |
 | LLM | OpenAI 兼容 API 或本地 Ollama；默认整合 `minicpm-v:8b`（多模态） |
@@ -32,6 +32,9 @@
 | `npm run build:backend` | PyInstaller 冻结后端到 `dist-runtime/python/`（需 prepare-runtime + `$env:AIBOT_PYTHON`） |
 | `npm run pack` / `pack:full` | 打**轻量版** / **整合版**安装包（只封装现有后端，不重新冻结） |
 | `npm run dist` / `dist:full` | 完整发布：prepare-runtime → build:backend → pack(`:full`) |
+| `npm run pack:tree -- --out <文件>` | 列出 win-unpacked/resources 的文件和大小；`-- --compare <基线> <新>` 比对两份清单（重构期间用来确认打包内容没变） |
+
+质量检查（在 `frontend/` 下运行，CI 全部执行）：`npm run typecheck:node`、`npm run lint`（不自动修复，修复用 `lint:fix`）、`npm run check:deps`（dependency-cruiser，现有违规记在 baseline，只拦新增）、`npm test`、`npm run build`。渲染层 `typecheck:web` 因 WebSDK 的历史报错暂不进 CI。
 
 ## 构建打包链路（数据流）
 
@@ -46,7 +49,7 @@ dist-runtime/python/aibot-backend.exe (自包含后端，无需装 Python)
    │  pack.js：electron-builder 打包，extraResources 映射：
    │    dist-runtime → resources/runtime
    │    vendor/ffmpeg → resources/ffmpeg
-   │    vendor/ollama → resources/ollama（仅整合版 --with-ollama）
+   │    vendor/ollama → resources/ollama（仅整合版 --with-model）
    ▼
 release/dist/ (NSIS 安装包 或 win-unpacked 免安装目录)
 ```

@@ -1,7 +1,7 @@
 {
   "name": "any-lover-workspace",
   "version": "0.1.0",
-  "description": "Any-Lover（角色 Charis）桌宠版 AI 伴侣工作区：frontend（Electron 外壳 + Live2D 前端 + 设置窗口）、backend（上游 Python，黑盒）、site（Vue 官网）、build/scripts（后端组装与冻结）。",
+  "description": "Any-Lover（角色 Charis）桌宠版 AI 伴侣工作区：frontend（Electron 外壳 + Live2D 前端 + 设置窗口）、backend（上游 Python，黑盒）、site（React 官网）、build/scripts（后端组装与冻结）。",
   "author": "ai-bot",
   "license": "MIT",
   "private": true,
@@ -20,10 +20,11 @@
     "dev": "npm run prepare-runtime && npm run frontend:dev",
     "frontend:dev": "npm --prefix frontend run dev",
     "frontend:build": "npm --prefix frontend run build",
-    "site:dev": "npm --prefix site run sync:live2d && npm --prefix site run dev",
-    "site:build": "npm --prefix site run sync:live2d && npm --prefix site run build",
+    "site:dev": "npm --prefix site run dev",
+    "site:build": "npm --prefix site run build",
     "pack": "node build/scripts/pack.js",
-    "pack:full": "node build/scripts/pack.js --with-ollama",
+    "pack:full": "node build/scripts/pack.js --with-model",
+    "pack:tree": "node build/scripts/resource-tree.js",
     "dist": "npm run prepare-runtime && npm run build:backend && npm run pack",
     "dist:full": "npm run prepare-runtime && npm run build:backend && npm run pack:full",
     "dist:win": "npm run prepare-runtime && npm run build:backend && npm run prepare-tha-runtime && node build/scripts/pack.js --no-ollama"

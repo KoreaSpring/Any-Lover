@@ -125,13 +125,6 @@ export const IPC = {
     dialogueError: 'agent:dialogue-error',
     expressGaze: 'agent:express-gaze',
     expressEmotion: 'agent:express-emotion',
-    // MCP 工具调用（中枢 ↔ renderer 转发 ↔ 后端 hub-tool-*，带 callId 配对）
-    // main → renderer：请求 renderer 转发对应 WS 消息
-    toolList: 'agent:tool-list', // 拉工具清单
-    toolCall: 'agent:tool-call', // 执行一批工具
-    // renderer → main：转发后端响应回中枢
-    toolInfo: 'agent:tool-info', // 工具清单响应
-    toolResult: 'agent:tool-result', // 执行结果响应
   },
 } as const;
 
@@ -139,3 +132,9 @@ export const IPC = {
 // 现有 `import { IPC_EXPRESS_GAZE } from '.../gaze-bridge'` 的消费方可平滑迁移到本文件。
 export const IPC_EXPRESS_GAZE = IPC.agent.expressGaze;
 export const IPC_EXPRESS_EMOTION = IPC.agent.expressEmotion;
+
+/** `IPC.config.getConfigFiles` / `IPC.config.updateConfigFiles` 的载荷：一份角色配置文件。 */
+export interface ConfigFile {
+  filename: string;
+  name: string;
+}

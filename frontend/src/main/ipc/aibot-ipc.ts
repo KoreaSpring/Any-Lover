@@ -255,7 +255,7 @@ export function registerAibotIpc(deps: Deps): void {
 
     try {
       // 1) 若已存在可用 Ollama（内置/已装/PATH），跳过下载，直接用它。
-      let resolved = resolveAnyOllama(installDir);
+      const resolved = resolveAnyOllama(installDir);
       let exe = resolved?.exe || '';
       const modelsDir = resolved?.modelsDir || path.join(installDir, 'models');
 
