@@ -1,9 +1,10 @@
 // Agent 中枢 IPC：摄像头/桌面观察开关、记忆、中枢对话、LLM 探测与直连、感知上报、主动搭话、关系画像、情绪识别。
 // 正文原样搬自 app/lifecycle.ts（原 bootstrap.ts）的 whenReady；常驻订阅的 start() 仍由 lifecycle 按原顺序调用。
-import { BrowserWindow, ipcMain } from 'electron';
+import { ipcMain } from 'electron';
 import { eventBus } from '../agent/event-bus';
 import { llmProviderRegistry } from '../agent/llm/llm-provider';
 import { readSettings } from '../platform/settings-store';
+import { broadcastToWindows } from '../window/broadcast';
 import { IPC } from '@proto/ipc';
 import type { Container } from '../app/container';
 
@@ -132,12 +133,6 @@ export function registerAgentIpc(deps: AgentIpcDeps): void {
 
   // 中枢对话（F-1）：renderer 开启「中枢对话」后把用户文字发到这里，中枢生成回复并逐句
   // 广播给 renderer 转发后端 hub-speak 做 TTS+表情。probe provider 后运行；不接管语音（F-2）。
-  const dialogueBroadcast = (channel: string, payload?: unknown): void => {
-    for (const w of BrowserWindow.getAllWindows()) {
-      if (!w.isDestroyed()) w.webContents.send(channel, payload);
-    }
-  };
-
   ipcMain.handle(IPC.agent.dialogue, async (_evt, payload: { text?: string; enableTools?: boolean }) => {
     const text = String(payload?.text || '').trim();
     if (!text) return { ok: false, message: '空消息' };
@@ -146,10 +141,10 @@ export function registerAgentIpc(deps: AgentIpcDeps): void {
     }
     // 即发即忘地跑一轮：句子经 sink 广播给 renderer 转发 hub-speak。返回 ok 表示已受理。
     void dialogueEngine.handle(text, {
-      start: () => dialogueBroadcast(IPC.agent.dialogueStart),
-      say: (sentence) => dialogueBroadcast(IPC.agent.dialogueSay, { text: sentence }),
-      end: (fullText) => dialogueBroadcast(IPC.agent.dialogueEnd, { text: fullText }),
-      error: (message) => dialogueBroadcast(IPC.agent.dialogueError, { message }),
+      start: () => broadcastToWindows(IPC.agent.dialogueStart),
+      say: (sentence) => broadcastToWindows(IPC.agent.dialogueSay, { text: sentence }),
+      end: (fullText) => broadcastToWindows(IPC.agent.dialogueEnd, { text: fullText }),
+      error: (message) => broadcastToWindows(IPC.agent.dialogueError, { message }),
     }, { enableTools: !!payload?.enableTools });
     return { ok: true };
   });
