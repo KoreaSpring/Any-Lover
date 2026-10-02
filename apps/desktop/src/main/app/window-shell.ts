@@ -1,78 +1,13 @@
 /* eslint-disable no-shadow */
-import { app, ipcMain, globalShortcut, desktopCapturer } from "electron";
+import { app, globalShortcut } from "electron";
 import { electronApp, optimizer, is } from "@electron-toolkit/utils";
 import { WindowManager } from "../window/window-manager";
 import { MenuManager } from "../window/menu-manager";
-import { IPC } from "@proto/ipc";
+import { registerWindowIpc } from "../ipc/window-ipc";
 
 let windowManager: WindowManager;
 let menuManager: MenuManager;
 let isQuitting = false;
-
-function setupIPC(): void {
-  ipcMain.handle(IPC.window.getPlatform, () => process.platform);
-
-  ipcMain.on(IPC.window.setIgnoreMouseEvents, (_event, ignore: boolean) => {
-    console.log(`[IPC] set-ignore-mouse-events received: ignore=${ignore}`);
-    const window = windowManager.getWindow();
-    if (window) {
-      windowManager.setIgnoreMouseEvents(ignore);
-    }
-  });
-
-  ipcMain.on(IPC.window.getCurrentMode, (event) => {
-    event.returnValue = windowManager.getCurrentMode();
-  });
-
-  ipcMain.on(IPC.window.preModeChanged, (_event, newMode) => {
-    if (newMode === 'window' || newMode === 'pet') {
-      menuManager.setMode(newMode);
-    }
-  });
-
-  ipcMain.on(IPC.window.minimize, () => {
-    windowManager.getWindow()?.minimize();
-  });
-
-  ipcMain.on(IPC.window.maximize, () => {
-    const window = windowManager.getWindow();
-    if (window) {
-      windowManager.maximizeWindow();
-    }
-  });
-
-  ipcMain.on(IPC.window.close, () => {
-    const window = windowManager.getWindow();
-    if (window) {
-      if (process.platform === "darwin") {
-        window.hide();
-      } else {
-        window.close();
-      }
-    }
-  });
-
-  ipcMain.on(
-    IPC.window.updateComponentHover,
-    (_event, componentId: string, isHovering: boolean) => {
-      console.log(`[IPC] update-component-hover received: componentId=${componentId} isHovering=${isHovering}`);
-      windowManager.updateComponentHover(componentId, isHovering);
-    },
-  );
-
-  // 配置列表由 renderer 经 updateConfigFiles 推送、缓存在 menuManager。
-  // 主进程没有 localStorage（上游原实现在这里读 localStorage，一调用就抛 ReferenceError）。
-  ipcMain.handle(IPC.config.getConfigFiles, () => menuManager.getConfigFiles());
-
-  ipcMain.on(IPC.config.updateConfigFiles, (_event, files) => {
-    menuManager.updateConfigFiles(files);
-  });
-
-  ipcMain.handle(IPC.config.getScreenCapture, async () => {
-    const sources = await desktopCapturer.getSources({ types: ['screen'] });
-    return sources[0].id;
-  });
-}
 
 // 单例锁生效时的第二实例启动：把已运行的窗口聚焦到前台，而不是打开新窗口
 app.on('second-instance', () => {
@@ -129,7 +64,7 @@ app.whenReady().then(() => {
     });
   }
 
-  setupIPC();
+  registerWindowIpc({ windowManager, menuManager });
 
   app.on("activate", () => {
     const window = windowManager.getWindow();
