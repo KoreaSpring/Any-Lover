@@ -1,8 +1,8 @@
 // THA 启用与延迟卸载策略（原 bootstrap.ts 里的 THA 段，正文原样）。
-import { THA_RESOURCE_ID } from '../agent/render/tha-resource';
-import { logToFile } from '../app/logger';
+import { THA_RESOURCE_ID } from './tha-resource';
+import { logToFile } from '../../app/logger';
 import type { ThaManager } from './tha-manager';
-import type { ResourceCoordinator } from '../agent/resource-coordinator';
+import type { ResourceCoordinator } from '../../agent/resource-coordinator';
 
 export function createThaPolicy(deps: { tha: ThaManager; resourceCoordinator: ResourceCoordinator }) {
   const { tha, resourceCoordinator } = deps;

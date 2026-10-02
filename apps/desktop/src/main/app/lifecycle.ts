@@ -14,7 +14,7 @@ import { IPC } from '@proto/ipc';
 import { logToFile } from './logger';
 import type { Container } from './container';
 import { createStartup } from './startup';
-import { createThaPolicy } from '../sidecar/tha-policy';
+import { createThaPolicy } from '../sidecars/tha/tha-policy';
 import { llmConfigured, adoptDefaultConfigIfNeeded, ollamaAvailable } from './first-run';
 
 export function registerLifecycle(container: Container, gotSingleInstanceLock: boolean): void {

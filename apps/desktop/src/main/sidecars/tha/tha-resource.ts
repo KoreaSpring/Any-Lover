@@ -10,8 +10,8 @@
 // 注意：THA 是实时出帧，按可见性/显存事件的「粗粒度」加载卸载（不按帧），重载有几秒延迟，
 //   前端 ThaStage 有「桌宠加载中…」占位覆盖。
 
-import type { ManagedResource } from '../resource-coordinator';
-import type { ThaManager } from '../../sidecar/tha-manager';
+import type { ManagedResource } from '../../agent/resource-coordinator';
+import type { ThaManager } from './tha-manager';
 
 export const THA_RESOURCE_ID = 'tha';
 

@@ -3,7 +3,7 @@
 import path from 'node:path';
 import { app, BrowserWindow } from 'electron';
 import { BackendManager } from '../sidecar/backend-manager';
-import { ThaManager } from '../sidecar/tha-manager';
+import { ThaManager } from '../sidecars/tha/tha-manager';
 import { OpenSeeFaceManager } from '../sidecar/openseeface-manager';
 import { eventBus } from '../agent/event-bus';
 import { GazeBridge } from '../agent/perception/gaze-bridge';
@@ -11,7 +11,7 @@ import { ScreenSampler } from '../sidecar/screen-sampler';
 import { MemoryStore } from '../agent/memory/memory-store';
 import { ScreenMemoryBridge } from '../agent/memory/screen-memory-bridge';
 import { ResourceCoordinator } from '../agent/resource-coordinator';
-import { ThaResource } from '../agent/render/tha-resource';
+import { ThaResource } from '../sidecars/tha/tha-resource';
 import { VlmClient } from '../agent/vlm/vlm-client';
 import { VlmResource } from '../agent/vlm/vlm-resource';
 import { llmProviderRegistry } from '../agent/llm/llm-provider';
@@ -31,7 +31,7 @@ import { mcpServersConfigPath } from '../platform/paths';
 import { SidecarRegistry } from '../sidecars/sidecar-registry';
 import { BackendPlugin } from '../sidecar/plugins/backend-plugin';
 import { OllamaPlugin } from '../sidecars/ollama/ollama-plugin';
-import { ThaPlugin } from '../sidecar/plugins/tha-plugin';
+import { ThaPlugin } from '../sidecars/tha/tha-plugin';
 import { IPC } from '@proto/ipc';
 import { logToFile } from './logger';
 

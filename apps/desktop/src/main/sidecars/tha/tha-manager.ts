@@ -18,8 +18,8 @@ import net from 'net';
 import path from 'path';
 import { spawn, spawnSync, ChildProcess } from 'child_process';
 import { app } from 'electron';
-import { largeDataDir, cleanupLegacy } from '../platform/data-dir';
-import { BUNDLED, bundledDir } from '../platform/paths';
+import { largeDataDir, cleanupLegacy } from '../../platform/data-dir';
+import { BUNDLED, bundledDir } from '../../platform/paths';
 import { installedHqTiers } from './tha-model-installer';
 
 const HOST = '127.0.0.1';
