@@ -7,7 +7,7 @@ import { llmProviderRegistry } from '../agent/llm/llm-provider';
 import { keepProvidersInSync } from '../agent/llm/providers/provider-factory';
 import { onSettingsChanged } from '../platform/settings-store';
 import { resolveAnyOllama } from '../sidecars/ollama/ollama-manager';
-import { registerAibotIpc } from '../ipc/aibot-ipc';
+import { registerAibotIpc } from '../ipc/settings-ipc';
 import { openSettingsWindow, getSettingsWindow } from '../window/settings-window';
 import { readSettings } from '../platform/settings-store';
 import { checkForUpdates, scheduleStartupCheck } from '../platform/auto-updater';
