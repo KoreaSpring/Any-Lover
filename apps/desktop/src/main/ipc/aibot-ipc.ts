@@ -6,7 +6,7 @@ import http from 'http';
 import https from 'https';
 import { ipcMain, dialog, BrowserWindow, app } from 'electron';
 import { readSettings, writeSettings, saveApiKey, loadApiKey, hasApiKey, clampTtsSid } from '../platform/settings-store';
-import { OllamaManager, resolveAnyOllama } from '../sidecar/ollama-manager';
+import { OllamaManager, resolveAnyOllama } from '../sidecars/ollama/ollama-manager';
 import { BackendManager } from '../sidecar/backend-manager';
 import {
   installOllama,
@@ -14,8 +14,8 @@ import {
   defaultInstallDir,
   OllamaProgress,
   OLLAMA_MIRRORS,
-} from '../sidecar/ollama-installer';
-import { recommendModel, MODEL_OPTIONS } from '../sidecar/model-recommender';
+} from '../sidecars/ollama/ollama-installer';
+import { recommendModel, MODEL_OPTIONS } from '../sidecars/ollama/model-recommender';
 import { IPC } from '@proto/ipc';
 
 interface Deps {

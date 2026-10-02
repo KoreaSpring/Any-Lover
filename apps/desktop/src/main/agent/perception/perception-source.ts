@@ -9,7 +9,7 @@
 //   骨架抽到 SidecarPerceptionSource 抽象基类，子类（如 OpenSeeFaceManager）只填差异钩子。
 
 import { spawn, spawnSync, ChildProcess, SpawnOptions } from 'child_process';
-import type { SidecarPlugin } from '../../sidecar/plugin';
+import type { SidecarPlugin } from '../../sidecars/sidecar-plugin';
 
 /** 感知源统一契约。 */
 export interface PerceptionSource {

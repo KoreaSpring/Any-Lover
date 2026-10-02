@@ -7,8 +7,8 @@
 //
 // 注意：ollama-manager 用 isServing() 表达「serve 是否在跑」（没有 isRunning），这里映射到契约的 isRunning。
 
-import type { OllamaManager } from '../ollama-manager';
-import type { SidecarPlugin } from '../plugin';
+import type { OllamaManager } from './ollama-manager';
+import type { SidecarPlugin } from '../sidecar-plugin';
 
 export class OllamaPlugin implements SidecarPlugin {
   readonly id = 'ollama';

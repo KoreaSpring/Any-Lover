@@ -1,7 +1,7 @@
 // 首启默认配置、旧配置迁移，以及启动前的配置可用性判断（正文原样搬自 bootstrap.ts）。
-import { resolveBundledOllama, resolveAnyOllama } from '../sidecar/ollama-manager';
+import { resolveBundledOllama, resolveAnyOllama } from '../sidecars/ollama/ollama-manager';
 import { readSettings, writeSettings, hasApiKey } from '../platform/settings-store';
-import { recommendModel } from '../sidecar/model-recommender';
+import { recommendModel } from '../sidecars/ollama/model-recommender';
 import { logToFile } from './logger';
 
 export function llmConfigured(): boolean {

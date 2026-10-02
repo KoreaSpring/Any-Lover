@@ -13,7 +13,7 @@ import {
   findOllamaOnPath,
   defaultInstallDir,
 } from './ollama-installer';
-import { BUNDLED, bundledDir } from '../platform/paths';
+import { BUNDLED, bundledDir } from '../../platform/paths';
 
 const DEFAULT_HOST = 'http://127.0.0.1:11434';
 

@@ -6,7 +6,7 @@
 //   退出清理（stopAll/killAll），消除退出路径上重复的 try/catch 样板。
 
 import type { BackendManager } from '../backend-manager';
-import type { SidecarPlugin, SidecarStartResult } from '../plugin';
+import type { SidecarPlugin, SidecarStartResult } from '../../sidecars/sidecar-plugin';
 
 export class BackendPlugin implements SidecarPlugin {
   readonly id = 'backend';

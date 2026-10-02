@@ -5,7 +5,7 @@
 //   仅作契约完整性；实际启动仍由资源协调器编排。适配器主要用于 registry 的统一退出清理。
 
 import type { ThaManager } from '../tha-manager';
-import type { SidecarPlugin, SidecarStartResult } from '../plugin';
+import type { SidecarPlugin, SidecarStartResult } from '../../sidecars/sidecar-plugin';
 
 export class ThaPlugin implements SidecarPlugin {
   readonly id = 'tha';

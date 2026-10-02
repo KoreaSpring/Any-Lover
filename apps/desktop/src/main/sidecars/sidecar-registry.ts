@@ -4,7 +4,7 @@
 //   bootstrap 从「逐个 new + 手动接线 + 分散 killAll」收敛为：register 各插件 → startAll → 退出 stopAll/killAll。
 //   startAll 按 startOrder 升序、canStart 过滤、逐个 try/catch 隔离（一个起不来不阻断其它）。
 
-import type { SidecarPlugin, SidecarPluginContext, SidecarStartResult } from './plugin';
+import type { SidecarPlugin, SidecarPluginContext, SidecarStartResult } from './sidecar-plugin';
 
 export class SidecarRegistry {
   private readonly plugins: SidecarPlugin[] = [];

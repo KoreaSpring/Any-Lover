@@ -10,7 +10,7 @@ import fs from 'fs';
 import path from 'path';
 import { app } from 'electron';
 import { readSettings } from './settings-store';
-import { defaultInstallDir } from '../sidecar/ollama-installer';
+import { defaultInstallDir } from '../sidecars/ollama/ollama-installer';
 
 type Log = (msg: string) => void;
 

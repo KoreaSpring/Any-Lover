@@ -5,7 +5,7 @@ import { registerThaIpc } from '../ipc/tha-ipc';
 import { eventBus } from '../agent/event-bus';
 import { llmProviderRegistry } from '../agent/llm/llm-provider';
 import { rebuildProvidersFromSettings } from '../agent/llm/providers/provider-factory';
-import { resolveAnyOllama } from '../sidecar/ollama-manager';
+import { resolveAnyOllama } from '../sidecars/ollama/ollama-manager';
 import { registerAibotIpc } from '../ipc/aibot-ipc';
 import { openSettingsWindow, getSettingsWindow } from '../window/settings-window';
 import { readSettings } from '../platform/settings-store';
