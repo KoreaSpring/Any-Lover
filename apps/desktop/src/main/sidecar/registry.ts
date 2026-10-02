@@ -21,7 +21,7 @@ export class SidecarRegistry {
     return this;
   }
 
-  /** 按 id 取插件（bootstrap 需要拿具体实例接线时用）。 */
+  /** 按 id 取插件（组合根需要拿具体实例接线时用）。 */
   get(id: string): SidecarPlugin | undefined {
     return this.plugins.find((p) => p.id === id);
   }

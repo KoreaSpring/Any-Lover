@@ -13,8 +13,8 @@ export default defineConfig({
     resolve: { alias: { '@proto': PROTOCOL_SRC } },
     build: {
       rollupOptions: {
-        // 入口改为融合引导 bootstrap.ts（内部再加载原版前端外壳 index.ts）
-        input: resolve(__dirname, 'src/main/bootstrap.ts'),
+        // 主进程唯一入口（P3 合并了原 bootstrap.ts 与 index.ts）
+        input: resolve(__dirname, 'src/main/index.ts'),
       },
     },
   },

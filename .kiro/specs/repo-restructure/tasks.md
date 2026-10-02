@@ -83,7 +83,9 @@
 
 - [ ] 19. 用 `platform/paths.ts` 统一管理路径；拆出 `app/container`、`lifecycle`、`first-run`；入口合并为 `index.ts`
   - 进度（分支 `refactor/p3-main-modular`）：`core/` 已改名 `platform/`；`platform/paths.ts` 已接管 5 个随包资源和窗口图标的路径（附单测），顺带修复开发态 mcp_servers.json 读错目录（附录 B）。剩下的 `isPackaged` 只用于日志级别、自动更新、THA 是否复制到可写目录，属于行为分支，不是路径
-  - 待做：拆分 bootstrap.ts（873 行）为 app/container、lifecycle、first-run，入口合并为 index.ts
+  - 拆分：bootstrap.ts（873 行）按行段原样搬到 app/logger、app/container（组合根）、app/first-run、app/startup（启动后端 + 辅助模型队列）、app/lifecycle（whenReady 与退出清理）、sidecar/tha-policy；原 index.ts 改名 app/window-shell.ts；新 index.ts 只剩 27 行。执行顺序不变：比对构建产物，gpu-fix → window-shell 的 whenReady → 单例锁 → 日志 → 创建服务 → 注册生命周期，与拆分前一致
+  - 验证：五项检查通过；macOS 上 `npm run dev` 冒烟：窗口和图标正常，首启引导、Ollama serve 正常，退出时日志打印 `[shutdown] cleanup done`，无残留 ollama 进程
+  - 未完成：lifecycle.ts 仍有 508 行，其中 21 个内联 IPC handler 按计划在任务 22 拆进 ipc/*-ipc.ts；辅助模型队列在任务 20 移到 ollama 目录；Windows 上的完整回归（THA 延迟卸载、摄像头、打包态）待做
 - [ ] 20. 按 sidecar 拆目录，顺序为 ollama、tha、openseeface、open-llm-vtuber，每个一个提交
 - [ ] 21. 用 `agent/ports` 让 agent 不再依赖 Electron；新增 `settings.changed` 事件；由 registry 统一负责 start / stop
 - [ ] 22. IPC 控制器按域拆分；main 部分的 dependency-cruiser baseline 清零

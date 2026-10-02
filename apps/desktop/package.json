@@ -3,7 +3,7 @@
   "productName": "Any-Lover",
   "version": "0.1.0",
   "description": "Any-Lover（角色 Charis）桌宠版 AI 伴侣：Live2D 桌宠 + 语音/文字对话，内置后端，仅需配置大模型 API。基于 Open-LLM-VTuber 改造。",
-  "main": "./out/main/bootstrap.js",
+  "main": "./out/main/index.js",
   "author": "ai-bot",
   "homepage": "https://electron-vite.org",
   "scripts": {

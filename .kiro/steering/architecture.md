@@ -6,7 +6,7 @@
 
 ```
 ┌─────────────────────────── Electron 主进程 (Node) ───────────────────────────┐
-│  bootstrap.ts  单例锁 / 日志 / 生命周期 / 退出清理                              │
+│  index.ts + app/  单例锁 / 日志 / 组合根 / 生命周期 / 退出清理                   │
 │    ├─ process/backend-manager  → 拉起 Python 后端 sidecar (127.0.0.1:12393)   │
 │    ├─ process/ollama-manager   → 拉起内置 Ollama (127.0.0.1:11434)（整合版）   │
 │    ├─ window/window-manager    → 主窗口 + window/pet 模式切换                  │

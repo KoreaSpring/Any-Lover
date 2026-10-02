@@ -2,13 +2,13 @@
 //
 // 设计见 docs/roadmap/sidecar-plugin-architecture.md §3.1。
 //   所有 sidecar（Python 后端 / Ollama / THA / OpenSeeFace / 桌面采样）实现同一套生命周期契约，
-//   由 SidecarRegistry 统一装载/启停/清理，取代 bootstrap 里逐个手写的接线。
+//   由 SidecarRegistry 统一装载/启停/清理，取代旧 bootstrap 里逐个手写的接线。
 //   显存资源维度是正交的另一层（ManagedResource / ResourceCoordinator），互不强制。
 
 import type { AppSettings } from '../platform/settings-store';
 import type { EventBus } from '../agent/event-bus';
 
-/** 插件启动时拿到的上下文（由 bootstrap 组装、registry 透传）。 */
+/** 插件启动时拿到的上下文（由 app/container 组装、registry 透传）。 */
 export interface SidecarPluginContext {
   /** 诊断日志（通常接 electron-log）。 */
   log: (msg: string) => void;

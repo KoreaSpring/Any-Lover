@@ -28,8 +28,8 @@ pet-bot/
 ```
 apps/desktop/src/
 ├─ main/                   Electron 主进程（Node 侧，当前为扁平结构）
-│  ├─ bootstrap.ts         【入口】融合引导：单例锁、日志、启动后端 sidecar、加载前端外壳
-│  ├─ index.ts             【入口】窗口创建、托盘、DevTools、second-instance
+│  ├─ index.ts             【入口】单例锁 → 日志 → app/container 创建服务 → app/lifecycle 注册生命周期
+│  ├─ app/                 组合根与生命周期：container / lifecycle / first-run / startup / window-shell（窗口、托盘、second-instance）
 │  ├─ backend-manager.ts   拉起 / 探测 / 清理 Python 后端；runtime 版本感知复制；ffmpeg 注入
 │  ├─ ollama-manager.ts    拉起 / 探测内置 Ollama，解析随包 ollama 与模型目录
 │  ├─ window-manager.ts    主窗口、window↔pet 模式切换、鼠标穿透、图标、loadContent
@@ -52,7 +52,7 @@ apps/desktop/src/
    └─ WebSDK/              Live2D Cubism SDK
 ```
 
-**入口路径约定**：`electron.vite.config.ts` 硬引用了这些入口路径 —— 主进程 `src/main/bootstrap.ts`、preload `src/preload/{index,settings-preload}.ts`、renderer `src/renderer/{index,settings}.html`。移动这些入口文件必须同步改 config。`src/main` 下的其余文件仅被包内相对 import，可自由重组（当前为扁平结构，未来可按 process/window/config/ipc 职责分子目录，届时只改包内相对路径）。
+**入口路径约定**：`electron.vite.config.ts` 硬引用了这些入口路径 —— 主进程 `src/main/index.ts`、preload `src/preload/{index,settings-preload}.ts`、renderer `src/renderer/{index,settings}.html`。移动这些入口文件必须同步改 config。`src/main` 下的其余文件仅被包内相对 import，可自由重组（当前为扁平结构，未来可按 process/window/config/ipc 职责分子目录，届时只改包内相对路径）。
 
 **多 renderer 入口**：`electron.vite.config.ts` 的 `renderer.build.rollupOptions.input` 声明 `index` 与 `settings` 两个 html 入口，构建产物为 `out/renderer/index.html` 与 `out/renderer/settings.html`。设置窗口（`settings-window.ts`）开发态 loadURL `${ELECTRON_RENDERER_URL}/settings.html`，打包态 loadFile `out/renderer/settings.html`。
 

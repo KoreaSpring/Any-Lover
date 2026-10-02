@@ -108,8 +108,8 @@ screen-sampler 定时截屏 → screen-gate 黑名单/去重门控
 
 | 目录/文件 | 职责 |
 | --- | --- |
-| `bootstrap.ts`（根） | **入口**：electron-vite main 入口。实例化并接线所有 sidecar/中枢组件、注册 IPC、生命周期清理 |
-| `index.ts`（根） | 原版前端外壳（窗口/托盘/菜单），bootstrap 末尾 import，保持不变 |
+| `index.ts`（根） | **唯一入口**：单例锁 → 日志 → `app/container` 创建服务 → `app/lifecycle` 注册 IPC 与生命周期（P3 合并了原 bootstrap.ts） |
+| `app/` | 组合根与生命周期：container / lifecycle / first-run / startup，以及上游窗口外壳 window-shell（原 index.ts） |
 | `sidecar/` | 外部进程/资源生命周期：各 manager（backend / ollama(+installer) / model-recommender / tha(+model-installer) / openseeface / screen-sampler）+ **插件契约层**（`plugin.ts` SidecarPlugin、`registry.ts` SidecarRegistry、`plugins/` 薄适配器）统一退出清理 |
 | `ipc/` | IPC 注册汇总：aibot-ipc（设置/Ollama/LLM 测试）/ tha-ipc（立绘/模型/下载） |
 | `window/` | 窗口层：window-manager（pet/window 模式）/ settings-window / menu-manager |
@@ -132,7 +132,7 @@ screen-sampler 定时截屏 → screen-gate 黑名单/去重门控
 - **改了 `sidecars/tha/runtime/` 源码（如 tha_server.py），必须重新 `prepare-tha-runtime`**
   （THA/EasyVtuber 渲染后端已归拢为可插拔集成目录，见 `sidecars/tha/README.md`）。
 - 大模型/运行时（out/downloads/、out/stage/open-llm-vtuber/、out/stage/tha/）均 gitignore，不入库；由脚本下载/组装。
-- 本地小模型（moondream / nomic-embed-text）首启自动 pull 到本地 Ollama（bootstrap 的 ensureLocalHelperModels）。
+- 本地小模型（moondream / nomic-embed-text）首启自动 pull 到本地 Ollama（app/startup 的 ensureLocalHelperModels）。
 
 ---
 
@@ -162,11 +162,11 @@ screen-sampler 定时截屏 → screen-gate 黑名单/去重门控
   llm/vlm/render，core 三文件留 `agent/` 根），import 全改毕、`npm run build` 通过。
   经验：smart_relocate 在本项目不自动改 import，且 `tsc --noEmit` 通过不代表 vite/rollup 通过
   （rollup 对相对路径更严格），需逐文件手动改相对路径 + 跑 `npm run build` 验证。
-  `main/` 根目录也已按功能物理分子目录（sidecar/ipc/window/core，入口 bootstrap/index 留根），
+  `main/` 根目录也已按功能物理分子目录（sidecar/ipc/window/platform/app，根目录只留入口 index.ts），
   import 全改毕、`npm run build` 通过。
 - **协议单一事实源（`packages/protocol/src/`）**：Electron IPC（ipc.ts）、后端 WS（ws-backend.ts）、
   THA WS（ws-tha.ts）的 TS 侧已常量化并全项目接入；`protocol.proto` 为 TS↔Python 契约文档（不做 codegen）。
 - **sidecar 插件化（已实施首期）**：`SidecarPlugin` 契约 + `SidecarRegistry` + 各 manager 薄适配器已落地，
-  bootstrap 的退出清理（stopAll/killAll）已收敛到注册表；启动仍保留各自编排（见
+  退出清理（stopAll/killAll）已收敛到注册表；启动仍保留各自编排（见
   `docs/roadmap/sidecar-plugin-architecture.md` 的实际落地范围说明）。后续可在启动逻辑理顺后启用 startAll。
 - 真机验证（需摄像头/麦克风/Ollama/在线 API 环境）：视线方向校准、屏幕摘要质量、情绪融合、中枢对话完整链路。

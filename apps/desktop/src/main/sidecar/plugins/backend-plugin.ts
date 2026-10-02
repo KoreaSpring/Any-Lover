@@ -1,9 +1,9 @@
 // BackendManager 的 SidecarPlugin 适配器（薄委托，不改 manager 内部）。
 //
-// 说明：Python 后端的启动逻辑与 Ollama ensureServe、模型静默下载等交织在 bootstrap 的
+// 说明：Python 后端的启动逻辑与 Ollama ensureServe、模型静默下载等交织在 app/startup 的
 //   startBackend() 里（且被设置窗 onLaunch 复用），故本适配器的 start() 委托 manager.start()，
-//   但实际启动编排仍在 bootstrap。适配器的主要价值是让 backend 纳入 SidecarRegistry 的统一
-//   退出清理（stopAll/killAll），消除 bootstrap 里重复的 try/catch 样板。
+//   但实际启动编排在 app/startup、app/lifecycle。适配器的主要价值是让 backend 纳入 SidecarRegistry 的统一
+//   退出清理（stopAll/killAll），消除退出路径上重复的 try/catch 样板。
 
 import type { BackendManager } from '../backend-manager';
 import type { SidecarPlugin, SidecarStartResult } from '../plugin';

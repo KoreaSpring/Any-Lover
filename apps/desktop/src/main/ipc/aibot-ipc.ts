@@ -221,7 +221,7 @@ export function registerAibotIpc(deps: Deps): void {
     // 确实存在」为准；settings 的 ollamaReady 仅作为不降级的加成条件。
     const actuallyReady = !!resolved && hasModel;
     if (s.ollamaReady && !actuallyReady) {
-      // 纠正过时的持久标志，避免后续 bootstrap / 覆盖层继续被误导。
+      // 纠正过时的持久标志，避免后续启动流程 / 覆盖层继续被误导。
       try {
         writeSettings({ ollamaReady: false });
       } catch {

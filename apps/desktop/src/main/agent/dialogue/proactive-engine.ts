@@ -66,7 +66,7 @@ export class ProactiveEngine {
 
   private unsub: Unsubscribe | null = null;
 
-  /** 生成主动搭话后如何送达表达层（由 bootstrap 注入：IPC 广播 + 字幕）。 */
+  /** 生成主动搭话后如何送达表达层（由 app/container 注入：IPC 广播 + 字幕）。 */
   private deliver: ((text: string) => void) | null = null;
 
   /** 可选：当前情绪（注入语气，让主动搭话贴合用户情绪）。 */

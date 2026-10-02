@@ -238,7 +238,7 @@ Any-Lover/
 ├─ apps/
 │  ├─ desktop/          # Electron App：主进程 + Live2D 主窗口渲染 + 设置窗口渲染
 │  │  └─ src/
-│  │     ├─ main/       #   主进程：bootstrap 入口 + 进程/窗口/配置/IPC 管理
+│  │     ├─ main/       #   主进程：index.ts 入口 + app/ 组合根 + 进程/窗口/配置/IPC 管理
 │  │     ├─ preload/    #   preload：主窗口 window.api + 设置窗口 window.aibot
 │  │     └─ renderer/   #   前端渲染：主窗口(React+Live2D) + settings/（设置窗口第二入口）
 │  └─ website/          # React + Vite 官网（GitHub Pages 部署，分片下载安装包）
