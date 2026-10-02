@@ -37,5 +37,25 @@ module.exports = {
         '@typescript-eslint/no-var-requires': 'off',
       },
     },
+    {
+      // IPC 只在 ipc/ 注册（方案 §5.2）：agent、sidecars、platform 不得直接拿 ipcMain。
+      // dependency-cruiser 只能按模块判断、分不出具名导入（这些目录仍需 electron 的 app 等），所以放在 ESLint。
+      // window/ 的 window-manager、menu-manager 仍自带少量与实例绑定的通道，暂不纳入。
+      files: ['src/main/agent/**', 'src/main/sidecars/**', 'src/main/platform/**'],
+      rules: {
+        'no-restricted-imports': [
+          'error',
+          {
+            paths: [
+              {
+                name: 'electron',
+                importNames: ['ipcMain'],
+                message: 'IPC 只在 src/main/ipc/ 注册，经 deps 调用服务。',
+              },
+            ],
+          },
+        ],
+      },
+    },
   ],
 };
