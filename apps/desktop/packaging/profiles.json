@@ -1,0 +1,33 @@
+{
+  "$comment": "打包形态（tooling/package.js --profile <name>）。include：required = 缺产物就失败；ifPresent = 有产物（manifest 的 package.artifact 任一存在）就带，没有就跳过并打印提示。数组顺序即 extraResources 顺序。",
+  "lite": {
+    "description": "轻量版：不含 Ollama、THA、OpenSeeFace。CI 发布物",
+    "sidecars": [{ "id": "open-llm-vtuber", "include": "required" }]
+  },
+  "win": {
+    "description": "Windows 完整形象版：含 THA、OpenSeeFace，不含 Ollama",
+    "sidecars": [
+      { "id": "open-llm-vtuber", "include": "required" },
+      { "id": "tha", "include": "required" },
+      { "id": "openseeface", "include": "required" }
+    ]
+  },
+  "standard": {
+    "description": "标准版：内置 Ollama 二进制（不含模型）；THA、OpenSeeFace 有产物就带",
+    "sidecars": [
+      { "id": "open-llm-vtuber", "include": "required" },
+      { "id": "tha", "include": "ifPresent" },
+      { "id": "openseeface", "include": "ifPresent" },
+      { "id": "ollama", "include": "required", "variant": "bin" }
+    ]
+  },
+  "full": {
+    "description": "整合版：Ollama 二进制 + 预置模型，含 THA、OpenSeeFace，完全离线",
+    "sidecars": [
+      { "id": "open-llm-vtuber", "include": "required" },
+      { "id": "tha", "include": "required" },
+      { "id": "openseeface", "include": "required" },
+      { "id": "ollama", "include": "required", "variant": "full" }
+    ]
+  }
+}

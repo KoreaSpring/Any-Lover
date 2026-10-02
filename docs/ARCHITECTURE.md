@@ -29,10 +29,10 @@ Any-Lover 是一个桌面 AI 陪伴应用（Electron + Python 后端）：一个
 ```
 
 - **Main（主进程）= Agent 中枢**：本项目的大脑。管理所有 sidecar 生命周期，承载事件总线、
-  感知/记忆/决策/表达/资源五层，直连线上主模型（LLMProvider）。代码在 `frontend/src/main/`。
+  感知/记忆/决策/表达/资源五层，直连线上主模型（LLMProvider）。代码在 `apps/desktop/src/main/`。
 - **Renderer（渲染进程）**：React UI + 桌宠画布（Live2D 或 THA 帧流）+ 字幕/口型/表情播放。
   摄像头/麦克风相关的面部/语音情绪跑在这里（浏览器 API），产出信号经 IPC 上报中枢。
-- **Python 后端（`backend/`，vendored 上游 open_llm_vtuber，尽量不改）**：ASR（语音识别）、
+- **Python 后端（`sidecars/open-llm-vtuber/upstream/`，vendored 上游 open_llm_vtuber，尽量不改）**：ASR（语音识别）、
   TTS（语音合成）、Live2D 表情关键词映射、对话历史。**中枢对话模式**下它退为纯 ASR/TTS/表情服务。
 
 > 架构原则：**除对话主模型走线上外，其余模型全部本地**（屏幕理解 VLM、embedding、面捕、情绪）。
@@ -40,7 +40,7 @@ Any-Lover 是一个桌面 AI 陪伴应用（Electron + Python 后端）：一个
 
 ---
 
-## 2. Agent 中枢五层（`frontend/src/main/agent/`）
+## 2. Agent 中枢五层（`apps/desktop/src/main/agent/`）
 
 中枢围绕一条 **事件总线**（观察者模式）解耦，分五层：
 
@@ -62,7 +62,7 @@ Any-Lover 是一个桌面 AI 陪伴应用（Electron + Python 后端）：一个
 - **表达层**：把情绪/视线映射为桌宠表现（经 IPC 驱动 THA）。
 - **资源协调**：统一管 THA / 采样 VLM 的显存占用，6GB 上互斥共存、按需加载。
 
-各文件归属见 `frontend/src/main/agent/README.md`。
+各文件归属见 `apps/desktop/src/main/agent/README.md`。
 
 ---
 
@@ -104,35 +104,35 @@ screen-sampler 定时截屏 → screen-gate 黑名单/去重门控
 
 ---
 
-## 4. 主进程模块地图（`frontend/src/main/`）
+## 4. 主进程模块地图（`apps/desktop/src/main/`）
 
 | 目录/文件 | 职责 |
 | --- | --- |
-| `bootstrap.ts`（根） | **入口**：electron-vite main 入口。实例化并接线所有 sidecar/中枢组件、注册 IPC、生命周期清理 |
-| `index.ts`（根） | 原版前端外壳（窗口/托盘/菜单），bootstrap 末尾 import，保持不变 |
-| `sidecar/` | 外部进程/资源生命周期：各 manager（backend / ollama(+installer) / model-recommender / tha(+model-installer) / openseeface / screen-sampler）+ **插件契约层**（`plugin.ts` SidecarPlugin、`registry.ts` SidecarRegistry、`plugins/` 薄适配器）统一退出清理 |
-| `ipc/` | IPC 注册汇总：aibot-ipc（设置/Ollama/LLM 测试）/ tha-ipc（立绘/模型/下载） |
+| `index.ts`（根） | **唯一入口**：单例锁 → 日志 → `app/container` 创建服务 → `app/lifecycle` 调用 ipc/ 注册 IPC、编排生命周期（P3 合并了原 bootstrap.ts） |
+| `app/` | 组合根与生命周期：container / lifecycle / first-run / startup，以及上游窗口外壳 window-shell（原 index.ts） |
+| `sidecars/` | 外部进程宿主适配器，按 sidecar 分子目录：`ollama/`（manager、installer、model-recommender、helper-models）、`tha/`（manager、model-installer、policy、resource）、`openseeface/`（manager、protocol）、`open-llm-vtuber/`（open-llm-vtuber-manager）；根目录是**插件契约层**（`sidecar-plugin.ts` SidecarPlugin、`sidecar-registry.ts` SidecarRegistry），各子目录的 `*-plugin.ts` 薄适配器统一退出清理 |
+| `ipc/` | IPC 控制器，每域一个 registerXxxIpc：agent-ipc（agent.*）/ app-ipc（更新、设置窗、首启判断）/ settings-ipc（设置/Ollama/LLM 测试）/ tha-ipc（立绘/模型/下载）/ window-ipc（窗口） |
 | `window/` | 窗口层：window-manager（pet/window 模式）/ settings-window / menu-manager |
 | `core/` | 基础设施：settings-store（设置持久化+API Key 加密）/ gpu-fix |
 | `agent/` | **Agent 中枢**（五层，见该目录 README） |
 
-> 另有 `frontend/src/proto/`（与 main/ 平级）：跨边界通信协议的 TS 侧单一事实源。当前含 `ipc.ts`
+> 另有 `packages/protocol/src/`（与 main/ 平级）：跨边界通信协议的 TS 侧单一事实源。当前含 `ipc.ts`
 > （全部 Electron IPC 通道名常量），main/preload/renderer 三处统一引用。见该目录 README。
 
-> 详细分组见 `frontend/src/main/README.md`。
+> 详细分组见 `apps/desktop/src/main/README.md`。
 
 ---
 
 ## 5. 打包要点（维护者必读）
 
-- 打包命令 `npm run dist:win`：prepare-runtime（组装 dist-runtime 后端源码）→ build:backend
-  （PyInstaller 冻结后端到 dist-runtime/python）→ prepare-tha-runtime（组装 dist-tha-runtime）
-  → pack.js（electron-builder 出 NSIS）。
-- **改了 `backend/` 源码，必须重新 `build:backend`**，否则冻结产物仍是旧后端。
-- **改了 `integrations/easyvtuber/runtime/` 源码（如 tha_server.py），必须重新 `prepare-tha-runtime`**
-  （THA/EasyVtuber 渲染后端已归拢为可插拔集成目录，见 `integrations/easyvtuber/README.md`）。
-- 大模型/运行时（vendor/、dist-runtime/、dist-tha-runtime/）均 gitignore，不入库；由脚本下载/组装。
-- 本地小模型（moondream / nomic-embed-text）首启自动 pull 到本地 Ollama（bootstrap 的 ensureLocalHelperModels）。
+- 打包命令 `npm run dist:<profile>`（tooling/dist.js，以 win 为例）：组装 out/stage/open-llm-vtuber 与 out/stage/tha（各自先清空）
+  → freeze.js（PyInstaller 冻结后端到 out/stage/open-llm-vtuber/python）→ tooling/package.js --profile win
+  （按 profile + manifest 生成 extraResources，electron-builder 出 NSIS）。
+- **改了 `sidecars/open-llm-vtuber/upstream/` 源码，必须重新冻结（`dist:<profile>` 会做）**，否则冻结产物仍是旧后端。
+- **改了 `sidecars/tha/runtime/` 源码（如 tha_server.py），必须重新 `prepare-tha-runtime`**
+  （THA/EasyVtuber 渲染后端已归拢为可插拔集成目录，见 `sidecars/tha/README.md`）。
+- 大模型/运行时（out/downloads/、out/stage/open-llm-vtuber/、out/stage/tha/）均 gitignore，不入库；由脚本下载/组装。
+- 本地小模型（moondream / nomic-embed-text）首启自动 pull 到本地 Ollama（app/startup 的 ensureLocalHelperModels）。
 
 ---
 
@@ -159,14 +159,14 @@ screen-sampler 定时截屏 → screen-gate 黑名单/去重门控
   （见 `docs/roadmap/dialogue-uplift-phase1.md`）。**后续**：读后端完整 persona_prompt、多模态图片输入；
   阶段 2/3（中枢对话默认开 → 最终关掉后端老对话链路）见 `upgrade-roadmap.md`。
 - **物理重构（方案 Y）**：`agent/` 已按功能物理分子目录（memory/emotion/perception/dialogue/
-  llm/vlm/render，core 三文件留 `agent/` 根），import 全改毕、`npm run build` 通过。
+  llm/vlm，core 三文件留 `agent/` 根；原 render/tha-resource 已移到 `main/sidecars/tha/`），import 全改毕、`npm run build` 通过。
   经验：smart_relocate 在本项目不自动改 import，且 `tsc --noEmit` 通过不代表 vite/rollup 通过
   （rollup 对相对路径更严格），需逐文件手动改相对路径 + 跑 `npm run build` 验证。
-  `main/` 根目录也已按功能物理分子目录（sidecar/ipc/window/core，入口 bootstrap/index 留根），
+  `main/` 根目录也已按功能物理分子目录（sidecars/ipc/window/platform/app，根目录只留入口 index.ts），
   import 全改毕、`npm run build` 通过。
-- **协议单一事实源（`frontend/src/proto/`）**：Electron IPC（ipc.ts）、后端 WS（ws-backend.ts）、
+- **协议单一事实源（`packages/protocol/src/`）**：Electron IPC（ipc.ts）、后端 WS（ws-backend.ts）、
   THA WS（ws-tha.ts）的 TS 侧已常量化并全项目接入；`protocol.proto` 为 TS↔Python 契约文档（不做 codegen）。
 - **sidecar 插件化（已实施首期）**：`SidecarPlugin` 契约 + `SidecarRegistry` + 各 manager 薄适配器已落地，
-  bootstrap 的退出清理（stopAll/killAll）已收敛到注册表；启动仍保留各自编排（见
+  退出清理（stopAll/killAll）已收敛到注册表；启动仍保留各自编排（见
   `docs/roadmap/sidecar-plugin-architecture.md` 的实际落地范围说明）。后续可在启动逻辑理顺后启用 startAll。
 - 真机验证（需摄像头/麦克风/Ollama/在线 API 环境）：视线方向校准、屏幕摘要质量、情绪融合、中枢对话完整链路。

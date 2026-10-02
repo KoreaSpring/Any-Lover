@@ -1,0 +1,24 @@
+{
+  "id": "openseeface",
+  "displayName": "OpenSeeFace 摄像头面捕",
+  "platforms": ["win32"],
+  "optional": true,
+  "port": { "default": 11573, "env": "ANYLOVER_OSF_PORT" },
+  "envPrefix": "ANYLOVER_OSF_",
+  "stage": { "script": "scripts/fetch.js", "output": "out/downloads/openseeface" },
+  "setup": ["scripts/fetch.js"],
+  "package": {
+    "resourceName": "openseeface",
+    "artifact": ["out/downloads/openseeface/facetracker.exe"],
+    "filter": ["**/*"]
+  },
+  "downloads": [
+    {
+      "name": "openseeface",
+      "version": "v1.20.5",
+      "url": "https://github.com/emilianavt/OpenSeeFace/releases/download/v1.20.5/OpenSeeFace-v1.20.5.zip",
+      "sha256": "",
+      "sha256Source": "官方 release 未公布校验和，待补"
+    }
+  ]
+}

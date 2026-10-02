@@ -60,23 +60,89 @@
 
 ## P1 顶层搬迁（需确认 D1；只移动不改逻辑，打包资源树要和 P0 基线一致）
 
-- [ ] 12. P1a：所有产物移到 `out/`，`build/scripts` 移到 `tooling/`，同步 CI 的缓存路径
-- [ ] 13. P1b：`frontend` 移到 `apps/desktop`，`site` 移到 `apps/website`；开发态拼路径的 `getAppPath()/..` 逐处改成 `../..`；同步根 package.json、CI、electron-builder 的 `from`
-- [ ] 14. P1c：先把 `git diff f5bf9f6 HEAD -- backend` 导出存档；`backend` 移到 `sidecars/open-llm-vtuber/upstream`，`integrations/easyvtuber` 移到 `sidecars/tha`，相关脚本和 requirements 跟着归位；`proto` 移到 `packages/protocol`（配别名，并加进 `server.fs.allow`）；ANYLOVER_EXTENSIONS.md 重写为 UPSTREAM.md
+- [x] 12. P1a：所有产物移到 `out/`，`build/scripts` 移到 `tooling/`，同步 CI 的缓存路径
+  - 结果：dist-runtime → out/stage/open-llm-vtuber，dist-tha-runtime → out/stage/tha，vendor → out/downloads，build/pyinstaller → out/pyinstaller，frontend/release → out/release；pack.js 改名 tooling/package.js，分片脚本进 tooling/release/。主进程 3 个 sidecar 的开发态路径、electron-builder.yml、release-windows.yml、根 .gitignore（收敛为一条 `/out/`）和文档已同步；README 写了旧布局本机的迁移方法
+  - 验证：前端五项检查和 site:build 通过；split-release / verify-split / resource-tree 用伪造产物按默认路径实跑通过。prepare-runtime、build-backend、package.js 依赖 Windows 和 Python 环境，本机没跑，等 Windows 可用时随任务 10 一起验证
+- [x] 13. P1b：`frontend` 移到 `apps/desktop`，`site` 移到 `apps/website`；开发态拼路径的 `getAppPath()/..` 逐处改成 `../..`；同步根 package.json、CI、electron-builder 的 `from`
+  - 结果：纯移动提交 366 个文件全部是 R100。注意 `build/installer.nsh` 被 desktop 的 `.gitignore`（`build` 规则）忽略，`git add -A` 会把它当成删除，已用 `add -f` 加回。开发态 `getAppPath()` 回退共 6 处（bootstrap 和 4 个 sidecar manager），已全部改成两级；electron-builder 的 output / from、tooling/package.js、3 个 workflow、根 package.json 和文档已同步
+  - 验证：desktop 五项检查、根目录 `site:build` / `frontend:build` 通过；用 node 解析 electron-builder 配置和 6 处开发态路径，都指回仓库根
+- [x] 14. P1c：先把 `git diff f5bf9f6 HEAD -- backend` 导出存档；`backend` 移到 `sidecars/open-llm-vtuber/upstream`，`integrations/easyvtuber` 移到 `sidecars/tha`，相关脚本和 requirements 跟着归位；`proto` 移到 `packages/protocol`（配别名，并加进 `server.fs.allow`）；ANYLOVER_EXTENSIONS.md 重写为 UPSTREAM.md
+  - 结果：存档在 `docs/roadmap/baselines/backend-vs-f5bf9f6.patch`（13 个文件，可反向应用）。脚本归位：prepare-runtime → `sidecars/open-llm-vtuber/scripts/stage.js`，build-backend → `freeze.js`，fetch-ffmpeg 同目录；THA 的 prepare.js → `sidecars/tha/scripts/stage.js`，fetch-tha-models → `fetch-models.js`；fetch-openseeface → `sidecars/openseeface/scripts/fetch.js`。main、preload 的 10 个文件从相对路径改为 `@proto` 别名，别名在 electron.vite（三段）、两个 tsconfig、vitest 里各配一次
+  - 上游基线（逐 blob 比对得出）：Open-LLM-VTuber `992309c`（175 个文件全部一致，letta_agent.py 只差行尾）；Open-LLM-VTuber-Web `d176e7d`（200 个中 197 个一致）；ezvtuber-rt `ea51225`（ezvtb_rt 15 个文件全部一致）。分别写进 `sidecars/open-llm-vtuber/UPSTREAM.md` 和新增的 `sidecars/tha/UPSTREAM.md`
+  - 验证：五项检查、site:build、py_compile 通过；protocol 的 2 个测试文件仍在跑；往 protocol 和 preload 各加一条违规 import，`proto-is-leaf`、`preload-not-to-main` 都能拦下（已撤销）；树对树 diff 命令和搬迁前统计一致（13 个文件，+395/−38）
+  - 未验证：renderer 开发服务器（`npm run dev`）读取 packages/protocol 的 `server.fs.allow`，需要本地起一次确认
 
 ## P2 统一构建链（需确认 D8）
 
-- [ ] 15. 抽出 `tooling/lib`（下载时校验 sha256、解压、复制、路径），各脚本改为调用它
-- [ ] 16. 给每个 sidecar 写 manifest；`tooling/package.js` 改为由 profile 和 manifest 驱动；`check-sidecars.js` 加进 CI
-- [ ] 17. stage 前先清空目标目录；conf.pet.yaml 挪成独立的模板文件；Ollama 改为脚本获取；THA 端口从 manifest 和环境变量读取
-- [ ] 18. 根脚本收敛为 setup / dev / dist:&lt;profile&gt; / check 四类，同步 README 和 CI
+- [x] 15. 抽出 `tooling/lib`（下载时校验 sha256、解压、复制、路径），各脚本改为调用它
+  - 结果：新增 `tooling/lib/`（CommonJS，无新依赖）：`download`（跟随重定向，相对 Location 按当前 URL 解析，拒绝降级到 http；边下载边算 sha256，给了期望值就校验；先写 `.part`，校验和 content-length 都通过才改名，失败删 `.part`）、`extract`（zip：Windows 用 Expand-Archive、失败回退 tar，其它平台用 tar；tar.bz2：系统 tar 失败回退 Python tarfile，逻辑照旧）、`copy`（默认排除 .git/.gitignore/.gitattributes/__pycache__/.DS_Store/.venv，可追加名字、按文件名过滤、关闭默认规则、硬链接）、`paths`、`log`（含统一的失败退出 `run`）、`python`（AIBOT_PYTHON 解析）。6 个 sidecar 脚本和 resource-tree、split-release 改为调用它，各自的 download/unzip/copyDir/ROOT 实现全部删除
+  - sha256：ffmpeg 保持原值；嵌入式 Python 3.12.10 新增校验，值取自 python.org 随文件发布的 `.sigstore` 签名包里的 messageDigest（与其 Rekor 记录一致）。get-pip.py（滚动地址）、SenseVoice、Kokoro、THA 模型包、OpenSeeFace 官方都没有公布校验和（这些 release 早于 GitHub 资产 digest），留空不校验，任务 16 的 check-sidecars 会以 warning 列出
+  - 与原来的差别：THA 的复制规则从"排除 .venv/__pycache__/.git"扩为统一默认规则（多排除 .gitignore/.gitattributes/.DS_Store，sidecars/tha/runtime 里现在没有这些文件）；第三方 release 解压结果用 `defaults: false` 原样复制；ffmpeg 在 Windows 上改用 Expand-Archive 解 zip（失败回退 tar，原来直接用 tar）
+  - 验证：所有脚本 `node --check`；`npm run test:tooling`（node:test，12 个用例：sha 规范化与比对、重定向解析、失败不留 .part、排除规则、硬链接、PowerShell 转义、tar.bz2 解压、Python 解析、路径）；用 lib 实际下载 Ollama 的 sha256sum.txt，校验通过与故意给错 sha 两种情况都符合预期（错时目标文件和 .part 都不存在）；fetch-openseeface 在 macOS 上按原逻辑跳过
+  - 未验证：Windows 上 Expand-Archive 解压、实际下载大文件（嵌入式 Python、模型）
+- [x] 16. 给每个 sidecar 写 manifest；`tooling/package.js` 改为由 profile 和 manifest 驱动；`check-sidecars.js` 加进 CI
+  - 结果：open-llm-vtuber、tha、openseeface 各写 `manifest.json`，新建 `sidecars/ollama/`（manifest + `scripts/fetch.js`，fetch 本该属于任务 17，因为 manifest 的 stage.script 指向它、check-sidecars 要校验脚本存在，所以随本任务提交，细节记在任务 17）。字段按方案 §4.2，另加两项：`package.artifact`（判断产物是否存在，沿用原来的探测文件，runtime 新增 run_server.py）和 `package.variants`（ollama 的 bin / full 两种打法）。ffmpeg 作为 open-llm-vtuber 的 `package.extraResources`（optional，有就带，同原来）。resourceName 保持 runtime、ffmpeg、tha-runtime、openseeface、ollama。下载项（URL、版本、sha256 及来源说明）挪进 manifest，各脚本用 `findDownload` 读取，不再各写一份常量
+  - profile（D8）：`apps/desktop/packaging/profiles.json` 定义 lite / win / standard / full，每项按顺序列出 sidecar 和 `include`（required 缺产物失败；ifPresent 有产物就带）。standard 的 THA、OpenSeeFace 是 ifPresent，"按需"即"产物在就带"
+  - package.js：`--profile <name> [--dir] [--no-split]`，新增 `--print-config`（别名 `--dry-run`，只打印生成的 extraResources，不清理不构建，任意平台可跑）。生成逻辑在 `tooling/lib/packaging.js`（纯函数，文件存在与否由调用方注入）。正式打包时先确认产物齐全再清理 out/release，缺东西不会删掉上一次的安装包。旧开关保留一个版本并打印弃用提示：`--no-ollama` → lite、`--with-model` → full、不带开关 → standard
+  - check-sidecars：`tooling/check-sidecars.js`。错误：id 与目录名、必填字段与类型、stage.script 存在、有 upstream 必须有 UPSTREAM.md 且 upstream.paths 存在、下载项 url 为 https 且 name 不重复、sha256 格式、resourceName 跨 sidecar 不重复、profile 引用的 sidecar / include / variant 有效、electron-builder.yml 里直接写的 extraResources（runtime、tha-runtime）与 manifest 的 from 和 filter 完全一致。警告：下载项没有 sha256（现有 5 项：sense-voice、kokoro-tts、openseeface、get-pip、tha-models）。加进 frontend-ci.yml（npm ci 之后，需要 js-yaml），触发路径加上 `sidecars/**`、`tooling/**`；单测也在同一 workflow 里跑
+  - electron-builder.yml：extraResources 不变，注释写明只在直接调用 electron-builder 时生效，并由 check-sidecars 保证与 manifest 一致
+  - 核心验收（extraResources 对比）：在 /tmp 搭一个假仓库根，用占位文件模拟 5 种产物状态，旧 package.js（拦截 spawnSync 和写临时配置，读出它要传给 electron-builder 的 extraResources）与新 package.js `--print-config` 逐项比较 from / to / filter 的 JSON。结果（"失败"指缺 Ollama 时旧脚本抛错，或缺 required 产物时新脚本报错）：
+
+    | 产物状态 | 旧开关 → profile | 旧 | 新 | 结论 |
+    | --- | --- | --- | --- | --- |
+    | runtime+ffmpeg（CI） | --no-ollama → lite | runtime+ffmpeg | runtime+ffmpeg | 一致 |
+    | 只有 runtime | --no-ollama → lite | runtime | runtime | 一致 |
+    | runtime+ffmpeg+tha+osf | --no-ollama → win | 四项 | 四项 | 一致 |
+    | 全部 | --no-ollama → win | 四项 | 四项 | 一致 |
+    | runtime+ffmpeg+ollama | (无) → standard | runtime+ffmpeg+ollama/bin | 同左 | 一致 |
+    | 全部 | (无) → standard | runtime+ffmpeg+tha-runtime+openseeface+ollama/bin | 同左 | 一致 |
+    | 全部 | --with-model → full | runtime+ffmpeg+tha-runtime+openseeface+ollama | 同左 | 一致 |
+    | 缺 Ollama 的三种状态 | (无) → standard、--with-model → full | 失败 | 失败 | 一致 |
+    | 有 tha+osf | --no-ollama → lite | 带 tha-runtime、openseeface | 不带 | 按 D8 预期：lite 不含 THA/OSF |
+    | 缺 tha 或 osf | --no-ollama → win | 静默跳过 | 失败 | 按方案预期：required 缺产物失败 |
+    | 缺 tha 或 osf，有 ollama | --with-model → full | 静默跳过 | 失败 | 同上 |
+
+    20 组里 8 组完全一致（含 standard 的 cuda_v12/rocm_v7_1 排除规则、runtime 的 7 条过滤规则），另外 6 组两边都失败，剩下 6 组的差别都是 D8 和"缺产物就失败"带来的预期差别。另一处预期差别：out/stage/open-llm-vtuber 没有 run_server.py 时旧脚本照样打包，新脚本失败
+  - 验证：`node --check` 全部脚本；`npm run test:tooling` 26 个用例（新增 14 个：四个 profile 的生成结果、runtime 过滤规则逐条、ffmpeg 可选、未知 profile、旧开关映射，以及 check-sidecars 的各项校验）；`node tooling/check-sidecars.js` 通过（5 个警告）；本机 `--profile lite --print-config` 输出正确，`--no-ollama` 打印弃用提示，未知 profile 退出码 1
+  - 未验证：Windows 上按 profile 实际跑 electron-builder 打包（本机 macOS 跑不了 `--win`），打出的资源树也还没和 P0 基线比（任务 10 的基线仍未生成）
+- [x] 17. stage 前先清空目标目录；conf.pet.yaml 挪成独立的模板文件；Ollama 改为脚本获取；THA 端口从 manifest 和环境变量读取
+  - stage 清空：open-llm-vtuber 的 stage.js 先清空 out/stage/open-llm-vtuber，只保留 `python/`（freeze.js 的冻结产物，由 freeze.js 自己整体替换；不保留的话 `dev` 之后单独 `pack` 会打出没有后端 exe 的包）。SenseVoice、Kokoro 改为缓存在 `out/downloads/models/<目录名>`，stage 时硬链接（跨盘或不支持时复制）进 models/；归档先解压到临时目录、确认完整再改名进缓存。P2 之前下载在 stage 里的完整模型目录会先挪进缓存，老机器不用重新下载；原来删旧 MeloTTS 目录的逻辑随清空一起去掉。THA 的 stage.js 整体清空 out/stage/tha，嵌入式 Python（已启用 site、已装 pip）缓存在 `out/downloads/tha-python/<版本>/` 再硬链接进去。附录 B 的"残留 node/、webapps/ 进包"已修。release-windows.yml 的模型缓存路径相应改为 out/downloads/models，key 改为 manifest 的哈希
+  - conf.pet.yaml：挪到 `sidecars/open-llm-vtuber/config/conf.pet.yaml`，stage 时复制，占位符不变。比对方法：从 3556408（P2 之前）的 stage.js 取出 SENSE_VOICE、KOKORO_TTS 和 writePetConfigTemplate 执行，捕获写出的内容，与新模板 `cmp` 逐字节一致（2861 字节，sha256 `be91ba82…600bb4`）；用 --skip-models 在 /tmp 隔离副本里跑新 stage.js，产出的 config_templates/conf.pet.yaml 也与之一致。根目录新增 .gitattributes 让该模板在 Windows 检出时保持 LF。stage.js 复制前检查模板引用的模型目录名与模型清单一致；新增 tooling 单测检查模板的 `__OLVT_*__` 集合与 open-llm-vtuber-manager.ts 替换的集合相同
+  - Ollama：`sidecars/ollama/scripts/fetch.js`（随任务 16 提交）固定 v0.34.4（与应用内兜底安装器 ollama-installer.ts 的 OLLAMA_VERSION 一致），Windows zip 解压到 out/downloads/ollama/bin，sha256 取自官方 release 的 sha256sum.txt。版本记录写在 out/downloads/ollama.version（不往会被打包的目录里加文件）；手工放置、没有版本记录的旧 bin/ 保留不动，只提示。`--dry-run` 只用 HEAD 取元数据；非 Windows 默认跳过（`--force` 可强制）。full 需要的预置模型仍需手动 `ollama pull`，脚本注释写了方法
+  - THA 端口：新增 `platform/sidecar-manifests.ts`，构建时 import `sidecars/tha/manifest.json`（vite 只把 port 字段打进 main bundle），`thaPort()` 读 ANYLOVER_THA_PORT，非法值回退 manifest 默认值（原来 `Number()` 会得到 NaN）。tha-manager 改用它，默认仍是 12395。新增只读通道 `IPC.tha.wsUrl`（tha-ipc 注册、preload 暴露 `getThaWsUrl`），renderer 新增 `utils/tha-endpoint.ts` 取一次后缓存；render-mode-context 的 thaWsUrl 改为状态，取到前为空串，tha-stage 为空时不连接，tha-driver 首次连接前先取地址。protocol 删掉写死的 `THA_WS_URL`。IPC 契约测试的期望集合加上 tha.wsUrl（50 → 51）。tha_server.py 仍由 tha-manager 用 THA_PORT 传端口，没改
+  - 验证：所有脚本 `node --check`；在 /tmp 隔离副本里构造旧 stage（node/、webapps/、src 下的过期文件、半截 .tar.bz2、旧位置的模型、python/）跑 `stage.js --skip-models`：node/、webapps/、过期文件、半截归档被清掉，python/ 保留，旧模型挪进 out/downloads/models；再预置假的模型缓存跑完整流程，模型被硬链接进 stage（inode 相同），unused 文件被剪掉，没有发起下载。`fetch.js --dry-run` 取到 v0.34.4 zip 的大小（1393.5 MB），不带参数在 macOS 上跳过。apps/desktop 的 typecheck:node、lint、check:deps、test（122 通过 / 2 跳过，新增 sidecar-manifests 4 个用例）、build 通过；tooling 单测 29 个通过
+  - 未验证：Windows 上实跑两个 stage 脚本（含真实模型下载、Expand-Archive、get-pip 安装、跨盘时硬链接回退复制）和 fetch.js 实际下载；THA 在 Windows 上用非默认 ANYLOVER_THA_PORT 起服务并由 renderer 连上（本机 macOS 不跑 THA）
+- [x] 18. 根脚本收敛为 setup / dev / dist:&lt;profile&gt; / check 四类，同步 README 和 CI
+  - 结果：根 package.json 只剩 `setup`、`dev`、`dist:lite|win|standard|full`、`check`，另保留官网的 `site:dev` / `site:build` 和诊断用的 `pack:tree`。新增 `tooling/setup.js`（装 apps/desktop 依赖，再按平台运行各 manifest 新增的 `setup` 脚本；Windows 默认按 win profile，`--profile` 可指定，`--dry-run` 只打印）和 `tooling/dist.js`（组装 profile 里 required 且产物在 out/stage 下的 sidecar → freeze → `package.js --profile`，`--dir` / `--no-split` 透传）。`check` 依次跑 apps/desktop 的 typecheck:node、lint、check:deps、test、build，再跑 check-sidecars 和 tooling 单测。fetch-ffmpeg 在非 Windows 上跳过（随包的是 Windows 构建），这样 macOS 的 setup 不会下载无用的 exe
+  - 旧脚本名：常用的保留一个版本作别名，先经 `tooling/deprecated.js` 打印弃用提示再执行（setup:win、setup:mac、dev:setup → setup；dist → dist:standard；pack / pack:full → package.js --profile standard / full；prepare-runtime、prepare-tha-runtime、fetch-tha-models、fetch-openseeface、build:backend 仍调原脚本）。install:app、install:all、frontend:dev、frontend:build、python:deps 和任务 15 加的 test:tooling 直接删除：它们只是一行 `npm --prefix` / `pip install`，README 写了替代命令。package.json 顶层 `//` 字段记录了这些约定。注意 `dist:full` 现在要求 THA 与 OpenSeeFace 齐全，`dist:win` 要求 OpenSeeFace（原来缺了静默跳过）
+  - 文档与 CI：README 的打包章节改为 profile 表，写明 **CI 发布的是 lite**，官网分发的 win 版本地打包后手动发布；命令速查、排错表、架构树（加 sidecars/ollama、manifest、out/downloads/models）同步。docs/DEV_SETUP.md、.kiro/steering/tech.md（脚本表、新增"打包 profile 与 sidecar manifest"一节、数据流按 profile 重画、路径耦合改为 tooling/lib/paths）、sidecars/tha/README.md、docs/ARCHITECTURE.md 的打包要点同步。release-windows.yml 打包步骤改为 `node tooling/package.js --profile lite`（与 dist:lite 等价，拆开是为了在冻结后跑单测），注释改为如实描述 CI 发布 lite。附录 B 的"CI 发布物不含 THA"标为已修
+  - 验证：所有脚本 `node --check`；`npm run check` 全部通过（apps/desktop 五项：test 122 通过 / 2 跳过；check-sidecars 通过、5 个警告；tooling 单测 30 个，新增 dist 组装步骤的用例）；`npm run site:build` 通过；`setup --dry-run` 在 macOS 上只列 open-llm-vtuber 的两步，模拟 win32 时按 win 列出 ffmpeg、stage、THA 模型、OpenSeeFace，`--profile full` 时 macOS 上跳过只支持 win32 的三项；`dist.js` 缺 --profile 和未知 profile 都退出码 1；别名 `npm run pack -- --print-config` 打印弃用提示后按 standard 输出；两个 workflow 用 js-yaml 解析通过
+  - 未验证：Windows 上实跑 `npm run setup`、`npm run dist:<profile>`（含 freeze 与 electron-builder）和 release-windows.yml；新克隆仓库"setup 再 dist"一次成功（方案的 P2 验收第二条）需要 Windows 环境。本机没跑完整 `npm run setup` / `npm run dev`，因为 stage 会下载约 600MB 语音模型
 
 ## P3 主进程模块化
 
-- [ ] 19. 用 `platform/paths.ts` 统一管理路径；拆出 `app/container`、`lifecycle`、`first-run`；入口合并为 `index.ts`
-- [ ] 20. 按 sidecar 拆目录，顺序为 ollama、tha、openseeface、open-llm-vtuber，每个一个提交
-- [ ] 21. 用 `agent/ports` 让 agent 不再依赖 Electron；新增 `settings.changed` 事件；由 registry 统一负责 start / stop
-- [ ] 22. IPC 控制器按域拆分；main 部分的 dependency-cruiser baseline 清零
+- [x] 19. 用 `platform/paths.ts` 统一管理路径；拆出 `app/container`、`lifecycle`、`first-run`；入口合并为 `index.ts`
+  - 进度（分支 `refactor/p3-main-modular`）：`core/` 已改名 `platform/`；`platform/paths.ts` 已接管 5 个随包资源和窗口图标的路径（附单测），顺带修复开发态 mcp_servers.json 读错目录（附录 B）。剩下的 `isPackaged` 只用于日志级别、自动更新、THA 是否复制到可写目录，属于行为分支，不是路径
+  - 拆分：bootstrap.ts（873 行）按行段原样搬到 app/logger、app/container（组合根）、app/first-run、app/startup（启动后端 + 辅助模型队列）、app/lifecycle（whenReady 与退出清理）、sidecar/tha-policy；原 index.ts 改名 app/window-shell.ts；新 index.ts 只剩 27 行。执行顺序不变：比对构建产物，gpu-fix → window-shell 的 whenReady → 单例锁 → 日志 → 创建服务 → 注册生命周期，与拆分前一致
+  - 验证：五项检查通过；macOS 上 `npm run dev` 冒烟：窗口和图标正常，首启引导、Ollama serve 正常，退出时日志打印 `[shutdown] cleanup done`，无残留 ollama 进程
+  - 后续：当时留下的事项已在后续任务完成，辅助模型队列在任务 20 移到 ollama 目录，lifecycle 的 21 个内联 IPC handler 在任务 22 拆进 ipc/*-ipc.ts。Windows 上的完整回归（THA 延迟卸载、摄像头、打包态）仍未做，与 20–22 一起待做
+- [x] 20. 按 sidecar 拆目录，顺序为 ollama、tha、openseeface、open-llm-vtuber，每个一个提交
+  - 结果：`main/sidecar/` 改为 `main/sidecars/`，契约与注册表改名 `sidecar-plugin.ts`、`sidecar-registry.ts` 放根目录；ollama、tha、openseeface、open-llm-vtuber 各一个子目录、各一个提交，`plugins/` 下的适配器归入各自子目录。辅助模型队列从 app/startup 原样搬到 `sidecars/ollama/helper-models.ts`（工厂注入 OllamaManager 和进度广播）；agent/render/tha-resource、agent/perception/openseeface-protocol（含测试）移入对应 sidecar；`backend-manager.ts` 改名 `open-llm-vtuber-manager.ts`，类名仍为 BackendManager；screen-sampler 单独一个提交移到 `agent/perception/screen/`。只改 import 路径和注释，不改逻辑、IPC 通道名、wire 协议和 resource 名
+  - baseline：screen-sampler 原本就 import electron，移进 agent/ 后命中 agent-not-to-electron，baseline 12 → 13，由任务 21 去掉；其余移动没有新增违规
+  - 验证：每个提交都跑过 typecheck:node、lint、check:deps、test（109 通过 / 2 跳过）、build。未做运行时冒烟和 Windows 回归（THA、摄像头、打包态）
+- [x] 21. 用 `agent/ports` 让 agent 不再依赖 Electron；新增 `settings.changed` 事件；由 registry 统一负责 start / stop
+  - 结果：新增 `agent/ports.ts`，只定义实际用到的两个接口：`WindowBroadcast`（实现 `window/broadcast.ts`，注入 gaze-bridge、emotion-expression-bridge，container 里的主动搭话也改用它）和 `ScreenCapturer`（实现 `platform/screen-capturer.ts`，注入 screen-sampler）。memory-store、profile-store、relationship-state 的存储目录改为构造参数，由 container 传入 `platform/paths.ts` 新增的 `agentMemoryDir()`。agent/ 下已没有 import electron 的文件
+  - settings.changed：事件放在 `platform/settings-store.ts` 自己（`onSettingsChanged`），`writeSettings` 和 `saveApiKey` 写入后触发，订阅者异常互相隔离。没放进 agent/event-bus，否则 platform 要反向依赖 agent。provider-factory 新增 `keepProvidersInSync`：先建一次，之后每次 settings.changed 自动重建，由 lifecycle 接线；lifecycle 里 4 处手动 `rebuildProvidersFromSettings` 已删除（ipc/ 里原本没有调用）。补了 settings-store 与 provider-factory 两个单测文件（共 6 个用例）
+  - registry：退出路径原本就只经 registry（before-quit → `stopAll`，cleanupAll → `killAll`），这次只更新注释和 README。启动没有改成 `startAll`：backend、tha、openseeface 的启动时机各不相同，统一启动会改变行为
+  - baseline：13 → 7，agent-not-to-electron 清零；剩下 7 条是渲染层循环依赖，留给 P4
+  - 未完成：agent 里仍有 6 个文件直接调用 `platform/settings-store` 的 `readSettings`（provider-factory、dialogue-engine、proactive-engine、emotion-source、llm-memory-judge、profile-store），改成经 ports 读设置要改动多个构造函数，没在本任务做。和原来有一处差别：手动编辑 settings.json（不经 settings-store）后，provider 要到下一次写入或重启才会更新，原来是在下一次 IPC 调用时更新
+  - 验证：每个提交都跑过 typecheck:node、lint、check:deps、test（115 通过 / 2 跳过）、build。macOS 上 `npm run dev` 冒烟：窗口创建、`[llm] provider 就绪`、Ollama serve 正常，退出时日志有 `[shutdown] cleanup done`，没有残留 ollama 进程。本机 Python 后端因为缺少 loguru 起不来，这是环境问题，和本任务无关。Windows 回归没做
+- [x] 22. IPC 控制器按域拆分；main 部分的 dependency-cruiser baseline 清零
+  - 结果：ipc/ 每个域一个文件，各导出 `registerXxxIpc(deps)`。`aibot-ipc.ts` 先纯改名为 `settings-ipc.ts`，下一个提交把函数改名 `registerSettingsIpc`；window-shell 的 setupIPC（11 个通道）搬到 `window-ipc.ts`；lifecycle 的 21 个内联 handler 搬到 `agent-ipc.ts`（agent.* 18 个）和 `app-ipc.ts`（检查更新、打开设置窗、onboarding.needSync）。handler 正文和通道名都没改。lifecycle 只按原顺序调用 registerXxxIpc，`scheduleStartupCheck`、`screenMemoryBridge.start()`、`setToolBridge`、`keepProvidersInSync`、情绪与关系的 `start()` 都留在 lifecycle，相对顺序不变。lifecycle.ts 从 506 行减到 240 行。中枢对话里重复的 dialogueBroadcast 单独一个提交改用 `window/broadcast` 的 `broadcastToWindows`
+  - 契约测试：新增 `ipc/ipc-contract.test.ts`，mock electron 后调用全部 registerXxxIpc，断言注册集合等于拆分前从源码统计、写死在测试里的 50 个通道，并且没有重复注册
+  - baseline：仍为 7 条，都是渲染层循环依赖，main 部分为 0。方案 §5.2 的「ipc/ 以外不得 import ipcMain」没加进 dependency-cruiser，因为它只能按模块判断，分不出具名导入，而 agent 以外的 sidecars、platform 仍要用 electron 的 app 等。这条改用 ESLint `no-restricted-imports` 实现，范围是 agent、sidecars、platform，现有代码无违规。window/ 的 window-manager、menu-manager 仍各自注册 5 个与实例绑定的通道，没有迁，也不在这条规则内
+  - 未完成：window-manager、menu-manager 的 5 个通道；tha-ipc 里的 broadcastThaProgress 也和 broadcastToWindows 等价，没在本任务改
+  - 验证：每个提交都跑过 typecheck:node、lint、check:deps、test（118 通过 / 2 跳过）、build。macOS 上 `npm run dev` 冒烟：窗口创建、`[llm] provider 就绪`、Ollama serve 正常，日志没有 "No handler registered" 或报错，退出时日志有 `[shutdown] cleanup done`，没有残留 ollama 进程。本机 Python 后端缺少 loguru 起不来，是环境问题。Windows 回归没做
 
 ## P4 渲染层与 preload（需确认 D2、D3）
 

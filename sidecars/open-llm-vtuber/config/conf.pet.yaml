@@ -1,0 +1,77 @@
+# 桌宠专用配置（由 Any-Lover 生成）。占位符会在启动时由 Electron 主进程替换。
+system_config:
+  conf_version: 'v1.2.0'
+  host: '127.0.0.1'
+  port: 12393
+  config_alts_dir: 'characters'
+  tool_prompts:
+    live2d_expression_prompt: 'live2d_expression_prompt'
+
+character_config:
+  conf_name: 'charis'
+  conf_uid: 'charis_001'
+  live2d_model_name: 'mao_pro'
+  character_name: 'Charis'
+  avatar: 'mao.png'
+  human_name: 'Human'
+  persona_prompt: |
+    你是一只可爱的桌面伴侣宠物，性格温暖、俏皮、简洁。用自然口语回答，避免长篇大论。
+
+  agent_config:
+    conversation_agent_choice: 'basic_memory_agent'
+    agent_settings:
+      basic_memory_agent:
+        llm_provider: 'openai_compatible_llm'
+        faster_first_response: True
+        segment_method: 'pysbd'
+        use_mcpp: False
+        mcp_enabled_servers: []
+    llm_configs:
+      openai_compatible_llm:
+        base_url: '__OLVT_BASE_URL__'
+        llm_api_key: '${OLVT_LLM_API_KEY}'
+        model: '__OLVT_MODEL__'
+        temperature: __OLVT_TEMPERATURE__
+
+  asr_config:
+    asr_model: 'sherpa_onnx_asr'
+    sherpa_onnx_asr:
+      model_type: 'sense_voice'
+      sense_voice: './models/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17/model.int8.onnx'
+      tokens: './models/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17/tokens.txt'
+      num_threads: 4
+      use_itn: True
+      provider: 'cpu'
+
+  tts_config:
+    # 离线 TTS：sherpa-onnx Kokoro（中英混读，103 音色），不依赖网络与 ffmpeg 转码（直接输出 wav）。
+    # sid 选音色（由设置里的「语音音色」替换，默认 3 = zf_001 中文女声；3-57 女声、58-102 男声）。
+    tts_model: 'sherpa_onnx_tts'
+    sherpa_onnx_tts:
+      model_type: 'kokoro'
+      kokoro_model: './models/kokoro-multi-lang-v1_1/model.onnx'
+      kokoro_voices: './models/kokoro-multi-lang-v1_1/voices.bin'
+      kokoro_tokens: './models/kokoro-multi-lang-v1_1/tokens.txt'
+      kokoro_data_dir: './models/kokoro-multi-lang-v1_1/espeak-ng-data'
+      kokoro_lexicon: './models/kokoro-multi-lang-v1_1/lexicon-us-en.txt,./models/kokoro-multi-lang-v1_1/lexicon-zh.txt'
+      tts_rule_fsts: './models/kokoro-multi-lang-v1_1/phone-zh.fst,./models/kokoro-multi-lang-v1_1/date-zh.fst,./models/kokoro-multi-lang-v1_1/number-zh.fst'
+      max_num_sentences: 1
+      sid: __OLVT_TTS_SID__
+      provider: 'cpu'
+      num_threads: 4
+      speed: 1.0
+    # 在线备选（需联网，mp3 经 ffmpeg 转 wav）：把 tts_model 改回 'edge_tts' 即可。
+    edge_tts:
+      voice: zh-CN-XiaoxiaoNeural
+
+  vad_config:
+    vad_model: null
+
+  tts_preprocessor_config:
+    remove_special_char: True
+    ignore_brackets: True
+    ignore_parentheses: True
+    ignore_asterisks: True
+    translator_config:
+      translate_audio: False
+      translate_provider: 'deeplx'

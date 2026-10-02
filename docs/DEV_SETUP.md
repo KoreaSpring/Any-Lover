@@ -12,41 +12,43 @@
 ## Windows 新机跑项目
 
 ```powershell
-# 1) 一次性准备：装前端依赖 + 组装后端运行时 + 拉取 THA 模型(~1.5GB)
-npm run setup:win
-
+# 1) 一次性准备：装依赖 + 获取 ffmpeg、语音模型、THA 模型(~1.5GB)、OpenSeeFace
+npm run setup
 # 2) 开发运行
 npm run dev
-
-# 3) 打包出安装包（NSIS）
+# 3) 打包出安装包（NSIS）：官网分发的 win 版
 npm run dist:win
 ```
 
-`setup:win` 依次做：
-- `install:app`：`npm --prefix frontend install`
-- `prepare-runtime`：组装 Python 后端运行时到 `dist-runtime/`
-- `fetch-tha-models`：下载 THA 模型整包并组织到 `tha-runtime/data/models/`（模型体积大、不入库）
+`setup` 依次做（Windows 默认按 `win` profile 准备；加 `-- --dry-run` 只打印步骤）：
+
+- `npm --prefix apps/desktop install`
+- 按各 sidecar 的 `manifest.json` 里 `setup` 字段运行获取脚本：
+  - open-llm-vtuber：`fetch-ffmpeg.js`（ffmpeg 到 `out/downloads/ffmpeg`）、`stage.js`（组装 `out/stage/open-llm-vtuber/`，语音模型缓存到 `out/downloads/models`）
+  - tha：`fetch-models.js`（THA 模型整包，组织到 `sidecars/tha/runtime/data/models/`，体积大、不入库）
+  - openseeface：`fetch.js`（到 `out/downloads/openseeface`）
+- 要打 standard / full 时用 `npm run setup -- --profile standard`（或 `full`），会额外获取固定版本的 Ollama 到 `out/downloads/ollama/bin`
 
 说明：
-- **THA 抠图模型（rembg）**：首次上传立绘时由程序自动下载到 `tha-runtime/data/rembg/`（约 350MB，isnet-anime + u2net）。也可提前准备。
-- **高画质模型**：`dist:win` 打包默认只随包「流畅」画质（seperable/fp16）。用户在应用首启页可选下载「高画质模型包」（~1.5GB）解锁中/高/极高清晰度；本地开发若已 `fetch-tha-models` 则全部档位可用。
+
+- **THA 抠图模型（rembg）**：首次上传立绘时由程序自动下载到 THA 运行目录的 `data/rembg/`（约 350MB，isnet-anime + u2net）。也可提前准备。
+- **高画质模型**：`dist:win` 打包默认只随包「流畅」画质（seperable/fp16）。用户在应用首启页可选下载「高画质模型包」（~1.5GB）解锁中/高/极高清晰度；本地开发已跑过 `setup`（THA 的 `fetch-models.js`）则全部档位可用。
+- 打包前需要 Python 3.10–3.12 的冻结环境（`requirements-pet.txt` + PyInstaller），见 README「打包 Windows 安装包」。
 
 ---
 
 ## Mac 新机跑项目
 
 ```bash
-# 1) 一次性准备：装前端依赖 + 组装后端运行时（Mac 不需要 THA 模型）
-npm run setup:mac
-
+# 1) 一次性准备：装依赖 + 组装后端运行时（Mac 不取 THA、OpenSeeFace、Ollama、随包 ffmpeg）
+npm run setup
 # 2) 开发运行
 npm run dev
-
-# 3) 打包（走 Live2D，不含 THA）
-npm run frontend:build   # 或按需用 electron-builder mac 目标
+# 3) 只构建 Electron（走 Live2D，不含 THA）；dist:<profile> 只能在 Windows 上跑
+npm --prefix apps/desktop run build
 ```
 
-Mac 上渲染模式恒为 Live2D。THA 相关（`tha-runtime`、嵌入式 Python、THA 模型）不参与 Mac 构建与运行。
+Mac 上渲染模式恒为 Live2D。THA 相关（`sidecars/tha`、嵌入式 Python、THA 模型）不参与 Mac 构建与运行。
 
 ---
 
@@ -54,14 +56,15 @@ Mac 上渲染模式恒为 Live2D。THA 相关（`tha-runtime`、嵌入式 Python
 
 | 脚本 | 说明 |
 | --- | --- |
-| `setup:win` / `setup:mac` | 新机一次性准备 |
+| `setup` | 新机一次性准备（`-- --profile <name>` 按 profile 准备，`-- --dry-run` 只打印） |
 | `dev` | 组装后端运行时 + 启动 electron-vite dev |
-| `fetch-tha-models` | 拉取 THA 模型到 tha-runtime/data/models（仅 Windows 需要） |
-| `prepare-runtime` | 组装 Python 后端运行时 dist-runtime/ |
-| `prepare-tha-runtime` | 组装 THA 源码运行时 + 嵌入式 Python 到 dist-tha-runtime/（打包用，仅 Windows） |
-| `build:backend` | 可选：PyInstaller 冻结后端为 exe |
-| `dist` | Windows 打包（不含 THA） |
-| `dist:win` | Windows 打包（含 THA：prepare-runtime + build:backend + prepare-tha-runtime + pack） |
+| `dist:lite` | Windows 打包：不含 Ollama、THA、OpenSeeFace（CI 发布的版本） |
+| `dist:win` | Windows 打包：含 THA、OpenSeeFace，不含 Ollama（官网分发的版本） |
+| `dist:standard` | Windows 打包：内置 Ollama 程序（不含模型），THA、OpenSeeFace 有产物就带 |
+| `dist:full` | Windows 打包：Ollama 程序 + 预置模型，含 THA、OpenSeeFace |
+| `check` | 全部检查（apps/desktop 五项 + check-sidecars + tooling 单测） |
+
+profile 的定义在 `apps/desktop/packaging/profiles.json`；单独组装某个 sidecar 用 `node sidecars/<id>/scripts/stage.js`。旧脚本名（`setup:win`、`setup:mac`、`prepare-runtime`、`prepare-tha-runtime`、`fetch-tha-models`、`build:backend`、`dist` 等）保留一个版本，运行时打印弃用提示。
 
 ## 环境变量（THA 调试）
 

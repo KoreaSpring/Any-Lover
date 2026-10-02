@@ -46,22 +46,22 @@
 ## 1. 现状架构（Any-Lover）
 
 ```
-Electron 主进程 (frontend/src/main)
+Electron 主进程 (apps/desktop/src/main)
  ├─ bootstrap.ts         融合入口：拉起后端 sidecar + Ollama，再加载原版前端 index.ts
- ├─ backend-manager.ts   以子进程方式启动 Python 后端(dist-runtime)，就绪探测/优雅关闭
+ ├─ backend-manager.ts   以子进程方式启动 Python 后端(out/stage/open-llm-vtuber)，就绪探测/优雅关闭
  └─ ollama-manager.ts    管理内置/系统 Ollama
 
 Python 后端 (backend/, 上游 Open-LLM-VTuber，黑盒)
  └─ WebSocket 服务 127.0.0.1:12393：ASR + LLM 对话 + TTS + 表情/口型信号
 
-前端渲染 (frontend/src/renderer)
+前端渲染 (apps/desktop/src/renderer)
  ├─ components/canvas/live2d.tsx   Live2D 画布组件（<canvas id="canvas">）
  ├─ hooks/canvas/use-live2d-*.ts   模型加载 / resize / 表情
  ├─ hooks/utils/use-audio-task.ts  播放 TTS 音频 + 驱动口型（关键：口型信号来源）
  └─ WebSDK/                        Live2D Cubism SDK（要在 Windows 方案下停用）
 
-打包链路 (build/scripts + frontend/electron-builder.yml)
- prepare-runtime.js → build-backend.js(PyInstaller) → pack.js(electron-builder)
+打包链路 (tooling + apps/desktop/electron-builder.yml)
+ prepare-runtime.js → build-backend.js(PyInstaller) → tooling/package.js(electron-builder)
 ```
 
 关键数据流：后端通过 WebSocket 把 TTS 音频 + 表情/口型信息推给前端，`use-audio-task.ts` 边播音频边驱动 Live2D 嘴型和表情。
@@ -339,7 +339,7 @@ THA **能表达丰富情绪**（喜/怒/惊/为难/严肃/微笑/震惊等），
 ## 6. 主进程改造点
 
 - 新增 `main/tha-manager.ts`：对标 `backend-manager.ts`。
-  - `resourceRoot()`：打包态 `resources/tha-runtime`，开发态 `dist-tha-runtime`。
+  - `resourceRoot()`：打包态 `resources/tha-runtime`，开发态 `out/stage/tha`。
   - `pythonExe()`：优先随包冻结 exe `tha-backend.exe`，回退系统 python。
   - `start()`：spawn，设 `EZVTB_DEVICE_ID` 等环境变量，就绪探测(THA WS 端口)。
   - `killAll()`：taskkill 进程树。
@@ -353,9 +353,9 @@ THA **能表达丰富情绪**（喜/怒/惊/为难/严肃/微笑/震惊等），
 现状打包是 Windows-only（electron-builder.yml 里 mac/linux target 存在但后端只冻结了 Windows exe）。
 
 **平台分流策略**：
-- 新增 `build/scripts/prepare-tha-runtime.js`：组装 `dist-tha-runtime/`（ezvtuber-rt + 改造后的 src + data/models + 精简 requirements）。**仅在 Windows 打包时执行**。
-- 新增 `build/scripts/build-tha-backend.js`：PyInstaller 冻结 THA 后端为 `tha-backend.exe`（体积大，GB 级，torch+onnxruntime）。**仅 Windows**。
-- `electron-builder.yml` 的 `extraResources` 按平台条件加：Windows 追加 `dist-tha-runtime → tha-runtime`；Mac 不加。
+- 新增 `tooling/prepare-tha-runtime.js`：组装 `out/stage/tha/`（ezvtuber-rt + 改造后的 src + data/models + 精简 requirements）。**仅在 Windows 打包时执行**。
+- 新增 `tooling/build-tha-backend.js`：PyInstaller 冻结 THA 后端为 `tha-backend.exe`（体积大，GB 级，torch+onnxruntime）。**仅 Windows**。
+- `electron-builder.yml` 的 `extraResources` 按平台条件加：Windows 追加 `out/stage/tha → tha-runtime`；Mac 不加。
 - 新增 npm 脚本：`dist:win`（含 THA）、`dist:mac`（仅 Live2D，走现有 backend）。
 
 **模型分发**：THA 模型数百 MB。两种做法：

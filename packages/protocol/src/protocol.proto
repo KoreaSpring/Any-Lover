@@ -1,0 +1,141 @@
+// protocol.proto — 跨语言通信协议契约（文档用途，非运行时）
+//
+// ⚠️ 本文件不参与构建，也不做代码生成。运行时协议全部是 JSON over WebSocket / Electron IPC，
+//    TS 侧的权威定义在同目录 ipc.ts / ws-backend.ts / ws-tha.ts。
+//    这份 .proto 只是用 protobuf 的 IDL 语法，为 TS↔Python 两端提供一份「一眼能看懂的契约清单」，
+//    方便改协议时人工对齐两侧。Python 侧对应实现见文末「Python 对齐点」。
+//
+// 为什么不真的用 protobuf：现有传输是文本 JSON（Electron IPC + WebSocket），只有 TS↔Python 一处
+//    低频边界，引入 protoc + 序列化改造得不偿失。故此处仅作契约文档。
+
+syntax = "proto3";
+
+package anylover;
+
+// ============================================================================
+// 后端对话 WebSocket（renderer ↔ open_llm_vtuber，端口 12393）
+//   TS: proto/ws-backend.ts   Python: sidecars/open-llm-vtuber/upstream/src/open_llm_vtuber/websocket_handler.py
+// ============================================================================
+
+// ---- 出站 type（renderer → 后端）。字符串值见 ws-backend.ts WS_OUT ----
+enum WsOut {
+  WS_OUT_UNSPECIFIED = 0;
+  fetch_backgrounds = 1;
+  fetch_configs = 2;
+  fetch_history_list = 3;
+  create_new_history = 4;
+  text_input = 5;
+  mic_audio_data = 6;
+  mic_audio_end = 7;
+  mic_audio_end_asr_only = 8;   // (any-lover) 中枢对话：后端仅 ASR 不生成
+  interrupt_signal = 9;
+  ai_speak_signal = 10;
+  audio_play_start = 11;
+  frontend_playback_complete = 12;
+  fetch_and_set_history = 13;
+  delete_history = 14;
+  switch_config = 15;
+  request_group_info = 16;
+  add_client_to_group = 17;
+  remove_client_from_group = 18;
+  hub_speak_start = 19;         // (any-lover) 中枢生成句子交后端 TTS+表情
+  hub_speak = 20;               // (any-lover)
+  hub_speak_end = 21;           // (any-lover)
+}
+
+// ---- 入站 type（后端 → renderer）。字符串值见 ws-backend.ts WS_IN ----
+enum WsIn {
+  WS_IN_UNSPECIFIED = 0;
+  control = 1;                  // text 子命令见 WsControl
+  set_model_and_conf = 2;
+  full_text = 3;
+  partial_text = 4;
+  config_files = 5;
+  config_switched = 6;
+  background_files = 7;
+  audio = 8;
+  history_data = 9;
+  new_history_created = 10;
+  history_deleted = 11;
+  history_list = 12;
+  user_input_transcription = 13;
+  error = 14;
+  group_update = 15;
+  group_operation_result = 16;
+  backend_synth_complete = 17;
+  conversation_chain_end = 18;
+  force_new_message = 19;
+  interrupt_signal_in = 20;     // wire 值仍是 "interrupt-signal"
+  tool_call_status = 21;
+}
+
+// ---- control 消息的 text 子命令 ----
+enum WsControl {
+  WS_CONTROL_UNSPECIFIED = 0;
+  start_mic = 1;
+  stop_mic = 2;
+  conversation_chain_start = 3;
+  conversation_chain_end_ctl = 4;   // wire 值 "conversation-chain-end"
+}
+
+// ---- 入站数据形状（对应 ws-backend.ts 的 interface）----
+message DisplayText {
+  string text = 1;
+  string name = 2;
+  string avatar = 3;
+}
+
+message Actions {
+  repeated string expressions = 1;  // 也可能是数字索引数组（Live2D emotionMap）
+  repeated string pictures = 2;
+  repeated string sounds = 3;
+}
+
+message AudioPayload {
+  string type = 1;                  // "audio"
+  string audio = 2;
+  repeated double volumes = 3;
+  int32 slice_length = 4;
+  DisplayText display_text = 5;
+  Actions actions = 6;
+}
+
+// ============================================================================
+// THA 渲染控制 WebSocket（renderer/tha-driver ↔ tha_server.py，端口 12395）
+//   TS: proto/ws-tha.ts   Python: out/stage/tha/tha_server.py（on_message）
+// ============================================================================
+
+// ---- 出站 type（renderer → tha_server）。见 ws-tha.ts THA_OUT ----
+enum ThaOut {
+  THA_OUT_UNSPECIFIED = 0;
+  mouth = 1;         // { value: float 0..1 }
+  expression = 2;    // { name: string }
+  setImage = 3;      // { path, name?, model: isnet-anime|u2net }
+  setPreset = 4;     // { preset: low|medium|high|ultra }
+  gaze = 5;          // { mode: idle|active|listening }
+  gazeTarget = 6;    // { yaw, pitch : 度 }
+}
+
+// ---- 入站 type（tha_server → renderer）。见 ws-tha.ts THA_IN ----
+message ThaSetImageProgress {
+  string type = 1;      // "setImageProgress"
+  string stage = 2;
+  string message = 3;
+  int32 percent = 4;    // 0..100，-1 表示不确定/失败
+}
+
+// ============================================================================
+// Electron IPC（main ↔ renderer）
+//   纯 TS 内部协议，两端都能 import proto/ipc.ts，无需跨语言契约。
+//   通道清单见 proto/ipc.ts 的 IPC 常量树，此处不重复。
+// ============================================================================
+
+// ============================================================================
+// Python 对齐点（改协议时必须同步检查）：
+//   - sidecars/open-llm-vtuber/upstream/src/open_llm_vtuber/websocket_handler.py
+//       _init_message_handlers()  ← 入站 type → handler 映射（对应 WsOut，从后端看是入站）
+//       json.dumps({"type": ...}) ← 出站消息（对应 WsIn，从后端看是出站）
+//   - out/stage/tha/tha_server.py
+//       on_message()              ← 分发 ThaOut 各 type
+//       setImageProgress 回发     ← 对应 ThaSetImageProgress
+// ============================================================================

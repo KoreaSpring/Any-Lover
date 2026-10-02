@@ -9,9 +9,9 @@
 ## 一、同步上游 Open-LLM-VTuber
 
 ### 现状
-- `backend/` 是某个较早的 vendored 快照 + any-lover 自己的扩展（见 `backend/ANYLOVER_EXTENSIONS.md`，9 个文件、git 基线 `f5bf9f6`）。
+- `backend/` 是某个较早的 vendored 快照 + any-lover 自己的扩展（见 `sidecars/open-llm-vtuber/UPSTREAM.md`，9 个文件、git 基线 `f5bf9f6`）。
 - 上游近一年已演进：**Letta 长期记忆、MCP 工具调用、Live2D Cubism 5、Bilibili 弹幕、异步重写、更模块化**。
-- **意外发现**：上游的 **MCP 实现其实已经在我们的 vendored 快照里**了——`backend/src/open_llm_vtuber/mcpp/`（mcp_client / server_registry / tool_adapter / tool_executor / tool_manager / types）齐全，`backend/mcp_servers.json` 已配 time + ddg-search 两个 server。也就是说我们并不缺 MCP 代码，缺的是"中枢对话有没有用上它"（见第二节）。
+- **意外发现**：上游的 **MCP 实现其实已经在我们的 vendored 快照里**了——`sidecars/open-llm-vtuber/upstream/src/open_llm_vtuber/mcpp/`（mcp_client / server_registry / tool_adapter / tool_executor / tool_manager / types）齐全，`sidecars/open-llm-vtuber/upstream/mcp_servers.json` 已配 time + ddg-search 两个 server。也就是说我们并不缺 MCP 代码，缺的是"中枢对话有没有用上它"（见第二节）。
 
 ### 成本 / 收益
 - **收益**：拿到上游后续的 bug 修复、异步稳定性、Cubism 5、Letta 记忆等；减少自研重复。

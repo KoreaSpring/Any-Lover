@@ -763,7 +763,7 @@ ANYLOVER_FFMPEG_DIR 这类由主进程注入给 sidecar 的变量，两端会一
 | D5 | P7 引入 workspace 时用 npm 还是 pnpm | npm workspaces：不换包管理器，electron-builder 兼容性已知 | pnpm：安装更快、依赖更严格，但 electron-builder 需要额外配置 `node-linker=hoisted` | P7 | 待定（立项时再定） |
 | D6 | 是否删除 MCP 旧转发链（hub-tool-* 与 `agent.tool*` IPC） | 删除，McpHub 已直连 MCP server | — | P0 任务 3 | 已决，见 `7be0add` |
 | D7 | WS 消息是否从 `hub-*` 改名为 `agent-*`，与 IPC 域统一 | 改，在 P5 迁入 `anylover_ext` 时一并改，两端同版本发布 | 不改：术语继续一分为二（6.2），但少一次跨语言改名 | P5 | 待定 |
-| D8 | 打包 profile 的名字和组合；CI 发布物是否包含 THA | 采用 4.6 的四个 profile；CI 发布 `lite`，README 改为如实描述 | CI 改发 `win`：和 README 现在的说法一致，但安装包和 CI 时长都会显著增加 | P2 | 待定 |
+| D8 | 打包 profile 的名字和组合；CI 发布物是否包含 THA | 采用 4.6 的四个 profile；CI 发布 `lite`，README 改为如实描述 | CI 改发 `win`：和 README 现在的说法一致，但安装包和 CI 时长都会显著增加 | P2 | 已决，按推荐：lite / win / standard / full 定义在 `apps/desktop/packaging/profiles.json`，standard 的 THA、OpenSeeFace 为"有产物就带"，其余 profile 列出的 sidecar 缺产物即失败；CI 发布 lite（P2 任务 16、18） |
 
 ## 10. 风险与验证
 
@@ -826,11 +826,11 @@ ANYLOVER_FFMPEG_DIR 这类由主进程注入给 sidecar 的变量，两端会一
 | `electron-builder.yml` 的 extraResources 没有过滤，日志、聊天记录、conf.yaml 会进安装包 | 已修（P0 任务 2.3） |
 | main、preload 实际不做类型检查；`preload/index.d.ts` 从未被加载 | 已修（P0 任务 5） |
 | ESLint 继承未安装的 airbnb，根本跑不起来 | 已修（P0 任务 6.1） |
-| `proto/ws-tha.ts` 把 THA 端口写死为 12395，不跟随 `ANYLOVER_THA_PORT` | 未修，P2 任务 17 随 manifest 处理 |
+| `proto/ws-tha.ts` 把 THA 端口写死为 12395，不跟随 `ANYLOVER_THA_PORT` | 已修（P2 任务 17）：默认值在 `sidecars/tha/manifest.json`，renderer 经 `IPC.tha.wsUrl` 取实际地址 |
 | 开发态读错 `mcp_servers.json` 所在目录 | 未修，P3 任务 19 随 `platform/paths.ts` 处理 |
-| prepare-runtime 不清空 dist-runtime，残留的 node/、webapps/ 会进包 | 未修，P2 任务 17 |
-| 只有 ffmpeg 下载做了 SHA-256 校验 | 未修，P2 任务 15 |
+| prepare-runtime 不清空 dist-runtime，残留的 node/、webapps/ 会进包 | 已修（P2 任务 17）：stage 前清空 out/stage/<id>，模型缓存在 out/downloads |
+| 只有 ffmpeg 下载做了 SHA-256 校验 | 部分修复（P2 任务 15、16）：嵌入式 Python、Ollama 已校验；SenseVoice、Kokoro、THA 模型包、OpenSeeFace、get-pip 官方未公布校验和，manifest 留空，check-sidecars 以警告列出 |
 | 主窗口标题仍为 Open-LLM-Vtuber | 未修，可随时单独改 |
 | `@motionsync` 别名指向不存在的 `src/renderer/MotionSync` | 未修，P4 任务 26 |
-| CI 发布物不含 THA，README 却说发布的是 dist:win | 未修，取决于 D8 |
+| CI 发布物不含 THA，README 却说发布的是 dist:win | 已修（P2 任务 18，D8）：CI 发布 lite，README 与 release-windows.yml 已如实描述 |
 | 上游预构建前端 `backend/frontend` 被打包两份 | 未修，P5 |

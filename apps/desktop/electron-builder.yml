@@ -1,0 +1,104 @@
+appId: com.anylover.charis
+productName: Any-Lover
+directories:
+  buildResources: resources
+  output: ../../out/release/${version}
+files:
+  - 'dist/**/*'
+  - 'out/**/*'
+  - 'resources/**/*'
+  - '!**/.vscode/*'
+  - '!src/*'
+  - '!electron.vite.config.{js,ts,mjs,cjs}'
+  - '!{.eslintignore,.eslintrc.cjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
+  - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
+  - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
+  # 仅 renderer 使用的依赖已被 vite 打进 out/renderer，主进程不 require 它们，不必再进 app.asar（约 200MB）。
+  # 主进程运行时只依赖 @electron-toolkit/*、electron-log、electron-updater、@modelcontextprotocol/sdk 及其传递依赖。
+  - '!node_modules/react-icons/**'
+  - '!node_modules/onnxruntime-web/**'
+  - '!node_modules/onnx-proto/**'
+  - '!node_modules/@mediapipe/**'
+  - '!node_modules/date-fns/**'
+  - '!node_modules/@fortawesome/**'
+  - '!node_modules/@ricky0123/**'
+  - '!node_modules/eslint/**'
+extraResources:
+  # 冻结的 Python 后端 + 前端静态资源 + 模型（组装在 <root>/out/stage/open-llm-vtuber）。
+  # 路径相对 apps/desktop/（projectDir）。
+  # 这一段只在直接调用 electron-builder（如 npm run build:win）时生效；tooling/package.js 会按
+  # profile（packaging/profiles.json）和 sidecars/*/manifest.json 整体重新生成 extraResources。
+  # 这里只保留 runtime、tha-runtime 两项，from 与 filter 必须和 manifest 一致（tooling/check-sidecars.js 会比对）；
+  # ffmpeg、openseeface、ollama 只由 tooling/package.js 按 profile 追加。
+  - from: '../../out/stage/open-llm-vtuber'
+    to: 'runtime'
+    filter:
+      - '**/*'
+      # 运行期数据和开发机上生成的配置不能进安装包（含聊天记录）
+      - '!logs/**'
+      - '!cache/**'
+      - '!chat_history/**'
+      - '!conf.yaml'
+      # 运行时只用 int8 模型，fp32 版约 938MB
+      - '!models/sherpa-onnx-sense-voice-*/model.onnx'
+      # 历史遗留的独立 node.exe，没有代码引用
+      - '!node/**'
+  # Windows THA 渲染运行时（源码 + 嵌入式 Python；由 sidecars/tha/scripts/stage.js 组装到 out/stage/tha）。
+  # 仅 Windows 打包需要；其它平台该目录不存在时 electron-builder 会跳过。
+  - from: '../../out/stage/tha'
+    to: 'tha-runtime'
+    filter:
+      - '**/*'
+asarUnpack:
+  - resources/**
+win:
+  executableName: any-lover
+  icon: resources/icon.ico
+nsis:
+  artifactName: ${name}-${version}-setup.${ext}
+  shortcutName: ${productName}
+  uninstallDisplayName: ${productName}
+  createDesktopShortcut: always
+  createStartMenuShortcut: true
+  differentialPackage: false
+  # 使用向导式安装器（非一键），让用户可以选择安装位置。
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  # 允许在当前用户 / 全机器之间选择安装范围。
+  perMachine: false
+  allowElevation: true
+  runAfterFinish: true
+  # 卸载时删除用户数据目录（方案乙）：见 build/installer.nsh 的 customUnInstall。
+  include: build/installer.nsh
+mac:
+  icon: resources/icon.icns
+  target:
+    - target: dmg
+      arch: [x64, arm64]
+  entitlementsInherit: build/entitlements.mac.plist
+  extendInfo:
+    - NSCameraUsageDescription: Application requests access to the device's camera.
+    - NSMicrophoneUsageDescription: Application requests access to the device's microphone.
+    - NSDocumentsFolderUsageDescription: Application requests access to the user's Documents folder.
+    - NSDownloadsFolderUsageDescription: Application requests access to the user's Downloads folder.
+  notarize: false
+dmg:
+  artifactName: ${name}-${version}.${ext}
+  writeUpdateInfo: false
+linux:
+  target:
+    - AppImage
+    - snap
+    - deb
+  maintainer: electronjs.org
+  category: Utility
+appImage:
+  artifactName: ${name}-${version}.${ext}
+npmRebuild: false
+publish:
+  provider: github
+  owner: KoreaSpring
+  repo: Any-Lover
+  releaseType: release
+electronDownload:
+  mirror: https://npmmirror.com/mirrors/electron/

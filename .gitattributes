@@ -1,0 +1,2 @@
+# 桌宠配置模板按字节复制进运行时，Windows 检出也保持 LF（与 P2 之前由 JS 字符串生成的内容逐字节一致）
+sidecars/open-llm-vtuber/config/conf.pet.yaml text eol=lf

@@ -14,9 +14,9 @@ Any-Lover 是一款 Windows 桌面 AI 陪伴桌宠应用，角色名 **Charis**�
 - [Open-LLM-VTuber](https://github.com/Open-LLM-VTuber/Open-LLM-VTuber)（Python 后端，ASR/LLM/TTS/Live2D 全部来自上游）
 - Open-LLM-VTuber-Web（Electron 前端外壳）
 
-pet-bot 在其之上做的增量：一体化融合（`bootstrap.ts` 外挂后端 sidecar）、冻结后端运行时打包（PyInstaller，无需装 Python）、可选内置 Ollama、独立设置面板、单例锁 / 进程清理 / 图标 / 多模态默认模型等工程化改造。
+pet-bot 在其之上做的增量：一体化融合（主进程托管后端 sidecar）、冻结后端运行时打包（PyInstaller，无需装 Python）、可选内置 Ollama、独立设置面板、单例锁 / 进程清理 / 图标 / 多模态默认模型等工程化改造。
 
-**重要边界**：`backend/` 是上游代码，作为黑盒整体引入，原则上不拆分、不重构其内部结构（改它等于维护 fork，成本极高）。我们的增量集中在 `apps/`、`build/`、根级配置。
+**重要边界**：`sidecars/open-llm-vtuber/upstream/` 是上游代码，作为黑盒整体引入，原则上不拆分、不重构其内部结构（改它等于维护 fork，成本极高）。我们的增量集中在 `apps/`、`sidecars/*/scripts`、`tooling/`、根级配置。
 
 ## 两种运行模式
 
