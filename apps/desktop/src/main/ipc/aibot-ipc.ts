@@ -7,7 +7,7 @@ import https from 'https';
 import { ipcMain, dialog, BrowserWindow, app } from 'electron';
 import { readSettings, writeSettings, saveApiKey, loadApiKey, hasApiKey, clampTtsSid } from '../platform/settings-store';
 import { OllamaManager, resolveAnyOllama } from '../sidecars/ollama/ollama-manager';
-import { BackendManager } from '../sidecar/backend-manager';
+import { BackendManager } from '../sidecars/open-llm-vtuber/open-llm-vtuber-manager';
 import {
   installOllama,
   pullModel,

@@ -2,7 +2,7 @@
 // 正文原样搬自 bootstrap.ts；创建顺序即原顺序（部分构造函数和 setXxx 有副作用，例如订阅事件总线）。
 import path from 'node:path';
 import { app, BrowserWindow } from 'electron';
-import { BackendManager } from '../sidecar/backend-manager';
+import { BackendManager } from '../sidecars/open-llm-vtuber/open-llm-vtuber-manager';
 import { ThaManager } from '../sidecars/tha/tha-manager';
 import { OpenSeeFaceManager } from '../sidecars/openseeface/openseeface-manager';
 import { eventBus } from '../agent/event-bus';
@@ -29,7 +29,7 @@ import { DialogueHistoryStore } from '../agent/dialogue/dialogue-history';
 import { OllamaManager } from '../sidecars/ollama/ollama-manager';
 import { mcpServersConfigPath } from '../platform/paths';
 import { SidecarRegistry } from '../sidecars/sidecar-registry';
-import { BackendPlugin } from '../sidecar/plugins/backend-plugin';
+import { BackendPlugin } from '../sidecars/open-llm-vtuber/backend-plugin';
 import { OllamaPlugin } from '../sidecars/ollama/ollama-plugin';
 import { ThaPlugin } from '../sidecars/tha/tha-plugin';
 import { IPC } from '@proto/ipc';

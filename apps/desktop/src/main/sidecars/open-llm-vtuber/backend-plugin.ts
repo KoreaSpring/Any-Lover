@@ -5,8 +5,8 @@
 //   但实际启动编排在 app/startup、app/lifecycle。适配器的主要价值是让 backend 纳入 SidecarRegistry 的统一
 //   退出清理（stopAll/killAll），消除退出路径上重复的 try/catch 样板。
 
-import type { BackendManager } from '../backend-manager';
-import type { SidecarPlugin, SidecarStartResult } from '../../sidecars/sidecar-plugin';
+import type { BackendManager } from './open-llm-vtuber-manager';
+import type { SidecarPlugin, SidecarStartResult } from '../sidecar-plugin';
 
 export class BackendPlugin implements SidecarPlugin {
   readonly id = 'backend';

@@ -110,7 +110,7 @@ screen-sampler 定时截屏 → screen-gate 黑名单/去重门控
 | --- | --- |
 | `index.ts`（根） | **唯一入口**：单例锁 → 日志 → `app/container` 创建服务 → `app/lifecycle` 注册 IPC 与生命周期（P3 合并了原 bootstrap.ts） |
 | `app/` | 组合根与生命周期：container / lifecycle / first-run / startup，以及上游窗口外壳 window-shell（原 index.ts） |
-| `sidecar/` | 外部进程/资源生命周期：各 manager（backend / ollama(+installer) / model-recommender / tha(+model-installer) / openseeface / screen-sampler）+ **插件契约层**（`plugin.ts` SidecarPlugin、`registry.ts` SidecarRegistry、`plugins/` 薄适配器）统一退出清理 |
+| `sidecars/` | 外部进程宿主适配器，按 sidecar 分子目录：`ollama/`（manager、installer、model-recommender、helper-models）、`tha/`（manager、model-installer、policy、resource）、`openseeface/`（manager、protocol）、`open-llm-vtuber/`（open-llm-vtuber-manager）；根目录是**插件契约层**（`sidecar-plugin.ts` SidecarPlugin、`sidecar-registry.ts` SidecarRegistry），各子目录的 `*-plugin.ts` 薄适配器统一退出清理 |
 | `ipc/` | IPC 注册汇总：aibot-ipc（设置/Ollama/LLM 测试）/ tha-ipc（立绘/模型/下载） |
 | `window/` | 窗口层：window-manager（pet/window 模式）/ settings-window / menu-manager |
 | `core/` | 基础设施：settings-store（设置持久化+API Key 加密）/ gpu-fix |
@@ -159,10 +159,10 @@ screen-sampler 定时截屏 → screen-gate 黑名单/去重门控
   （见 `docs/roadmap/dialogue-uplift-phase1.md`）。**后续**：读后端完整 persona_prompt、多模态图片输入；
   阶段 2/3（中枢对话默认开 → 最终关掉后端老对话链路）见 `upgrade-roadmap.md`。
 - **物理重构（方案 Y）**：`agent/` 已按功能物理分子目录（memory/emotion/perception/dialogue/
-  llm/vlm/render，core 三文件留 `agent/` 根），import 全改毕、`npm run build` 通过。
+  llm/vlm，core 三文件留 `agent/` 根；原 render/tha-resource 已移到 `main/sidecars/tha/`），import 全改毕、`npm run build` 通过。
   经验：smart_relocate 在本项目不自动改 import，且 `tsc --noEmit` 通过不代表 vite/rollup 通过
   （rollup 对相对路径更严格），需逐文件手动改相对路径 + 跑 `npm run build` 验证。
-  `main/` 根目录也已按功能物理分子目录（sidecar/ipc/window/platform/app，根目录只留入口 index.ts），
+  `main/` 根目录也已按功能物理分子目录（sidecars/ipc/window/platform/app，根目录只留入口 index.ts），
   import 全改毕、`npm run build` 通过。
 - **协议单一事实源（`packages/protocol/src/`）**：Electron IPC（ipc.ts）、后端 WS（ws-backend.ts）、
   THA WS（ws-tha.ts）的 TS 侧已常量化并全项目接入；`protocol.proto` 为 TS↔Python 契约文档（不做 codegen）。

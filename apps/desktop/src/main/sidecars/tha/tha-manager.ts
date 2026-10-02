@@ -1,7 +1,7 @@
 /* eslint-disable no-empty */
 // THA 渲染后端管理器（仅 Windows）：以子进程方式拉起独立的 THA 帧流服务
 // （tha_server.py，源码分发，输出为本地 WebSocket RGBA 帧流），
-// 做首启依赖安装、就绪探测（TCP 连通 WS 端口）与进程树清理。对标 backend-manager.ts。
+// 做首启依赖安装、就绪探测（TCP 连通 WS 端口）与进程树清理。对标 open-llm-vtuber-manager.ts。
 //
 // 运行时定位（源码 + 嵌入式 Python 自包含，不冻结）：
 //   - 打包态 THA 根目录：resources/tha-runtime（由 sidecars/tha/scripts/stage.js 组装：

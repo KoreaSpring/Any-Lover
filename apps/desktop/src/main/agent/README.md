@@ -34,10 +34,12 @@
 | 文件 | 职责 |
 | --- | --- |
 | `perception-source.ts` | 感知源接口 + `SidecarPerceptionSource` 模板方法基类（复用 spawn/stop/killAll 骨架） |
-| `openseeface-protocol.ts` | OpenSeeFace UDP 包解析（纯函数）：从二进制取头部朝向 euler |
 | `gaze-pipeline.ts` | 视线就地规则化（管道）：置信过滤→死区→灵敏度→镜像→限幅→EMA 平滑 |
 | `gaze-bridge.ts` | 桥：订阅 perception.gaze → gaze-pipeline → express.gaze + IPC 广播驱动 THA |
 | `screen-gate.ts` | 桌面采样门控（纯函数）：敏感窗口黑名单 + 感知哈希去重 |
+| `screen/screen-sampler.ts` | 桌面截屏采样：定时 + 门控/去重 + 可选本地 VLM 摘要 → perception.screen（默认关；原 sidecar/，目前仍 import electron，任务 21 处理） |
+
+OpenSeeFace 包解析 `openseeface-protocol.ts` 已移到 `main/sidecars/openseeface/`。
 
 ## dialogue — 决策层
 | 文件 | 职责 |
@@ -59,7 +61,5 @@
 | `vlm-client.ts` | 本地 VLM 客户端：调本地 Ollama moondream 把截图转一句摘要（不可用返 null） |
 | `vlm-resource.ts` | VLM 资源适配器（ManagedResource）：注册进资源协调器，加载时让 THA 让出显存 |
 
-## render — 渲染资源
-| 文件 | 职责 |
-| --- | --- |
-| `tha-resource.ts` | THA 资源适配器（ManagedResource）：包装 tha-manager，供资源协调器按需加载/卸载 |
+## render — 已移出
+THA 资源适配器 `tha-resource.ts` 已移到 `main/sidecars/tha/`。

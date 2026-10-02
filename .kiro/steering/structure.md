@@ -30,8 +30,7 @@ apps/desktop/src/
 ├─ main/                   Electron 主进程（Node 侧，当前为扁平结构）
 │  ├─ index.ts             【入口】单例锁 → 日志 → app/container 创建服务 → app/lifecycle 注册生命周期
 │  ├─ app/                 组合根与生命周期：container / lifecycle / first-run / startup / window-shell（窗口、托盘、second-instance）
-│  ├─ backend-manager.ts   拉起 / 探测 / 清理 Python 后端；runtime 版本感知复制；ffmpeg 注入
-│  ├─ ollama-manager.ts    拉起 / 探测内置 Ollama，解析随包 ollama 与模型目录
+│  ├─ sidecars/            外部进程宿主适配器：sidecar-plugin / sidecar-registry + ollama/ tha/ openseeface/ open-llm-vtuber/ 各一个子目录
 │  ├─ window-manager.ts    主窗口、window↔pet 模式切换、鼠标穿透、图标、loadContent
 │  ├─ menu-manager.ts      系统托盘与右键菜单
 │  ├─ settings-window.ts   独立设置窗口（加载第二 renderer 入口 settings.html）

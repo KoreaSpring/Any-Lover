@@ -7,7 +7,7 @@ import { recommendModel } from '../sidecars/ollama/model-recommender';
 import { createHelperModels } from '../sidecars/ollama/helper-models';
 import { IPC } from '@proto/ipc';
 import { logToFile } from './logger';
-import type { BackendManager } from '../sidecar/backend-manager';
+import type { BackendManager } from '../sidecars/open-llm-vtuber/open-llm-vtuber-manager';
 import type { OllamaManager } from '../sidecars/ollama/ollama-manager';
 
 export function createStartup(deps: { backend: BackendManager; ollama: OllamaManager }) {

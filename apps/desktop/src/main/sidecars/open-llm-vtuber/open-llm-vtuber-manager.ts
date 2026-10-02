@@ -7,9 +7,9 @@ import path from 'path';
 import http from 'http';
 import { spawn, spawnSync, ChildProcess } from 'child_process';
 import { app } from 'electron';
-import { readSettings, loadApiKey, clampTtsSid } from '../platform/settings-store';
-import { largeDataDir, cleanupLegacy } from '../platform/data-dir';
-import { BUNDLED, bundledDir } from '../platform/paths';
+import { readSettings, loadApiKey, clampTtsSid } from '../../platform/settings-store';
+import { largeDataDir, cleanupLegacy } from '../../platform/data-dir';
+import { BUNDLED, bundledDir } from '../../platform/paths';
 
 const HOST = '127.0.0.1';
 const PORT = 12393;
