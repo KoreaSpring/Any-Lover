@@ -1,17 +1,14 @@
-// 应用生命周期：whenReady 时注册 IPC、启动后台服务、决定首启流程；退出时清理全部子进程。
-// 正文原样搬自 bootstrap.ts。IPC handler 按域拆分留给任务 22（ipc/*-ipc.ts）。
-import { app, globalShortcut, BrowserWindow, ipcMain } from 'electron';
+// 应用生命周期：whenReady 时按域注册 IPC（ipc/*-ipc.ts）、启动后台服务、决定首启流程；退出时清理全部子进程。
+// 正文原样搬自 bootstrap.ts；IPC handler 在任务 22 拆到 ipc/，这里只按原顺序调用 registerXxxIpc 和常驻服务的 start()。
+import { app, globalShortcut, BrowserWindow } from 'electron';
 import { registerThaIpc } from '../ipc/tha-ipc';
-import { eventBus } from '../agent/event-bus';
-import { llmProviderRegistry } from '../agent/llm/llm-provider';
-import { keepProvidersInSync } from '../agent/llm/providers/provider-factory';
-import { onSettingsChanged } from '../platform/settings-store';
-import { resolveAnyOllama } from '../sidecars/ollama/ollama-manager';
 import { registerSettingsIpc } from '../ipc/settings-ipc';
+import { registerAppIpc } from '../ipc/app-ipc';
+import { registerAgentIpc } from '../ipc/agent-ipc';
+import { keepProvidersInSync } from '../agent/llm/providers/provider-factory';
+import { onSettingsChanged, readSettings } from '../platform/settings-store';
 import { openSettingsWindow, getSettingsWindow } from '../window/settings-window';
-import { readSettings } from '../platform/settings-store';
-import { checkForUpdates, scheduleStartupCheck } from '../platform/auto-updater';
-import { IPC } from '@proto/ipc';
+import { scheduleStartupCheck } from '../platform/auto-updater';
 import { logToFile } from './logger';
 import type { Container } from './container';
 import { createStartup } from './startup';
@@ -55,247 +52,38 @@ export function registerLifecycle(container: Container, gotSingleInstanceLock: b
     // THA 立绘上传 + 高画质模型下载 IPC（仅 Windows THA 模式用到；注册无副作用，其它平台不触发）
     registerThaIpc(tha, logToFile);
 
-    // 自动更新：设置窗口「检查更新」按钮 + 启动后延迟静默检查一次（仅打包且配置了更新源时生效）。
-    ipcMain.handle(IPC.app.checkUpdate, () => checkForUpdates(logToFile, true));
+    // 应用级 IPC：检查更新、打开设置窗、首帧同步的首启判断。
+    registerAppIpc({ log: logToFile });
+
+    // 自动更新：启动后延迟静默检查一次（仅打包且配置了更新源时生效）；手动「检查更新」见 ipc/app-ipc。
     scheduleStartupCheck(logToFile);
 
-    // 覆盖层「手动设置」入口：打开独立设置窗（云端 API 等高级配置）。
-    ipcMain.handle(IPC.settings.openWindow, () => {
-      openSettingsWindow();
-      return { ok: true };
-    });
-
-    // 摄像头视线跟随开关（默认关闭，敏感能力需用户显式开启）。
-    //   { enabled: true }  → 启动 OpenSeeFace 感知源 + 视线桥（无 facetracker/非 Windows 时优雅失败）
-    //   { enabled: false } → 停止并回中视线
-    ipcMain.handle(IPC.agent.camera, async (_evt, payload: { enabled?: boolean }) => {
-      const enabled = !!(payload && payload.enabled);
-      try {
-        if (enabled) {
-          if (!openSeeFace.canStart()) {
-            return { ok: false, message: '摄像头面捕不可用（未找到 facetracker 或非 Windows）' };
-          }
-          gazeBridge.start();
-          await openSeeFace.start();
-          logToFile('[startup] 摄像头视线跟随已开启');
-          return { ok: true };
-        }
-        await openSeeFace.stop();
-        gazeBridge.stop();
-        logToFile('[startup] 摄像头视线跟随已关闭');
-        return { ok: true };
-      } catch (e: any) {
-        const msg = String((e && e.message) || e);
-        logToFile(`[startup] 摄像头视线跟随切换失败：${msg}`);
-        // 失败时确保停干净，避免半启动状态
-        try {
-          await openSeeFace.stop();
-        } catch {
-          /* ignore */
-        }
-        gazeBridge.stop();
-        return { ok: false, message: msg };
-      }
-    });
-
-    // 桌面观察开关（默认关，敏感能力需用户显式开启）。
-    //   { enabled: true }  → 开始定期截屏采样（门控/去重后发 perception.screen）
-    //   { enabled: false } → 停止采样
-    ipcMain.handle(IPC.agent.screen, (_evt, payload: { enabled?: boolean }) => {
-      const enabled = !!(payload && payload.enabled);
-      try {
-        if (enabled) {
-          screenSampler.start();
-          // 按需下载：用户第一次开启桌面观察时才下载它要用的辅助模型
-          // （moondream 看屏幕、nomic-embed-text 记忆语义检索）。幂等，已装则跳过，进度推右上角。
-          void ensureLocalHelperModels();
-        } else {
-          screenSampler.stop();
-        }
-        return { ok: true };
-      } catch (e: any) {
-        const msg = String((e && e.message) || e);
-        logToFile(`[startup] 桌面观察切换失败：${msg}`);
-        screenSampler.stop();
-        return { ok: false, message: msg };
-      }
+    // Agent 中枢 IPC（agent.* 通道）。只注册 handler，无副作用。
+    registerAgentIpc({
+      openSeeFace,
+      gazeBridge,
+      screenSampler,
+      memoryStore,
+      dialogueEngine,
+      proactiveEngine,
+      relationshipState,
+      profileStore,
+      emotionSource,
+      ensureLocalHelperModels,
+      log: logToFile,
     });
 
     // 屏幕记忆桥常驻订阅（写入与采样开关解耦：采样关则无事件，桥自然不写）。
     screenMemoryBridge.start();
 
-    // 记忆查询/清空 IPC（供将来对话注入与面板查看用；先做 API，未接对话）。
-    ipcMain.handle(IPC.agent.memoryRecent, (_evt, payload: { limit?: number }) => {
-      try {
-        return { ok: true, items: memoryStore.recent(payload?.limit ?? 20) };
-      } catch (e: any) {
-        return { ok: false, message: String((e && e.message) || e), items: [] };
-      }
-    });
-    ipcMain.handle(IPC.agent.memoryQuery, (_evt, q: Record<string, unknown>) => {
-      try {
-        return { ok: true, items: memoryStore.query((q as any) || {}) };
-      } catch (e: any) {
-        return { ok: false, message: String((e && e.message) || e), items: [] };
-      }
-    });
-    ipcMain.handle(IPC.agent.memoryClear, () => {
-      try {
-        memoryStore.clear();
-        return { ok: true };
-      } catch (e: any) {
-        return { ok: false, message: String((e && e.message) || e) };
-      }
-    });
-
-    // 记忆语义检索（有本地 embedding 则语义排序，否则回退关键词）。供将来对话注入/面板搜索。
-    ipcMain.handle(IPC.agent.memorySearch, async (_evt, payload: { query?: string; limit?: number }) => {
-      try {
-        const q = String(payload?.query || '').trim();
-        if (!q) return { ok: true, items: [] };
-        const hits = await memoryStore.searchSemantic(q, payload?.limit ?? 8);
-        return { ok: true, items: hits.map((h) => ({ ...h.entry, score: h.score })) };
-      } catch (e: any) {
-        return { ok: false, message: String((e && e.message) || e), items: [] };
-      }
-    });
-
-    // 中枢对话（F-1）：renderer 开启「中枢对话」后把用户文字发到这里，中枢生成回复并逐句
-    // 广播给 renderer 转发后端 hub-speak 做 TTS+表情。probe provider 后运行；不接管语音（F-2）。
-    const dialogueBroadcast = (channel: string, payload?: unknown): void => {
-      for (const w of BrowserWindow.getAllWindows()) {
-        if (!w.isDestroyed()) w.webContents.send(channel, payload);
-      }
-    };
     // MCP 工具调用：中枢用官方 TS SDK 直连（内置 get_current_time + mcp_servers.json 里可执行的 server，白名单只读）。
     // 取代旧的「renderer → WS hub-tool-* → 后端 mcpp」转发链路。enableTools 仍由 renderer 开关（默认关）带上。
     dialogueEngine.setToolBridge(mcpHub);
-
-    ipcMain.handle(IPC.agent.dialogue, async (_evt, payload: { text?: string; enableTools?: boolean }) => {
-      const text = String(payload?.text || '').trim();
-      if (!text) return { ok: false, message: '空消息' };
-      if (!dialogueEngine.canRun()) {
-        return { ok: false, message: '未配置可用的主模型，无法使用中枢对话' };
-      }
-      // 即发即忘地跑一轮：句子经 sink 广播给 renderer 转发 hub-speak。返回 ok 表示已受理。
-      void dialogueEngine.handle(text, {
-        start: () => dialogueBroadcast(IPC.agent.dialogueStart),
-        say: (sentence) => dialogueBroadcast(IPC.agent.dialogueSay, { text: sentence }),
-        end: (fullText) => dialogueBroadcast(IPC.agent.dialogueEnd, { text: fullText }),
-        error: (message) => dialogueBroadcast(IPC.agent.dialogueError, { message }),
-      }, { enableTools: !!payload?.enableTools });
-      return { ok: true };
-    });
-
-    // 中枢对话中断（F-2）：前端 interrupt 时若处于中枢对话，停止中枢生成（AbortController）。
-    ipcMain.on(IPC.agent.dialogueInterrupt, () => {
-      try {
-        dialogueEngine.interrupt();
-      } catch {
-        /* ignore */
-      }
-    });
-
-    // 切角色/新会话：清中枢会话历史 + 人设随角色（B1）。避免上一个角色的对话/人设串入下一个角色。
-    ipcMain.on(IPC.agent.dialogueReset, (_evt, payload: { characterName?: string }) => {
-      try {
-        dialogueEngine.interrupt(); // 若正在生成，先停
-        dialogueEngine.clearHistory();
-        dialogueEngine.setPersona(payload?.characterName); // 人设随当前角色（空则默认基调）
-        logToFile(`[dialogue] 中枢会话历史已清空、人设切换为「${payload?.characterName || '默认'}」`);
-      } catch {
-        /* ignore */
-      }
-    });
 
     // LLM Provider（中枢直连）：按当前设置组装 provider 注册表。过渡期不接管现有对话
     // （对话仍走 Python 后端），仅让中枢能独立发起在线 LLM 调用，为将来编排上移铺路。
     // 之后每次 settings.changed（设置或 apiKey 写入）自动重建，IPC 入口不再手动重建。
     keepProvidersInSync(onSettingsChanged, logToFile);
-
-    // 探测当前激活 provider 连通性。
-    ipcMain.handle(IPC.agent.llmProbe, async () => {
-      try {
-        const p = llmProviderRegistry.active();
-        if (!p) return { ok: false, message: '未配置可用的主模型 provider' };
-        if (!p.probe) return { ok: true, message: `provider ${p.id} 已就绪（无探测）` };
-        const r = await p.probe();
-        return { ok: r.ok, message: r.message, provider: p.id };
-      } catch (e: any) {
-        return { ok: false, message: String((e && e.message) || e) };
-      }
-    });
-
-    // 一次性对话（收集完整流式回复后返回）：验证 provider 抽象独立于 Python 后端工作。
-    // 注意：这不接管桌宠对话（桌宠仍走 12393），仅供中枢/测试直连主模型用。
-    ipcMain.handle(IPC.agent.llmChat, async (_evt, payload: { messages?: any[]; model?: string }) => {
-      try {
-        const p = llmProviderRegistry.active();
-        if (!p) return { ok: false, message: '未配置可用的主模型 provider' };
-        const s = readSettings();
-        const model = String(payload?.model || (s.provider === 'openai' ? s.model : s.ollamaModel) || '').trim();
-        if (!model) return { ok: false, message: '未指定模型' };
-        const messages = Array.isArray(payload?.messages) && payload!.messages!.length
-          ? payload!.messages!
-          : [{ role: 'user', content: 'ping' }];
-        let text = '';
-        for await (const chunk of p.chat({ model, messages, temperature: s.temperature })) {
-          text += chunk.delta;
-          if (chunk.done) break;
-        }
-        return { ok: true, text, provider: p.id, model };
-      } catch (e: any) {
-        return { ok: false, message: String((e && e.message) || e) };
-      }
-    });
-
-    // renderer 上报用户消息 → 注入 agent 中枢事件总线（供情绪识别/主动搭话交互时间）。
-    // 不改 Python 后端对话链路，只是把「用户说了什么」旁路一份给中枢感知。
-    ipcMain.on(IPC.agent.userMsg, (_evt, payload: { text?: string }) => {
-      const text = String(payload?.text || '').trim();
-      if (text) eventBus.emit({ kind: 'user.msg', ts: Date.now(), text });
-    });
-
-    // renderer 上报面部情绪（MediaPipe 出的 valence/arousal）→ 注入 perception.emotion(source:'face')。
-    // 与文字/语音情绪一起由 EmotionState late-fusion。renderer 侧只在有摄像头且用户开启时上报。
-    ipcMain.on(IPC.agent.faceEmotion, (_evt, payload: { valence?: number; arousal?: number }) => {
-      const valence = Number(payload?.valence);
-      const arousal = Number(payload?.arousal);
-      if (Number.isFinite(valence) && Number.isFinite(arousal)) {
-        eventBus.emit({ kind: 'perception.emotion', ts: Date.now(), valence, arousal, source: 'face' });
-      }
-    });
-
-    // renderer 上报语音情绪（声学特征启发式出的 valence/arousal）→ perception.emotion(source:'voice')。
-    // 语音主给 arousal，与文字(valence准)/面部一起由 EmotionState late-fusion。
-    ipcMain.on(IPC.agent.voiceEmotion, (_evt, payload: { valence?: number; arousal?: number }) => {
-      const valence = Number(payload?.valence);
-      const arousal = Number(payload?.arousal);
-      if (Number.isFinite(valence) && Number.isFinite(arousal)) {
-        eventBus.emit({ kind: 'perception.emotion', ts: Date.now(), valence, arousal, source: 'voice' });
-      }
-    });
-
-    // 主动搭话开关（默认关，主动打扰是敏感行为需显式开启）。
-    ipcMain.handle(IPC.agent.proactive, (_evt, payload: { enabled?: boolean }) => {
-      const enabled = !!(payload && payload.enabled);
-      try {
-        if (enabled) {
-          // 需要有可用主模型才有意义。
-          if (!llmProviderRegistry.active()) {
-            return { ok: false, message: '未配置可用的主模型，无法开启主动搭话' };
-          }
-          proactiveEngine.start();
-        } else {
-          proactiveEngine.stop();
-        }
-        return { ok: true };
-      } catch (e: any) {
-        const msg = String((e && e.message) || e);
-        proactiveEngine.stop();
-        return { ok: false, message: msg };
-      }
-    });
 
     // 情绪聚合与共情表情常驻订阅（只聚合读数/映射表情，不主动调 LLM，无副作用）。
     emotionState.start();
@@ -303,60 +91,6 @@ export function registerLifecycle(container: Container, gotSingleInstanceLock: b
 
     // 关系状态常驻累积（纯本地，无 LLM，无副作用）。
     relationshipState.start();
-
-    // 关系/画像查询与清空 IPC（面板查看用）。
-    ipcMain.handle(IPC.agent.relationshipGet, () => {
-      try {
-        return { ok: true, relationship: relationshipState.current(), profile: profileStore.all() };
-      } catch (e: any) {
-        return { ok: false, message: String((e && e.message) || e) };
-      }
-    });
-    ipcMain.handle(IPC.agent.relationshipClear, () => {
-      try {
-        relationshipState.clear();
-        profileStore.clear();
-        return { ok: true };
-      } catch (e: any) {
-        return { ok: false, message: String((e && e.message) || e) };
-      }
-    });
-
-    // 情绪识别开关（默认关；开启后每条用户消息节流后调一次 LLM 判情绪 → 共情表情 + 语气）。
-    ipcMain.handle(IPC.agent.emotion, (_evt, payload: { enabled?: boolean }) => {
-      const enabled = !!(payload && payload.enabled);
-      try {
-        if (enabled) {
-          if (!llmProviderRegistry.active()) {
-            return { ok: false, message: '未配置可用的主模型，无法开启情绪识别' };
-          }
-          emotionSource.start();
-        } else {
-          emotionSource.stop();
-        }
-        return { ok: true };
-      } catch (e: any) {
-        const msg = String((e && e.message) || e);
-        emotionSource.stop();
-        return { ok: false, message: msg };
-      }
-    });
-
-    // 首帧同步返回「是否需要首启引导」：让主窗覆盖层第一帧就决定是否显示，
-    // 避免先渲染出桌宠、再异步弹出覆盖层导致的「闪一下」。
-    ipcMain.on(IPC.onboarding.needSync, (evt) => {
-      const st = readSettings();
-      // 首帧同步口径：未 onboarded（首次）或模型未就绪（onboarded 但下载未完成、需恢复下载）时都要盖。
-      // 关键补强：同步不能做网络探测，但可用 resolveAnyOllama（纯文件系统检查，很快）判断
-      // 「当前是否真的存在可用的 Ollama」。换机器 / 目录被清后，settings 的 onboarded/ollamaReady
-      // 可能仍为 true 却已失效——此时必须显示引导，否则会先露出桌宠、再让后端连不上 Ollama 报错。
-      if (st.provider !== 'ollama') {
-        evt.returnValue = false;
-        return;
-      }
-      const hasOllama = !!resolveAnyOllama(st.ollamaDir);
-      evt.returnValue = !st.onboarded || !st.ollamaReady || !hasOllama;
-    });
 
     // 快捷键随时打开设置：Ctrl+Alt+S
     globalShortcut.register('CommandOrControl+Alt+S', () => openSettingsWindow());
