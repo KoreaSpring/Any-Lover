@@ -6,6 +6,7 @@
   "port": { "default": 12393, "env": null },
   "envPrefix": "OLVT_",
   "stage": { "script": "scripts/stage.js", "output": "out/stage/open-llm-vtuber" },
+  "setup": ["scripts/fetch-ffmpeg.js", "scripts/stage.js"],
   "package": {
     "resourceName": "runtime",
     "artifact": ["out/stage/open-llm-vtuber/run_server.py"],

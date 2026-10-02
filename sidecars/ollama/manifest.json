@@ -6,6 +6,7 @@
   "port": { "default": 11434, "env": null },
   "envPrefix": "OLLAMA_",
   "stage": { "script": "scripts/fetch.js", "output": "out/downloads/ollama" },
+  "setup": ["scripts/fetch.js"],
   "package": {
     "resourceName": "ollama",
     "artifact": [

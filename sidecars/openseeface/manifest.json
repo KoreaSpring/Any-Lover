@@ -6,6 +6,7 @@
   "port": { "default": 11573, "env": "ANYLOVER_OSF_PORT" },
   "envPrefix": "ANYLOVER_OSF_",
   "stage": { "script": "scripts/fetch.js", "output": "out/downloads/openseeface" },
+  "setup": ["scripts/fetch.js"],
   "package": {
     "resourceName": "openseeface",
     "artifact": ["out/downloads/openseeface/facetracker.exe"],

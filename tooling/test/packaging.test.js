@@ -145,3 +145,13 @@ test('checkBuilderYml：filter 不一致报错', () => {
   const bad = [{ from: '../../out/stage/tha', to: 'tha-runtime', filter: ['**/*', '!x'] }];
   assert.match(checkBuilderYml(bad, manifests, ROOT, DESKTOP).join('\n'), /filter/);
 });
+
+test('dist 的组装步骤：只组装 required 且产物在 out/stage 下的 sidecar', () => {
+  const { stageScripts } = require('../dist');
+  const names = (p) => stageScripts(profiles[p], manifests, '/s').map((f) => path.relative('/s', f).split(path.sep).join('/'));
+  assert.deepEqual(names('lite'), ['open-llm-vtuber/scripts/stage.js']);
+  assert.deepEqual(names('win'), ['open-llm-vtuber/scripts/stage.js', 'tha/scripts/stage.js']);
+  // standard 的 THA 是 ifPresent：不现场组装，已有产物才打包
+  assert.deepEqual(names('standard'), ['open-llm-vtuber/scripts/stage.js']);
+  assert.deepEqual(names('full'), ['open-llm-vtuber/scripts/stage.js', 'tha/scripts/stage.js']);
+});

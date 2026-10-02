@@ -4,7 +4,7 @@
  *
  * 错误（退出码 1）：
  *  - manifest 的 id 与目录名不一致；必填字段缺失或类型不对
- *  - stage.script 不存在
+ *  - stage.script 或 setup 里列出的脚本不存在
  *  - 声明了 upstream 却没有 UPSTREAM.md，或 upstream.paths 指向不存在的路径
  *  - 下载项缺 name/url、url 不是 https、name 重复、sha256 写了但格式不对
  *  - resourceName（含 extraResources 与 variants 的 to）在所有 sidecar 间重复
@@ -61,6 +61,10 @@ function checkManifest(dirName, manifest, dir, exists = fs.existsSync) {
   if (!isNonEmptyString(stage.output)) err('缺少 stage.output');
   if (!isNonEmptyString(stage.script)) err('缺少 stage.script');
   else if (!exists(path.join(dir, stage.script))) err(`stage.script 不存在：${stage.script}`);
+  if (manifest.setup !== undefined) {
+    if (!Array.isArray(manifest.setup) || !manifest.setup.every(isNonEmptyString)) err('setup 必须是脚本路径数组');
+    else for (const script of manifest.setup) if (!exists(path.join(dir, script))) err(`setup 脚本不存在：${script}`);
+  }
 
   const pkg = manifest.package;
   if (!pkg) {

@@ -19,6 +19,11 @@ const KEEP = ['ffmpeg.exe', 'ffprobe.exe'];
 const BIN = path.join(DOWNLOADS, 'ffmpeg', 'bin');
 
 async function main() {
+  // 随包 ffmpeg 是 Windows 构建，只打进 Windows 安装包；macOS 开发用系统 ffmpeg
+  if (process.platform !== 'win32') {
+    log('ffmpeg 随包版本仅 Windows；当前非 Windows，跳过。');
+    return;
+  }
   if (KEEP.every((f) => fs.existsSync(path.join(BIN, f)))) {
     log('out/downloads/ffmpeg/bin 已存在 ffmpeg/ffprobe，跳过。');
     return;

@@ -6,6 +6,7 @@
   "port": { "default": 12395, "env": "ANYLOVER_THA_PORT" },
   "envPrefix": "ANYLOVER_THA_",
   "stage": { "script": "scripts/stage.js", "output": "out/stage/tha" },
+  "setup": ["scripts/fetch-models.js"],
   "package": {
     "resourceName": "tha-runtime",
     "artifact": ["out/stage/tha/tha_server.py"],
