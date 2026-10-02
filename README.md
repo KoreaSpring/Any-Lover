@@ -61,8 +61,8 @@
 ```powershell
 Set-Location D:\friends\any-lover   # 仓库根目录
 
-npm run dev:setup   # 首次：装依赖 + 组装后端运行时（含 SenseVoice / Kokoro 模型）
-npm run dev         # 日常：启动 Electron，自动托管后端与 Ollama
+npm run setup   # 首次：装依赖 + 按平台获取各 sidecar（ffmpeg、语音模型；Windows 另有 THA 模型、OpenSeeFace）
+npm run dev     # 日常：组装后端运行时并启动 Electron，自动托管后端与 Ollama
 ```
 
 Electron 会自动拉起并管理 Python 后端（`127.0.0.1:12393`）和 Ollama（`127.0.0.1:11434`），**无需另开终端**；关闭应用时子进程一并退出。
@@ -76,19 +76,22 @@ Electron 会自动拉起并管理 Python 后端（`127.0.0.1:12393`）和 Ollama
 
 <br />
 
-打包产物：
+打包形态用 profile 区分，定义在 `apps/desktop/packaging/profiles.json`，命令都是 `npm run dist:<profile>`：
 
-- **Windows 版** `npm run dist:win` — 含 THA 形象运行时与摄像头面捕，不含 Ollama（首次启动按需下载），官网分发的就是这一版。
-- **轻量版** `npm run dist` — 内置 Ollama 程序（不含模型）。
-- **整合版** `npm run dist:full` — 内置 Ollama + 模型，安装后免下载。
+| profile | 命令 | Ollama | THA 形象 / 摄像头面捕 | 说明 |
+| --- | --- | --- | --- | --- |
+| `lite` | `npm run dist:lite` | 不含 | 不含（回退 Live2D） | **CI 发布的就是这一版**（推 `v*` 标签触发 release-windows.yml） |
+| `win` | `npm run dist:win` | 不含（首次启动按需下载） | 含 | 官网分发的版本，本地打包后手动发布 |
+| `standard` | `npm run dist:standard` | 只含程序（模型首启下载） | 有产物就带 | |
+| `full` | `npm run dist:full` | 程序 + 预置模型 | 含 | 安装后免下载 |
 
-产物输出到 `out/release/dist/`。打完安装包会自动切成 < 100MB 的分片放到 `split/`（附 `manifest.json`，含整包和每片的 SHA-256），并校验拼接后与原安装包一致；加 `--no-split` 可跳过。
+`dist:<profile>` 依次做：组装该 profile 需要的运行时（每次先清空 `out/stage/<id>`）→ 冻结后端 → 打安装包 → 切分片。profile 里要求的组件缺产物时直接失败，不会悄悄打出缺功能的包；ffmpeg、OpenSeeFace、Ollama 这类下载物由 `npm run setup` 获取（`npm run setup -- --profile standard` / `full` 会额外获取 Ollama；full 的预置模型需按 `sidecars/ollama/scripts/fetch.js` 注释里的方法 `ollama pull`）。
 
-打包前先拉取 ffmpeg（固定版本，SHA-256 校验，只保留 ffmpeg / ffprobe）：`node sidecars/open-llm-vtuber/scripts/fetch-ffmpeg.js`。
+产物输出到 `out/release/dist/`。打完安装包会自动切成 < 100MB 的分片放到 `split/`（附 `manifest.json`，含整包和每片的 SHA-256），并校验拼接后与原安装包一致；加 `--no-split` 可跳过。只想看某个 profile 会打进哪些资源：`node tooling/package.js --profile win --print-config`（任意平台可跑，不构建）。
 
 ### 发布新版本
 
-新版本请继续用 **本地 `npm run dist:win` 打包，再 `gh release create` 上传** 的方式发布。云端工作流目前不准备 THA 形象运行时和 OpenSeeFace，打出的包会缺这两项功能，暂不用于正式发布。
+推送 `v*` 标签时，`release-windows.yml` 会在云端打 **lite** 版（`dist:lite` 的等价步骤，不含 Ollama、THA 形象运行时和 OpenSeeFace）并发布。官网分发的 **win** 版（含 THA 与摄像头面捕）云端不打，用 **本地 `npm run dist:win` 打包，再 `gh release create` 上传** 的方式发布；工作流发现 Release 已存在会跳过云端构建，不会覆盖手动上传的文件。
 
 每次发布的产物有三处，必须来自**同一次打包**：GitHub Release 上的安装包和 `latest.yml`（应用内自动更新读它），以及 `downloads` 分支上的分片（官网分片下载用）。
 
@@ -157,7 +160,7 @@ Set-ExecutionPolicy -Scope Process Bypass
 & .\.venv-pack\Scripts\Activate.ps1
 python --version                    # 必须显示 3.12.x（不是 3.13/3.14）
 
-npm run python:deps                 # 装 sidecars/open-llm-vtuber/requirements-pet.txt（含 PyInstaller）
+python -m pip install -r sidecars/open-llm-vtuber/requirements-pet.txt   # 冻结依赖（含 PyInstaller）
 
 # 指定冻结后端使用当前虚拟环境，避免误用系统 Python
 $env:AIBOT_PYTHON = (Resolve-Path ".\.venv-pack\Scripts\python.exe").Path
@@ -174,11 +177,11 @@ py -3.11 -m venv .venv-pack   # 已装官方 3.11 时
 ### 快速验证（免安装目录，不压缩）
 
 ```powershell
-npm run pack:full -- --dir    # 整合版免安装目录
-npm run pack -- --dir         # 轻量版免安装目录
+npm run dist:win -- --dir                    # 完整流程，只出免安装目录
+node tooling/package.js --profile win --dir  # 只封装现有产物，不重新组装、不冻结（最快）
 ```
 
-> `pack` / `pack:full` 只封装现有的 `out/stage/open-llm-vtuber/python`，**不会**重新冻结后端。改过后端代码后请用 `dist` / `dist:full`。
+> 直接调用 `tooling/package.js` 只封装现有的 `out/stage/*`，**不会**重新组装或冻结后端。改过后端代码后请用 `npm run dist:<profile>`。
 
 </details>
 
@@ -190,11 +193,12 @@ npm run pack -- --dir         # 轻量版免安装目录
 | 现象 | 原因 | 处理 |
 | --- | --- | --- |
 | `ENOENT ... D:\friends\package.json` | 在错误目录执行 npm | 先 `Set-Location D:\friends\any-lover`，或用 `npm --prefix "D:\friends\any-lover" run ...` |
-| `No module named PyInstaller` | 当前 Python 没装冻结依赖 | 激活 `.venv-pack` 后 `npm run python:deps` |
+| `No module named PyInstaller` | 当前 Python 没装冻结依赖 | 激活 `.venv-pack` 后 `python -m pip install -r sidecars/open-llm-vtuber/requirements-pet.txt` |
 | `python --version` 显示 `3.14.x` | 用了不支持的系统 Python | 用 3.10–3.12 建 `.venv-pack`，设 `$env:AIBOT_PYTHON` |
-| `未找到入口 ... run_server.py` | 尚未组装后端运行时 | `npm run prepare-runtime`，或直接 `npm run dist:full` |
-| `未找到内置 Ollama` | `out/downloads/ollama` 不完整 | 补齐 Ollama 程序与模型，或改打轻量版 `npm run dist` |
-| 打包成功但后端不是最新 | `pack:full` 封装了旧冻结后端 | 改用 `npm run dist:full` 重新冻结 |
+| `未找到入口 ... run_server.py` / `缺少 open-llm-vtuber 的产物` | 尚未组装后端运行时 | `node sidecars/open-llm-vtuber/scripts/stage.js`，或直接 `npm run dist:<profile>` |
+| `缺少 ollama 的产物` | `out/downloads/ollama/bin` 不存在 | `npm run setup -- --profile standard`（或 `node sidecars/ollama/scripts/fetch.js`），或改打 `dist:lite` / `dist:win` |
+| `缺少 tha 的产物` / `缺少 openseeface 的产物` | win / full 要求 THA 与 OpenSeeFace | Windows 上 `npm run setup` 获取，或改打 `dist:lite` |
+| 打包成功但后端不是最新 | 直接用 `tooling/package.js` 封装了旧冻结后端 | 改用 `npm run dist:<profile>` 重新冻结 |
 | `Error calling the chat endpoint`（含图片） | 用纯文本模型时收到了屏幕/摄像头图片 | 换成带「多模态」标记的模型（Qwen3-VL、Gemma 3 4B），或关闭摄像头/屏幕；新版会自动忽略图片重试 |
 | 模型下载中断 | 网络波动（日志里 `ECONNRESET`） | 会自动重试 3 次且断点续传；仍失败时重启应用，在启动页点「继续下载」 |
 | 麦克风/输入框点不了 | 本地模型还没下载完 | 等右上角「语言模型」进度走完，会自动解锁 |
@@ -209,22 +213,20 @@ npm run pack -- --dir         # 轻量版免安装目录
 
 <br />
 
-所有命令均在仓库根目录执行。日常优先用组合命令 `dev` / `dev:setup` / `dist` / `dist:full`。
+所有命令均在仓库根目录执行。根脚本只有四类：`setup`、`dev`、`dist:<profile>`、`check`，外加官网的 `site:*` 和诊断用的 `pack:tree`。
 
 | 命令 | 作用 |
 | --- | --- |
-| `npm run dev:setup` | 首次准备：装前端依赖 + 组装 `out/stage/open-llm-vtuber` |
-| `npm run dev` | 日常启动：准备运行时并启动 Electron（自动托管后端 / Ollama） |
-| `npm run frontend:dev` | 仅启动 `electron-vite dev`（依赖与运行时已就绪时更快） |
-| `npm run frontend:build` | 生产构建 Electron（含主窗口与设置窗口两个 renderer 入口），不打安装包 |
-| `npm run install:app` | 安装 `frontend` 依赖（含设置窗口，已并入前端） |
-| `npm run install:all` | 在 `install:app` 基础上再装 `site` 依赖 |
-| `npm run python:deps` | 用当前 Python 安装 `sidecars/open-llm-vtuber/requirements-pet.txt`（建议在 3.10–3.12 venv 中） |
-| `npm run prepare-runtime` | 从 `sidecars/open-llm-vtuber/upstream/` 组装可分发运行时到 `out/stage/open-llm-vtuber`（首次下载 SenseVoice int8 + Kokoro，约 600MB） |
-| `npm run build:backend` | PyInstaller 冻结后端到 `out/stage/open-llm-vtuber/python`（需 `prepare-runtime` + `AIBOT_PYTHON`） |
-| `npm run pack` / `pack:full` | 打**轻量版** / **整合版** 安装包（只封装现有后端），并自动切分片 |
-| `npm run dist` / `dist:full` / `dist:win` | 完整发布：`prepare-runtime` → `build:backend` → 打包 → 切分片 |
+| `npm run setup` | 新机准备：装 apps/desktop 依赖，再按平台运行各 sidecar 的获取脚本（manifest 的 `setup`）。Windows 默认按 `win` 准备，`-- --profile <name>` 按指定 profile 准备，`-- --dry-run` 只打印步骤 |
+| `npm run dev` | 日常启动：组装 `out/stage/open-llm-vtuber` 并启动 Electron（自动托管后端 / Ollama） |
+| `npm run dist:lite` / `dist:win` / `dist:standard` / `dist:full` | 完整打包：组装运行时 → 冻结后端 → 打安装包 → 切分片（只能在 Windows 上跑） |
+| `npm run check` | 全部检查：apps/desktop 的 typecheck:node、lint、check:deps、test、build，再跑 check-sidecars 和 tooling 单测 |
 | `npm run site:dev` / `site:build` | 官网本地预览 / 生产构建 |
+| `npm run pack:tree -- --out <文件>` | 列出 win-unpacked/resources 的文件和大小；`-- --compare <基线> <新>` 比对两份清单 |
+
+单独运行某一步时直接调脚本：组装 `node sidecars/<id>/scripts/stage.js`，冻结 `node sidecars/open-llm-vtuber/scripts/freeze.js`（需 `AIBOT_PYTHON`），只封装 `node tooling/package.js --profile <name> [--dir] [--print-config]`。
+
+旧命令名保留一个版本，运行时打印弃用提示：`setup:win` / `setup:mac` / `dev:setup` → `setup`；`dist` → `dist:standard`；`pack` / `pack:full` → `tooling/package.js --profile standard` / `full`；`prepare-runtime`、`prepare-tha-runtime`、`fetch-tha-models`、`fetch-openseeface`、`build:backend` 仍调用原脚本。`install:app`、`install:all`、`frontend:dev`、`frontend:build`、`python:deps` 已删除，分别改用 `npm --prefix apps/desktop install`、再加 `npm --prefix apps/website install`、`npm --prefix apps/desktop run dev` / `build`、`python -m pip install -r sidecars/open-llm-vtuber/requirements-pet.txt`。注意 `dist:full` 现在要求 THA 与 OpenSeeFace 产物齐全（原来缺了会静默跳过）。
 
 </details>
 
@@ -245,13 +247,15 @@ Any-Lover/
 ├─ sidecars/            # 主进程托管的外部进程，一个 sidecar 一个目录
 │  ├─ open-llm-vtuber/  #   上游 Open-LLM-VTuber 后端：upstream/（vendored）+ scripts/ + UPSTREAM.md（改动登记）
 │  ├─ tha/              #   EasyVTuber / THA 2D 形象渲染
-│  └─ openseeface/      #   摄像头面捕（只有获取脚本，二进制下载到 out/downloads）
+│  ├─ openseeface/      #   摄像头面捕（只有获取脚本，二进制下载到 out/downloads）
+│  └─ ollama/           #   本地推理（固定版本的获取脚本，二进制下载到 out/downloads）
+│                       #   每个 sidecar 的 manifest.json 声明端口、下载项（含 sha256）、打包资源名与过滤规则
 ├─ packages/protocol/   # IPC 与 WebSocket 契约（main / preload / renderer 共用）
-├─ tooling/             # 构建、打包、发布脚本：prepare-runtime / build-backend / package / release/ 分片
+├─ tooling/             # 构建脚本：setup / dist / package（按 profile 生成 extraResources）/ check-sidecars / lib/ 共享函数 / release/ 分片
 ├─ .github/workflows/   # 官网部署、前端 CI、Windows 发布（Release + downloads 分片分支）
 └─ out/                 # 全部产物和下载缓存（不入 Git，可删可重建）
    ├─ stage/            #   组装好的运行时：open-llm-vtuber（冻结后端 + 语音模型）、tha
-   ├─ downloads/        #   ffmpeg、Ollama、OpenSeeFace
+   ├─ downloads/        #   下载缓存：ffmpeg、Ollama、OpenSeeFace、语音模型、THA 嵌入式 Python
    ├─ pyinstaller/      #   后端冻结中间产物
    └─ release/          #   安装包与分片
 ```
@@ -259,9 +263,10 @@ Any-Lover/
 **设计要点**：Electron 主进程是「中枢」——对话引擎、记忆（向量近邻 + LLM 判定的增改删合并）、情绪、桌面感知、MCP 工具客户端（官方 TS SDK）都在主进程里；Python 后端主要负责本地语音识别 / 合成和 Live2D 表情，作为 sidecar 在 `127.0.0.1:12393` 运行。
 
 `out/stage/open-llm-vtuber/` 与 `out/downloads/` 是本机构建资源，默认不入 Git：
-- `out/stage/open-llm-vtuber/python/aibot-backend.exe` — 由 `npm run build:backend` 生成；
-- `out/downloads/ffmpeg/bin/` — 由 `node sidecars/open-llm-vtuber/scripts/fetch-ffmpeg.js` 拉取；
-- `out/downloads/ollama/bin/ollama.exe` + `out/downloads/ollama/models/` — 整合版打包所需的 Ollama 与模型。
+- `out/stage/open-llm-vtuber/python/aibot-backend.exe` — 由 `sidecars/open-llm-vtuber/scripts/freeze.js` 生成（`dist:<profile>` 会调用）；
+- `out/downloads/ffmpeg/bin/` — 由 `npm run setup`（`fetch-ffmpeg.js`）拉取；
+- `out/downloads/models/` — SenseVoice / Kokoro 语音模型缓存，stage 时硬链接进 `out/stage/open-llm-vtuber/models`；
+- `out/downloads/ollama/bin/ollama.exe` + `out/downloads/ollama/models/` — standard / full 打包所需的 Ollama 与模型，程序由 `sidecars/ollama/scripts/fetch.js` 获取。
 
 从旧目录布局升级的本机（仓库根还有 `dist-runtime/`、`dist-tha-runtime/`、`vendor/`、`build/pyinstaller/`）：把它们分别移到 `out/stage/open-llm-vtuber/`、`out/stage/tha/`、`out/downloads/`、`out/pyinstaller/` 即可继续使用，不必重新下载；`apps/desktop/release/` 可直接删除。
 

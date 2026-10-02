@@ -125,10 +125,10 @@ screen-sampler 定时截屏 → screen-gate 黑名单/去重门控
 
 ## 5. 打包要点（维护者必读）
 
-- 打包命令 `npm run dist:win`：prepare-runtime（组装 out/stage/open-llm-vtuber 后端源码）→ build:backend
-  （PyInstaller 冻结后端到 out/stage/open-llm-vtuber/python）→ prepare-tha-runtime（组装 out/stage/tha）
-  → tooling/package.js（electron-builder 出 NSIS）。
-- **改了 `sidecars/open-llm-vtuber/upstream/` 源码，必须重新 `build:backend`**，否则冻结产物仍是旧后端。
+- 打包命令 `npm run dist:<profile>`（tooling/dist.js，以 win 为例）：组装 out/stage/open-llm-vtuber 与 out/stage/tha（各自先清空）
+  → freeze.js（PyInstaller 冻结后端到 out/stage/open-llm-vtuber/python）→ tooling/package.js --profile win
+  （按 profile + manifest 生成 extraResources，electron-builder 出 NSIS）。
+- **改了 `sidecars/open-llm-vtuber/upstream/` 源码，必须重新冻结（`dist:<profile>` 会做）**，否则冻结产物仍是旧后端。
 - **改了 `sidecars/tha/runtime/` 源码（如 tha_server.py），必须重新 `prepare-tha-runtime`**
   （THA/EasyVtuber 渲染后端已归拢为可插拔集成目录，见 `sidecars/tha/README.md`）。
 - 大模型/运行时（out/downloads/、out/stage/open-llm-vtuber/、out/stage/tha/）均 gitignore，不入库；由脚本下载/组装。

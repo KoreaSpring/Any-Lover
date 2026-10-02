@@ -1,10 +1,11 @@
 name: Release (Windows)
 
-# 推送 v* 标签（如 v0.2.0）触发：构建 Windows 安装包（不含 Ollama），
+# 推送 v* 标签（如 v0.2.0）触发：按 lite profile 构建 Windows 安装包（不含 Ollama、THA、OpenSeeFace，
+# profile 定义见 apps/desktop/packaging/profiles.json），
 # 发布到 GitHub Releases，并上传 latest.yml 供应用内 electron-updater 检查更新。
 # 也可手动触发（workflow_dispatch）只构建、上传 artifact，不发 Release。
-# 注意：目前云端不准备 THA 形象运行时与 OpenSeeFace，产物会回退 Live2D、没有摄像头视线跟随；
-# 补齐前请在本地 `npm run dist:win` 后用 gh release create 手动发布（见下方 check 作业）。
+# CI 发布的是 lite：产物回退 Live2D、没有摄像头视线跟随（D8 的结论）。含 THA 的 win 版请在本地
+# `npm run dist:win` 后用 gh release create 手动发布（见下方 check 作业，Release 已存在时跳过云端构建）。
 on:
   push:
     tags: ['v*']
@@ -103,8 +104,9 @@ jobs:
         working-directory: apps/desktop
         run: npm test
 
-      - name: Package (NSIS, no Ollama)
-        run: node tooling/package.js --no-ollama
+      # 与 npm run dist:lite 等价（拆开是为了在冻结后、打包前跑单测）；lite 缺 runtime 产物会直接失败
+      - name: Package (NSIS, profile lite)
+        run: node tooling/package.js --profile lite
 
       - name: Collect artifacts
         id: art

@@ -832,5 +832,5 @@ ANYLOVER_FFMPEG_DIR 这类由主进程注入给 sidecar 的变量，两端会一
 | 只有 ffmpeg 下载做了 SHA-256 校验 | 部分修复（P2 任务 15、16）：嵌入式 Python、Ollama 已校验；SenseVoice、Kokoro、THA 模型包、OpenSeeFace、get-pip 官方未公布校验和，manifest 留空，check-sidecars 以警告列出 |
 | 主窗口标题仍为 Open-LLM-Vtuber | 未修，可随时单独改 |
 | `@motionsync` 别名指向不存在的 `src/renderer/MotionSync` | 未修，P4 任务 26 |
-| CI 发布物不含 THA，README 却说发布的是 dist:win | 未修，取决于 D8 |
+| CI 发布物不含 THA，README 却说发布的是 dist:win | 已修（P2 任务 18，D8）：CI 发布 lite，README 与 release-windows.yml 已如实描述 |
 | 上游预构建前端 `backend/frontend` 被打包两份 | 未修，P5 |

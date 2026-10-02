@@ -38,13 +38,14 @@ sidecars/tha/
 
 ## 构建与模型
 
-- **组装运行时**：`npm run prepare-tha-runtime`（= `node sidecars/tha/scripts/stage.js`）。
-  从 `runtime/` 复制源码 + 下载 Windows 嵌入式 Python → `out/stage/tha/`。依赖
+- **组装运行时**：`node sidecars/tha/scripts/stage.js`（先清空 `out/stage/tha`）。
+  从 `runtime/` 复制源码 + 嵌入式 Python（缓存在 `out/downloads/tha-python/<版本>/`，sha256 见 `manifest.json`）→ `out/stage/tha/`。依赖
   （onnxruntime-directml / rembg / opencv 等，数百 MB）**不随包**，由 tha-manager 首次运行时
   用嵌入式 Python `pip install -r requirements.txt` 装入运行目录。
-- **拉取模型**：`npm run fetch-tha-models`（从 ezvtuber-rt release 下载整包，重排到
+- **拉取模型**：`node sidecars/tha/scripts/fetch-models.js`，Windows 上 `npm run setup` 会调用（从 ezvtuber-rt release 下载整包，重排到
   `runtime/data/models/`）。模型体积大、不入库。
-- **Windows 打包**：`npm run dist:win` 会在 `pack` 前跑 `prepare-tha-runtime`。Mac 不含 THA。
+- **Windows 打包**：`npm run dist:win` / `dist:full` 会先组装 THA（profile 要求 THA，缺产物即失败）；`dist:standard` 不组装，已有 `out/stage/tha` 就带上。Mac 不含 THA。
+- **端口**：默认 12395 写在 `manifest.json`，`ANYLOVER_THA_PORT` 可覆盖；renderer 经 IPC `tha:wsUrl` 取实际地址。
 
 ## 来源与授权
 
