@@ -108,10 +108,10 @@ screen-sampler 定时截屏 → screen-gate 黑名单/去重门控
 
 | 目录/文件 | 职责 |
 | --- | --- |
-| `index.ts`（根） | **唯一入口**：单例锁 → 日志 → `app/container` 创建服务 → `app/lifecycle` 注册 IPC 与生命周期（P3 合并了原 bootstrap.ts） |
+| `index.ts`（根） | **唯一入口**：单例锁 → 日志 → `app/container` 创建服务 → `app/lifecycle` 调用 ipc/ 注册 IPC、编排生命周期（P3 合并了原 bootstrap.ts） |
 | `app/` | 组合根与生命周期：container / lifecycle / first-run / startup，以及上游窗口外壳 window-shell（原 index.ts） |
 | `sidecars/` | 外部进程宿主适配器，按 sidecar 分子目录：`ollama/`（manager、installer、model-recommender、helper-models）、`tha/`（manager、model-installer、policy、resource）、`openseeface/`（manager、protocol）、`open-llm-vtuber/`（open-llm-vtuber-manager）；根目录是**插件契约层**（`sidecar-plugin.ts` SidecarPlugin、`sidecar-registry.ts` SidecarRegistry），各子目录的 `*-plugin.ts` 薄适配器统一退出清理 |
-| `ipc/` | IPC 注册汇总：aibot-ipc（设置/Ollama/LLM 测试）/ tha-ipc（立绘/模型/下载） |
+| `ipc/` | IPC 控制器，每域一个 registerXxxIpc：agent-ipc（agent.*）/ app-ipc（更新、设置窗、首启判断）/ settings-ipc（设置/Ollama/LLM 测试）/ tha-ipc（立绘/模型/下载）/ window-ipc（窗口） |
 | `window/` | 窗口层：window-manager（pet/window 模式）/ settings-window / menu-manager |
 | `core/` | 基础设施：settings-store（设置持久化+API Key 加密）/ gpu-fix |
 | `agent/` | **Agent 中枢**（五层，见该目录 README） |

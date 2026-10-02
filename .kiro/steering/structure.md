@@ -35,7 +35,7 @@ apps/desktop/src/
 │  ├─ menu-manager.ts      系统托盘与右键菜单
 │  ├─ settings-window.ts   独立设置窗口（加载第二 renderer 入口 settings.html）
 │  ├─ settings-store.ts    大模型 / Ollama 配置持久化，API Key 加密
-│  ├─ aibot-ipc.ts         设置窗口相关 IPC 注册
+│  ├─ ipc/                 IPC 控制器：agent / app / settings（设置窗口）/ tha / window，各导出 registerXxxIpc
 │  └─ gpu-fix.ts           GPU 兼容性副作用修复
 ├─ preload/
 │  ├─ index.ts             主窗口 preload，暴露 window.api

@@ -11,10 +11,10 @@ Electron 主进程：应用大脑。管理所有 sidecar（Python 后端 / Ollam
 | `index.ts` | **electron-vite main 唯一入口**（P3 合并了原 bootstrap.ts 与 index.ts）：单例锁 → 日志 → `createContainer()` → `registerLifecycle()`，最后导入窗口外壳 |
 | `app/logger.ts` | electron-log 初始化 + 历史代码沿用的 `logToFile(line)` 回调 |
 | `app/container.ts` | 组合根：创建全部 sidecar 与 agent 组件并接线，返回服务表；不注册 IPC、不挂生命周期 |
-| `app/lifecycle.ts` | whenReady：注册 IPC、启动后台服务、决定首启流程；退出：before-quit / will-quit / 信号时清理全部子进程 |
+| `app/lifecycle.ts` | whenReady：按原顺序调用 `ipc/*-ipc.ts` 的 registerXxxIpc、启动常驻服务（记忆桥、情绪、关系等的 `start()`）、决定首启流程；本身不含 IPC handler；退出：before-quit / will-quit / 信号时清理全部子进程 |
 | `app/first-run.ts` | 首启默认配置、旧配置迁移、启动前的配置可用性判断 |
 | `app/startup.ts` | 启动后端与模型准备：Ollama serve、主模型就绪检查；辅助模型队列调用 `sidecars/ollama/helper-models.ts` |
-| `app/window-shell.ts` | 上游窗口外壳（原 index.ts）：窗口 / 托盘 / 菜单 / 截屏 IPC、second-instance |
+| `app/window-shell.ts` | 上游窗口外壳（原 index.ts）：创建窗口 / 托盘 / 菜单、调用 `registerWindowIpc`、second-instance |
 
 **执行顺序**：ESM 导入先于入口正文求值，所以 `platform/gpu-fix`（命令行开关）和 `app/window-shell`（它的 whenReady 先注册、先创建窗口）都在 `createContainer()` 之前生效。lifecycle 的 whenReady 后注册、后执行，THA 可见性绑定因此用 `browser-window-created` 兜底。改动入口时保持这个顺序。
 
@@ -49,11 +49,17 @@ Electron 主进程：应用大脑。管理所有 sidecar（Python 后端 / Ollam
    感知源走 IPC 开关），registry 统一的是**退出清理**：`app/lifecycle.ts` 的 before-quit（`stopAll`）和 cleanupAll（`killAll`）
    只经 registry 处理 sidecar。启动不走 `startAll`——统一启动会改变各 sidecar 的启动时机。见 `docs/roadmap/sidecar-plugin-architecture.md`。
 
-## ipc/ — IPC 注册汇总
+## ipc/ — IPC 控制器（每个域一个文件）
+每个文件导出 `registerXxxIpc(deps)`，只做入参处理再转调服务。agent、sidecars、platform 不得直接 import `ipcMain`（ESLint `no-restricted-imports`）；window/ 的 window-manager、menu-manager 仍各自注册少量与实例绑定的通道（5 个），未迁。
+
 | 文件 | 职责 |
 | --- | --- |
-| `aibot-ipc.ts` | 设置读写、LLM 连接测试、Ollama 检测/下载、启动桌宠等 IPC 汇总 |
+| `agent-ipc.ts` | agent.* 通道（18 个）：摄像头 / 桌面观察开关、记忆、中枢对话、LLM 探测与直连、感知上报、主动搭话、关系画像、情绪识别 |
+| `app-ipc.ts` | 检查更新、打开设置窗、首帧同步的「是否需要首启引导」 |
+| `settings-ipc.ts` | 设置读写、LLM 连接测试、Ollama 检测/下载、启动桌宠等（原 aibot-ipc） |
 | `tha-ipc.ts` | THA 相关 IPC：立绘选图、模型状态、高画质下载、进度广播 |
+| `window-ipc.ts` | 窗口相关 11 个通道：平台、鼠标穿透、模式、最小化/最大化/关闭、组件悬停、配置列表、屏幕源（原 window-shell 的 setupIPC） |
+| `ipc-contract.test.ts` | 契约测试：全部 registerXxxIpc 注册的通道集合 = 拆分前的 50 个，无重复 |
 
 ## window/ — 窗口 / 设置窗 / 菜单
 | 文件 | 职责 |

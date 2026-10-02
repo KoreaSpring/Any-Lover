@@ -81,11 +81,11 @@
 
 ## P3 主进程模块化
 
-- [ ] 19. 用 `platform/paths.ts` 统一管理路径；拆出 `app/container`、`lifecycle`、`first-run`；入口合并为 `index.ts`
+- [x] 19. 用 `platform/paths.ts` 统一管理路径；拆出 `app/container`、`lifecycle`、`first-run`；入口合并为 `index.ts`
   - 进度（分支 `refactor/p3-main-modular`）：`core/` 已改名 `platform/`；`platform/paths.ts` 已接管 5 个随包资源和窗口图标的路径（附单测），顺带修复开发态 mcp_servers.json 读错目录（附录 B）。剩下的 `isPackaged` 只用于日志级别、自动更新、THA 是否复制到可写目录，属于行为分支，不是路径
   - 拆分：bootstrap.ts（873 行）按行段原样搬到 app/logger、app/container（组合根）、app/first-run、app/startup（启动后端 + 辅助模型队列）、app/lifecycle（whenReady 与退出清理）、sidecar/tha-policy；原 index.ts 改名 app/window-shell.ts；新 index.ts 只剩 27 行。执行顺序不变：比对构建产物，gpu-fix → window-shell 的 whenReady → 单例锁 → 日志 → 创建服务 → 注册生命周期，与拆分前一致
   - 验证：五项检查通过；macOS 上 `npm run dev` 冒烟：窗口和图标正常，首启引导、Ollama serve 正常，退出时日志打印 `[shutdown] cleanup done`，无残留 ollama 进程
-  - 未完成：lifecycle.ts 仍有 508 行，其中 21 个内联 IPC handler 按计划在任务 22 拆进 ipc/*-ipc.ts；辅助模型队列在任务 20 移到 ollama 目录；Windows 上的完整回归（THA 延迟卸载、摄像头、打包态）待做
+  - 后续：当时留下的事项已在后续任务完成，辅助模型队列在任务 20 移到 ollama 目录，lifecycle 的 21 个内联 IPC handler 在任务 22 拆进 ipc/*-ipc.ts。Windows 上的完整回归（THA 延迟卸载、摄像头、打包态）仍未做，与 20–22 一起待做
 - [x] 20. 按 sidecar 拆目录，顺序为 ollama、tha、openseeface、open-llm-vtuber，每个一个提交
   - 结果：`main/sidecar/` 改为 `main/sidecars/`，契约与注册表改名 `sidecar-plugin.ts`、`sidecar-registry.ts` 放根目录；ollama、tha、openseeface、open-llm-vtuber 各一个子目录、各一个提交，`plugins/` 下的适配器归入各自子目录。辅助模型队列从 app/startup 原样搬到 `sidecars/ollama/helper-models.ts`（工厂注入 OllamaManager 和进度广播）；agent/render/tha-resource、agent/perception/openseeface-protocol（含测试）移入对应 sidecar；`backend-manager.ts` 改名 `open-llm-vtuber-manager.ts`，类名仍为 BackendManager；screen-sampler 单独一个提交移到 `agent/perception/screen/`。只改 import 路径和注释，不改逻辑、IPC 通道名、wire 协议和 resource 名
   - baseline：screen-sampler 原本就 import electron，移进 agent/ 后命中 agent-not-to-electron，baseline 12 → 13，由任务 21 去掉；其余移动没有新增违规
@@ -97,7 +97,12 @@
   - baseline：13 → 7，agent-not-to-electron 清零；剩下 7 条是渲染层循环依赖，留给 P4
   - 未完成：agent 里仍有 6 个文件直接调用 `platform/settings-store` 的 `readSettings`（provider-factory、dialogue-engine、proactive-engine、emotion-source、llm-memory-judge、profile-store），改成经 ports 读设置要改动多个构造函数，没在本任务做。和原来有一处差别：手动编辑 settings.json（不经 settings-store）后，provider 要到下一次写入或重启才会更新，原来是在下一次 IPC 调用时更新
   - 验证：每个提交都跑过 typecheck:node、lint、check:deps、test（115 通过 / 2 跳过）、build。macOS 上 `npm run dev` 冒烟：窗口创建、`[llm] provider 就绪`、Ollama serve 正常，退出时日志有 `[shutdown] cleanup done`，没有残留 ollama 进程。本机 Python 后端因为缺少 loguru 起不来，这是环境问题，和本任务无关。Windows 回归没做
-- [ ] 22. IPC 控制器按域拆分；main 部分的 dependency-cruiser baseline 清零
+- [x] 22. IPC 控制器按域拆分；main 部分的 dependency-cruiser baseline 清零
+  - 结果：ipc/ 每个域一个文件，各导出 `registerXxxIpc(deps)`。`aibot-ipc.ts` 先纯改名为 `settings-ipc.ts`，下一个提交把函数改名 `registerSettingsIpc`；window-shell 的 setupIPC（11 个通道）搬到 `window-ipc.ts`；lifecycle 的 21 个内联 handler 搬到 `agent-ipc.ts`（agent.* 18 个）和 `app-ipc.ts`（检查更新、打开设置窗、onboarding.needSync）。handler 正文和通道名都没改。lifecycle 只按原顺序调用 registerXxxIpc，`scheduleStartupCheck`、`screenMemoryBridge.start()`、`setToolBridge`、`keepProvidersInSync`、情绪与关系的 `start()` 都留在 lifecycle，相对顺序不变。lifecycle.ts 从 506 行减到 240 行。中枢对话里重复的 dialogueBroadcast 单独一个提交改用 `window/broadcast` 的 `broadcastToWindows`
+  - 契约测试：新增 `ipc/ipc-contract.test.ts`，mock electron 后调用全部 registerXxxIpc，断言注册集合等于拆分前从源码统计、写死在测试里的 50 个通道，并且没有重复注册
+  - baseline：仍为 7 条，都是渲染层循环依赖，main 部分为 0。方案 §5.2 的「ipc/ 以外不得 import ipcMain」没加进 dependency-cruiser，因为它只能按模块判断，分不出具名导入，而 agent 以外的 sidecars、platform 仍要用 electron 的 app 等。这条改用 ESLint `no-restricted-imports` 实现，范围是 agent、sidecars、platform，现有代码无违规。window/ 的 window-manager、menu-manager 仍各自注册 5 个与实例绑定的通道，没有迁，也不在这条规则内
+  - 未完成：window-manager、menu-manager 的 5 个通道；tha-ipc 里的 broadcastThaProgress 也和 broadcastToWindows 等价，没在本任务改
+  - 验证：每个提交都跑过 typecheck:node、lint、check:deps、test（118 通过 / 2 跳过）、build。macOS 上 `npm run dev` 冒烟：窗口创建、`[llm] provider 就绪`、Ollama serve 正常，日志没有 "No handler registered" 或报错，退出时日志有 `[shutdown] cleanup done`，没有残留 ollama 进程。本机 Python 后端缺少 loguru 起不来，是环境问题。Windows 回归没做
 
 ## P4 渲染层与 preload（需确认 D2、D3）
 
