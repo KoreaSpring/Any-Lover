@@ -7,10 +7,10 @@
 //
 //   THA 表情名（tha_server EMOTION_POSES）：neutral/happy/sad/angry 等。
 
-import { BrowserWindow } from 'electron';
 import { eventBus, EventBus, Unsubscribe } from '../event-bus';
 import { EmotionState } from './emotion-state';
 import { IPC } from '@proto/ipc';
+import type { WindowBroadcast } from '../ports';
 
 /** 单一事实源见 proto/ipc.ts；此处 re-export 保持既有消费方 import 不变。 */
 export const IPC_EXPRESS_EMOTION = IPC.agent.expressEmotion;
@@ -40,8 +40,16 @@ export class EmotionExpressionBridge {
 
   private lastName = 'neutral';
 
-  constructor(state: EmotionState, logger?: (msg: string) => void, bus: EventBus = eventBus) {
+  private readonly toWindows: WindowBroadcast;
+
+  constructor(
+    state: EmotionState,
+    toWindows: WindowBroadcast,
+    logger?: (msg: string) => void,
+    bus: EventBus = eventBus,
+  ) {
     this.state = state;
+    this.toWindows = toWindows;
     this.log = logger || (() => {});
     this.bus = bus;
   }
@@ -68,9 +76,7 @@ export class EmotionExpressionBridge {
     this.lastAt = now;
     this.lastName = name;
     this.bus.emit({ kind: 'express.emotion', ts: now, name });
-    for (const w of BrowserWindow.getAllWindows()) {
-      if (!w.isDestroyed()) w.webContents.send(IPC_EXPRESS_EMOTION, { name });
-    }
+    this.toWindows(IPC_EXPRESS_EMOTION, { name });
     this.log(`[empathy] 用户情绪 ${cur.label} → 桌宠共情表情 ${name}`);
   }
 }

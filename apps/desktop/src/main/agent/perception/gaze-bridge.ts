@@ -7,10 +7,10 @@
 //
 // 与感知源、渲染层解耦：Manager 只产 perception.gaze，本桥做规则化+分发，renderer 只消费。
 
-import { BrowserWindow } from 'electron';
 import { eventBus, EventBus, Unsubscribe } from '../event-bus';
 import { GazePipeline, GazePipelineConfig } from './gaze-pipeline';
 import { IPC } from '@proto/ipc';
+import type { WindowBroadcast } from '../ports';
 
 /** 广播给 renderer 的 IPC 通道名（renderer 侧订阅此通道驱动 THA 方向级 gaze）。
  *  单一事实源见 proto/ipc.ts；此处 re-export 保持既有消费方 import 不变。 */
@@ -25,7 +25,15 @@ export class GazeBridge {
 
   private readonly log: (msg: string) => void;
 
-  constructor(logger?: (msg: string) => void, bus: EventBus = eventBus, config?: Partial<GazePipelineConfig>) {
+  private readonly toWindows: WindowBroadcast;
+
+  constructor(
+    toWindows: WindowBroadcast,
+    logger?: (msg: string) => void,
+    bus: EventBus = eventBus,
+    config?: Partial<GazePipelineConfig>,
+  ) {
+    this.toWindows = toWindows;
     this.bus = bus;
     this.pipeline = new GazePipeline(config);
     this.log = logger || (() => {});
@@ -65,8 +73,6 @@ export class GazeBridge {
   }
 
   private broadcast(yaw: number, pitch: number, blink?: [number, number]): void {
-    for (const w of BrowserWindow.getAllWindows()) {
-      if (!w.isDestroyed()) w.webContents.send(IPC_EXPRESS_GAZE, { yaw, pitch, blink });
-    }
+    this.toWindows(IPC_EXPRESS_GAZE, { yaw, pitch, blink });
   }
 }

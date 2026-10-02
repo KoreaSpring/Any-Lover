@@ -1,7 +1,5 @@
 // 组合根：创建主进程的全部服务并接线。只负责组装，不注册 IPC、不挂生命周期事件。
 // 正文原样搬自 bootstrap.ts；创建顺序即原顺序（部分构造函数和 setXxx 有副作用，例如订阅事件总线）。
-import path from 'node:path';
-import { app, BrowserWindow } from 'electron';
 import { BackendManager } from '../sidecars/open-llm-vtuber/open-llm-vtuber-manager';
 import { ThaManager } from '../sidecars/tha/tha-manager';
 import { OpenSeeFaceManager } from '../sidecars/openseeface/openseeface-manager';
@@ -27,7 +25,9 @@ import { McpHub } from '../agent/tools/mcp-hub';
 import { DialogueEngine } from '../agent/dialogue/dialogue-engine';
 import { DialogueHistoryStore } from '../agent/dialogue/dialogue-history';
 import { OllamaManager } from '../sidecars/ollama/ollama-manager';
-import { mcpServersConfigPath } from '../platform/paths';
+import { agentMemoryDir, mcpServersConfigPath } from '../platform/paths';
+import { electronScreenCapturer } from '../platform/screen-capturer';
+import { broadcastToWindows } from '../window/broadcast';
 import { SidecarRegistry } from '../sidecars/sidecar-registry';
 import { BackendPlugin } from '../sidecars/open-llm-vtuber/backend-plugin';
 import { OllamaPlugin } from '../sidecars/ollama/ollama-plugin';
@@ -36,6 +36,8 @@ import { IPC } from '@proto/ipc';
 import { logToFile } from './logger';
 
 export function createContainer() {
+  // agent 的存储目录由这里注入（agent 不 import electron，见 agent/ports.ts）。
+  const memoryDir = agentMemoryDir();
   const backend = new BackendManager(logToFile);
   const ollama = new OllamaManager(logToFile);
   // THA 渲染后端（仅 Windows）。开发态指向仓库外 EasyVtuber，见 tha-manager.ts。
@@ -45,10 +47,10 @@ export function createContainer() {
   // 由 agent:camera IPC 显式启停，见 docs/roadmap/agent-core-and-camera.md）。
   eventBus.setLogSink(logToFile);
   const openSeeFace = new OpenSeeFaceManager(logToFile);
-  const gazeBridge = new GazeBridge(logToFile);
+  const gazeBridge = new GazeBridge(broadcastToWindows, logToFile);
   // 桌面采样源（默认关，由 agent:screen IPC 显式启停）。P1 只做采样+门控骨架，
   // 命中发 perception.screen 占位事件；本地 VLM 摘要在后续步骤接入。
-  const screenSampler = new ScreenSampler(logToFile);
+  const screenSampler = new ScreenSampler(electronScreenCapturer, logToFile);
 
   // Sidecar 注册表（见 docs/roadmap/sidecar-plugin-architecture.md）：统一各 sidecar 的退出清理。
   // 说明：启动仍由各自编排（backend 走 startBackend、tha 走资源协调器、openSeeFace 走 agent:camera IPC），
@@ -61,7 +63,7 @@ export function createContainer() {
 
   // 屏幕记忆：本地存储 + 桥（订阅 perception.screen 写入记忆）。桥常驻订阅，与采样开关解耦
   // （采样关则无 perception.screen 事件，桥自然不写入）。
-  const memoryStore = new MemoryStore('screen-memory.jsonl', logToFile);
+  const memoryStore = new MemoryStore(memoryDir, 'screen-memory.jsonl', logToFile);
   const screenMemoryBridge = new ScreenMemoryBridge(memoryStore, logToFile);
   // 本地 embedding（走本地 Ollama nomic-embed-text，不上云）：注入后启用记忆语义检索；
   // Ollama/模型不可用时 MemoryStore 自动回退关键词检索。
@@ -84,23 +86,19 @@ export function createContainer() {
   // 主动搭话引擎（决策层，默认关，由 agent:proactive IPC 启停）：非对话+空闲+有新观察时，
   // 基于屏幕记忆生成一句主动关心，经 IPC 广播到 renderer 显示（不接管 Python 后端对话链路）。
   const proactiveEngine = new ProactiveEngine(memoryStore, llmProviderRegistry, logToFile);
-  proactiveEngine.setDeliver((text: string) => {
-    for (const w of BrowserWindow.getAllWindows()) {
-      if (!w.isDestroyed()) w.webContents.send(IPC.agent.proactiveSay, { text });
-    }
-  });
+  proactiveEngine.setDeliver((text: string) => broadcastToWindows(IPC.agent.proactiveSay, { text }));
 
   // 情绪融合共情（文字路，第一步）：EmotionState 聚合 + Bridge 共情表情常驻订阅；
   // EmotionSource（调 LLM 判情绪）由 agent:emotion 开关控制。情绪注入主动搭话语气。
   const emotionState = new EmotionState();
   const emotionSource = new EmotionSource(llmProviderRegistry, logToFile);
-  const emotionExpressionBridge = new EmotionExpressionBridge(emotionState, logToFile);
+  const emotionExpressionBridge = new EmotionExpressionBridge(emotionState, broadcastToWindows, logToFile);
   proactiveEngine.setEmotionState(emotionState);
 
   // 关系演进 + 用户画像（四层记忆第2/3层）：关系状态纯本地常驻累积；画像由 LLM 低频提炼。
   // 都注入主动搭话，让桌宠「记得你是谁、关系什么温度」。
-  const relationshipState = new RelationshipState(logToFile);
-  const profileStore = new ProfileStore(logToFile);
+  const relationshipState = new RelationshipState(memoryDir, logToFile);
+  const profileStore = new ProfileStore(memoryDir, logToFile);
   const profileExtractor = new ProfileExtractor(profileStore, memoryStore, llmProviderRegistry, logToFile);
   // 记忆写入走 mem0 式语义合并：本地 embedding 找近邻，中等相似度交 LLM 判 ADD/UPDATE/DELETE/NOOP。
   screenMemoryBridge.setConsolidation(embeddingClient, new LlmMemoryJudge(llmProviderRegistry, logToFile));
@@ -124,7 +122,7 @@ export function createContainer() {
   );
   // 中枢会话历史落盘（阶段 1 / A1）：持久化到 userData/memory，重启后仍有上下文。
   const dialogueHistory = new DialogueHistoryStore(
-    path.join(app.getPath('userData'), 'memory'),
+    memoryDir,
     20,
     'dialogue-history.jsonl',
     logToFile,

@@ -10,7 +10,6 @@
 
 import fs from 'fs';
 import path from 'path';
-import { app } from 'electron';
 import { LocalEmbeddingClient, cosineSimilarity } from './embedding-client';
 import { recencyWeight } from './memory-time';
 
@@ -62,13 +61,16 @@ export class MemoryStore {
   private flushTimer: ReturnType<typeof setTimeout> | null = null;
 
   private readonly fileName: string;
+  private readonly memoryDir: string;
 
   private readonly log: (msg: string) => void;
 
   /** 可选本地 embedding 客户端（注入后启用语义检索；不注入/不可用则回退关键词）。 */
   private embedder: LocalEmbeddingClient | null = null;
 
-  constructor(fileName = 'screen-memory.jsonl', logger?: (msg: string) => void, capacity = DEFAULT_CAPACITY) {
+  /** memoryDir：记忆目录（userData/memory），由组合根注入，agent 不直接问 Electron 要路径。 */
+  constructor(memoryDir: string, fileName = 'screen-memory.jsonl', logger?: (msg: string) => void, capacity = DEFAULT_CAPACITY) {
+    this.memoryDir = memoryDir;
     this.fileName = fileName;
     this.log = logger || (() => {});
     this.capacity = capacity;
@@ -80,7 +82,7 @@ export class MemoryStore {
   }
 
   private dir(): string {
-    return path.join(app.getPath('userData'), 'memory');
+    return this.memoryDir;
   }
 
   private filePath(): string {

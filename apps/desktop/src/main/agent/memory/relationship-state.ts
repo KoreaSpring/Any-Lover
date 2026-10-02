@@ -10,7 +10,6 @@
 
 import fs from 'fs';
 import path from 'path';
-import { app } from 'electron';
 import { eventBus, EventBus, Unsubscribe } from '../event-bus';
 
 export interface RelationshipData {
@@ -49,7 +48,11 @@ export class RelationshipState {
 
   private readonly log: (msg: string) => void;
 
-  constructor(logger?: (msg: string) => void, bus: EventBus = eventBus) {
+  private readonly memoryDir: string;
+
+  /** memoryDir：记忆目录（userData/memory），由组合根注入。 */
+  constructor(memoryDir: string, logger?: (msg: string) => void, bus: EventBus = eventBus) {
+    this.memoryDir = memoryDir;
     this.log = logger || (() => {});
     this.bus = bus;
     this.data = this.blank();
@@ -68,7 +71,7 @@ export class RelationshipState {
   }
 
   private dir(): string {
-    return path.join(app.getPath('userData'), 'memory');
+    return this.memoryDir;
   }
   private filePath(): string {
     return path.join(this.dir(), 'relationship.json');

@@ -90,3 +90,8 @@ export function windowIconPath(): string | undefined {
 export function mcpServersConfigPath(): string {
   return path.join(bundledDir(BUNDLED.backendRuntime), 'mcp_servers.json');
 }
+
+/** Agent 记忆目录（记忆、画像、关系、会话历史），注入给 agent/memory 与 dialogue-history。 */
+export function agentMemoryDir(): string {
+  return path.join(app.getPath('userData'), 'memory');
+}

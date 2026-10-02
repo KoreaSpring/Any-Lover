@@ -1,7 +1,8 @@
 // 桌面采样源（主进程）：定期截屏 → 门控/去重 → emit perception.screen 事件。
 //
 // 设计（见 docs/roadmap/screen-sampling-and-resource.md §4，P1 阶段）：
-//   - 不是 sidecar（无子进程）：主进程内用 desktopCapturer 直接截屏。
+//   - 不是 sidecar（无子进程）：主进程内截屏，截屏源经 ports.ScreenCapturer 注入
+//     （Electron desktopCapturer 实现在 platform/screen-capturer.ts）。
 //   - 定时 + 帧变化触发（哈希去重）：画面基本没变则不重复记。
 //   - 隐私门控：窗口标题/应用名黑名单命中则跳过；默认关闭，需显式开启。
 //   - P1 不接 VLM：命中后 emit perception.screen 携带「占位摘要」，验证采样节流/门控/隐私骨架；
@@ -10,8 +11,8 @@
 // 隐私是第一位：默认关、可一键停、只在开启时采集。截图仅在内存内做哈希/门控，
 // P1 不落任何图像、不出机。
 
-import { desktopCapturer } from 'electron';
 import { eventBus, EventBus } from '../../event-bus';
+import type { ScreenCapturer } from '../../ports';
 import { isBlocked, perceptualHash, isNearDuplicate, DEFAULT_BLOCKLIST } from '../screen-gate';
 import type { ResourceCoordinator } from '../../resource-coordinator';
 import type { VlmClient } from '../../vlm/vlm-client';
@@ -55,7 +56,15 @@ export class ScreenSampler {
 
   private vlm: VlmClient | null = null;
 
-  constructor(logger?: (msg: string) => void, bus: EventBus = eventBus, config: Partial<ScreenSamplerConfig> = {}) {
+  private readonly capturer: ScreenCapturer;
+
+  constructor(
+    capturer: ScreenCapturer,
+    logger?: (msg: string) => void,
+    bus: EventBus = eventBus,
+    config: Partial<ScreenSamplerConfig> = {},
+  ) {
+    this.capturer = capturer;
     this.log = logger || (() => {});
     this.bus = bus;
     this.config = { ...DEFAULT_CONFIG, ...config };
@@ -109,18 +118,11 @@ export class ScreenSampler {
       }
 
       // 2) 截屏（缩略图，仅用于哈希/门控；P1 不落图、不做视觉理解）。
-      const sources = await desktopCapturer.getSources({
-        types: ['screen'],
-        thumbnailSize: { width: this.config.thumbWidth, height: this.config.thumbHeight },
-      });
-      if (!sources.length) return;
-      const thumb = sources[0].thumbnail;
-      if (!thumb || thumb.isEmpty()) return;
-      const size = thumb.getSize();
-      const rgba = thumb.toBitmap(); // BGRA/RGBA 顺序对亮度哈希影响可忽略
+      const frame = await this.capturer.captureBitmap(this.config.thumbWidth, this.config.thumbHeight);
+      if (!frame) return;
 
       // 3) 去重：与上一帧差异过小则跳过。
-      const hash = perceptualHash(rgba, size.width, size.height);
+      const hash = perceptualHash(frame.rgba, frame.width, frame.height);
       if (this.lastHash && isNearDuplicate(this.lastHash, hash, this.config.dedupThreshold)) {
         return;
       }
@@ -152,13 +154,8 @@ export class ScreenSampler {
         return placeholder;
       }
       // 截一张中等尺寸图给 VLM（比哈希用的缩略图大，但不必全尺，省 token/显存）。
-      const sources = await desktopCapturer.getSources({
-        types: ['screen'],
-        thumbnailSize: { width: 640, height: 360 },
-      });
-      const thumb = sources[0]?.thumbnail;
-      if (!thumb || thumb.isEmpty()) return placeholder;
-      const b64 = thumb.toPNG().toString('base64');
+      const b64 = await this.capturer.capturePngBase64(640, 360);
+      if (!b64) return placeholder;
       const res = await this.vlm.summarize(b64);
       return res && res.summary ? res : placeholder;
     } catch (e) {
@@ -177,12 +174,9 @@ export class ScreenSampler {
   /** 扫描可见窗口标题，返回第一个命中黑名单的标题（无则 null）。 */
   private async findBlockedWindow(): Promise<string | null> {
     try {
-      const windows = await desktopCapturer.getSources({
-        types: ['window'],
-        thumbnailSize: { width: 0, height: 0 }, // 不要缩略图，只要标题，省开销
-      });
-      for (const w of windows) {
-        if (isBlocked(w.name, this.config.blocklist)) return w.name;
+      const titles = await this.capturer.listWindowTitles();
+      for (const title of titles) {
+        if (isBlocked(title, this.config.blocklist)) return title;
       }
     } catch {
       /* 拿不到窗口列表时不阻断采样（但也不误判为命中） */

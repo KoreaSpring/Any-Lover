@@ -8,7 +8,6 @@
 
 import fs from 'fs';
 import path from 'path';
-import { app } from 'electron';
 import { MemoryStore } from './memory-store';
 import { LLMProviderRegistry } from '../llm/llm-provider';
 import { readSettings } from '../../platform/settings-store';
@@ -27,12 +26,16 @@ export class ProfileStore {
 
   private readonly log: (msg: string) => void;
 
-  constructor(logger?: (msg: string) => void) {
+  private readonly memoryDir: string;
+
+  /** memoryDir：记忆目录（userData/memory），由组合根注入。 */
+  constructor(memoryDir: string, logger?: (msg: string) => void) {
+    this.memoryDir = memoryDir;
     this.log = logger || (() => {});
   }
 
   private dir(): string {
-    return path.join(app.getPath('userData'), 'memory');
+    return this.memoryDir;
   }
   private filePath(): string {
     return path.join(this.dir(), 'profile.json');
