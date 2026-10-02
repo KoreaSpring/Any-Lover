@@ -46,7 +46,8 @@ Electron 主进程：应用大脑。管理所有 sidecar（Python 后端 / Ollam
    否则在同目录写个薄适配器 `<id>-plugin.ts` `implements SidecarPlugin`，委托 manager 方法。
 3. 在 `app/container.ts` 里 `sidecars.register(new XxxPlugin(mgr))`——退出清理即自动纳入，无需再手写 killAll/stop。
 4. 启动按需接线（多数 sidecar 启动各有编排约束：backend 走 startBackend、tha 走资源协调器、
-   感知源走 IPC 开关），registry 目前统一的是**退出清理**，不强制统一启动。见 `docs/roadmap/sidecar-plugin-architecture.md`。
+   感知源走 IPC 开关），registry 统一的是**退出清理**：`app/lifecycle.ts` 的 before-quit（`stopAll`）和 cleanupAll（`killAll`）
+   只经 registry 处理 sidecar。启动不走 `startAll`——统一启动会改变各 sidecar 的启动时机。见 `docs/roadmap/sidecar-plugin-architecture.md`。
 
 ## ipc/ — IPC 注册汇总
 | 文件 | 职责 |
@@ -60,13 +61,15 @@ Electron 主进程：应用大脑。管理所有 sidecar（Python 后端 / Ollam
 | `window-manager.ts` | 主窗口：window/pet 两种模式切换、鼠标穿透、置顶、全屏等 |
 | `settings-window.ts` | 独立设置窗口 |
 | `menu-manager.ts` | 应用/托盘菜单 |
+| `broadcast.ts` | 向所有窗口推送 IPC（`agent/ports.ts` 的 WindowBroadcast 实现，注入视线、共情表情、主动搭话、中枢对话） |
 
 ## platform/ — 基础设施（原 core/）
 | 文件 | 职责 |
 | --- | --- |
-| `settings-store.ts` | 设置持久化（userData/settings.json）+ API Key 加密存取 |
+| `settings-store.ts` | 设置持久化（userData/settings.json）+ API Key 加密存取；写入后发 settings.changed（`onSettingsChanged`），lifecycle 接到 provider 自动重建 |
+| `screen-capturer.ts` | 截屏源（desktopCapturer，`agent/ports.ts` 的 ScreenCapturer 实现，注入屏幕采样） |
 | `gpu-fix.ts` | GPU 兼容性修正（启动早期应用） |
-| `paths.ts` | 随包资源路径（开发态 / 打包态差异只在这里处理）：后端运行时、ffmpeg、Ollama、OpenSeeFace、THA、mcp_servers.json、窗口图标。新增随包资源时在 `BUNDLED` 里登记 |
+| `paths.ts` | 随包资源路径（开发态 / 打包态差异只在这里处理）：后端运行时、ffmpeg、Ollama、OpenSeeFace、THA、mcp_servers.json、窗口图标；另有 agent 记忆目录 `agentMemoryDir()`。新增随包资源时在 `BUNDLED` 里登记 |
 | `data-dir.ts` | 大体积可写数据目录（runtime、tha-runtime 等）的位置选择与跨盘迁移 |
 | `auto-updater.ts` | electron-updater 检查更新（仅打包且有 app-update.yml 时生效） |
 

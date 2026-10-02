@@ -1,7 +1,9 @@
 // Sidecar 注册表 + 编排。
 //
 // 设计见 docs/roadmap/sidecar-plugin-architecture.md §4。
-//   bootstrap 从「逐个 new + 手动接线 + 分散 killAll」收敛为：register 各插件 → startAll → 退出 stopAll/killAll。
+//   bootstrap 从「逐个 new + 手动接线 + 分散 killAll」收敛为：register 各插件 → 退出 stopAll/killAll。
+//   startAll 目前没有调用方：各 sidecar 启动约束不同（backend 走 startBackend、tha 走资源协调器、
+//   openSeeFace 走 agent:camera IPC），统一启动会改变启动时机，所以启动仍由各自编排。
 //   startAll 按 startOrder 升序、canStart 过滤、逐个 try/catch 隔离（一个起不来不阻断其它）。
 
 import type { SidecarPlugin, SidecarPluginContext, SidecarStartResult } from './sidecar-plugin';

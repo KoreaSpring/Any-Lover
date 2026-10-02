@@ -90,7 +90,13 @@
   - 结果：`main/sidecar/` 改为 `main/sidecars/`，契约与注册表改名 `sidecar-plugin.ts`、`sidecar-registry.ts` 放根目录；ollama、tha、openseeface、open-llm-vtuber 各一个子目录、各一个提交，`plugins/` 下的适配器归入各自子目录。辅助模型队列从 app/startup 原样搬到 `sidecars/ollama/helper-models.ts`（工厂注入 OllamaManager 和进度广播）；agent/render/tha-resource、agent/perception/openseeface-protocol（含测试）移入对应 sidecar；`backend-manager.ts` 改名 `open-llm-vtuber-manager.ts`，类名仍为 BackendManager；screen-sampler 单独一个提交移到 `agent/perception/screen/`。只改 import 路径和注释，不改逻辑、IPC 通道名、wire 协议和 resource 名
   - baseline：screen-sampler 原本就 import electron，移进 agent/ 后命中 agent-not-to-electron，baseline 12 → 13，由任务 21 去掉；其余移动没有新增违规
   - 验证：每个提交都跑过 typecheck:node、lint、check:deps、test（109 通过 / 2 跳过）、build。未做运行时冒烟和 Windows 回归（THA、摄像头、打包态）
-- [ ] 21. 用 `agent/ports` 让 agent 不再依赖 Electron；新增 `settings.changed` 事件；由 registry 统一负责 start / stop
+- [x] 21. 用 `agent/ports` 让 agent 不再依赖 Electron；新增 `settings.changed` 事件；由 registry 统一负责 start / stop
+  - 结果：新增 `agent/ports.ts`，只定义实际用到的两个接口：`WindowBroadcast`（实现 `window/broadcast.ts`，注入 gaze-bridge、emotion-expression-bridge，container 里的主动搭话也改用它）和 `ScreenCapturer`（实现 `platform/screen-capturer.ts`，注入 screen-sampler）。memory-store、profile-store、relationship-state 的存储目录改为构造参数，由 container 传入 `platform/paths.ts` 新增的 `agentMemoryDir()`。agent/ 下已没有 import electron 的文件
+  - settings.changed：事件放在 `platform/settings-store.ts` 自己（`onSettingsChanged`），`writeSettings` 和 `saveApiKey` 写入后触发，订阅者异常互相隔离。没放进 agent/event-bus，否则 platform 要反向依赖 agent。provider-factory 新增 `keepProvidersInSync`：先建一次，之后每次 settings.changed 自动重建，由 lifecycle 接线；lifecycle 里 4 处手动 `rebuildProvidersFromSettings` 已删除（ipc/ 里原本没有调用）。补了 settings-store 与 provider-factory 两个单测文件（共 6 个用例）
+  - registry：退出路径原本就只经 registry（before-quit → `stopAll`，cleanupAll → `killAll`），这次只更新注释和 README。启动没有改成 `startAll`：backend、tha、openseeface 的启动时机各不相同，统一启动会改变行为
+  - baseline：13 → 7，agent-not-to-electron 清零；剩下 7 条是渲染层循环依赖，留给 P4
+  - 未完成：agent 里仍有 6 个文件直接调用 `platform/settings-store` 的 `readSettings`（provider-factory、dialogue-engine、proactive-engine、emotion-source、llm-memory-judge、profile-store），改成经 ports 读设置要改动多个构造函数，没在本任务做。和原来有一处差别：手动编辑 settings.json（不经 settings-store）后，provider 要到下一次写入或重启才会更新，原来是在下一次 IPC 调用时更新
+  - 验证：每个提交都跑过 typecheck:node、lint、check:deps、test（115 通过 / 2 跳过）、build。macOS 上 `npm run dev` 冒烟：窗口创建、`[llm] provider 就绪`、Ollama serve 正常，退出时日志有 `[shutdown] cleanup done`，没有残留 ollama 进程。本机 Python 后端因为缺少 loguru 起不来，这是环境问题，和本任务无关。Windows 回归没做
 - [ ] 22. IPC 控制器按域拆分；main 部分的 dependency-cruiser baseline 清零
 
 ## P4 渲染层与 preload（需确认 D2、D3）

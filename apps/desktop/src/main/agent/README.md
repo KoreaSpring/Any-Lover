@@ -4,6 +4,13 @@
 整体架构见 `docs/ARCHITECTURE.md`。下面按**功能分组**列出各文件——每个分组对应本目录下的一个子目录
 （core 组的三个基础设施文件直接放在 `agent/` 根，因为几乎所有模块都依赖它们），文件名即职责。
 
+## 依赖边界
+
+agent/ 下不 import electron（dependency-cruiser 规则 agent-not-to-electron）。需要的宿主能力在 `ports.ts` 声明：
+`WindowBroadcast`（实现 `window/broadcast.ts`）、`ScreenCapturer`（实现 `platform/screen-capturer.ts`）；
+记忆目录以字符串注入（`platform/paths.ts` 的 `agentMemoryDir()`）。全部在 `app/container.ts` 接线。
+读设置目前仍直接调用 `platform/settings-store` 的 `readSettings`（6 个文件），尚未经 ports。
+
 ## core — 中枢基础设施
 | 文件 | 职责 |
 | --- | --- |
@@ -37,7 +44,7 @@
 | `gaze-pipeline.ts` | 视线就地规则化（管道）：置信过滤→死区→灵敏度→镜像→限幅→EMA 平滑 |
 | `gaze-bridge.ts` | 桥：订阅 perception.gaze → gaze-pipeline → express.gaze + IPC 广播驱动 THA |
 | `screen-gate.ts` | 桌面采样门控（纯函数）：敏感窗口黑名单 + 感知哈希去重 |
-| `screen/screen-sampler.ts` | 桌面截屏采样：定时 + 门控/去重 + 可选本地 VLM 摘要 → perception.screen（默认关；原 sidecar/，目前仍 import electron，任务 21 处理） |
+| `screen/screen-sampler.ts` | 桌面截屏采样：定时 + 门控/去重 + 可选本地 VLM 摘要 → perception.screen（默认关；截屏源经 ports.ScreenCapturer 注入） |
 
 OpenSeeFace 包解析 `openseeface-protocol.ts` 已移到 `main/sidecars/openseeface/`。
 
@@ -53,7 +60,7 @@ OpenSeeFace 包解析 `openseeface-protocol.ts` 已移到 `main/sidecars/opensee
 | `llm-provider.ts` | LLMProvider 接口 + 注册表（`llmProviderRegistry` 单例）：统一 chat 流式契约 |
 | `providers/openai-compatible-provider.ts` | OpenAI 兼容 provider（纯 HTTP SSE 流式，支持 DeepSeek/OpenAI/通义/网关） |
 | `providers/ollama-provider.ts` | Ollama provider（复用 OpenAI 兼容 /v1，listModels 走 /api/tags） |
-| `providers/provider-factory.ts` | 从 settings 组装 provider 注册表，按 settings.provider 设激活主模型 |
+| `providers/provider-factory.ts` | 从 settings 组装 provider 注册表，按 settings.provider 设激活主模型；`keepProvidersInSync` 订阅 settings.changed 自动重建 |
 
 ## vlm — 屏幕视觉理解（本地）
 | 文件 | 职责 |
