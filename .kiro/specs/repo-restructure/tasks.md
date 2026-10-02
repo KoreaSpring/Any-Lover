@@ -47,7 +47,8 @@
   - 现有的违规记成 baseline，CI 只拦截新增违规
   - 验证：`npm run check:deps` 通过；故意加一条违规 import，确认能被拦下（验证完撤销）
   - 结果：用 17.4.3（18.x 要求 Node 22+，本机和 CI 都是 Node 20）。baseline 共 12 条：渲染层 7 个循环依赖（live2d.tsx、use-ipc-handlers、vad-context、use-switch-character 等互相引用，另有 websocket-context 和 websocket-service 互引），以及 agent 下 5 个文件直接 import electron。前者在 P4 清零，后者在 P3 清零
-- [ ] 8. 更新 ANYLOVER_EXTENSIONS.md：修正文件数和消息类型数，补上漏记的提交，记录三个上游（Open-LLM-VTuber、Open-LLM-VTuber-Web、ezvtuber-rt）的基线版本
+- [x] 8. 更新 ANYLOVER_EXTENSIONS.md：修正文件数和消息类型数，补上漏记的提交，记录三个上游（Open-LLM-VTuber、Open-LLM-VTuber-Web、ezvtuber-rt）的基线版本
+  - 结果：删除 hub-tool-* 后实际为 13 个 .py 文件（+395/−38）、4 个消息类型；补登 fe03ec1、0a7a916、9724519、daa20f1、33a9cb3、609b496、7be0add。Open-LLM-VTuber 基线为 v1.2.1；Web 和 ezvtuber-rt 源码导入时没记上游 commit，仓库内无法还原，已注明，留给 P1c 比对上游历史补齐
 - [ ] 9. 补全方案文档的 §9 决策点、§10 风险与验证、附录 A/B
 - [ ] 10. 生成打包资源树基线，供 P1、P2 比对
   - 新增脚本：列出 win-unpacked/resources 下所有文件的路径和大小

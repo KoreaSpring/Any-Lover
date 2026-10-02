@@ -5,14 +5,37 @@
 保持可同步**。any-lover 在这份后端里加的扩展都混在上游文件内，本文件把它们**集中登记**，便于维护、
 以及将来同步上游时快速识别我们的改动边界。
 
+## 上游基线版本
+
+| 上游 | 本仓库位置 | 基线 | 引入提交 |
+|---|---|---|---|
+| [Open-LLM-VTuber](https://github.com/Open-LLM-VTuber/Open-LLM-VTuber) | `backend/` | v1.2.1（`backend/pyproject.toml`）；上游 commit 未记录 | `f5bf9f6` |
+| [Open-LLM-VTuber-Web](https://github.com/Open-LLM-VTuber/Open-LLM-VTuber-Web) | `frontend/src/renderer`（当时在 `apps/desktop`） | 上游 commit 和版本均未记录（`backend/.gitmodules` 指向其 `build` 分支，但那是上游原有的 submodule 声明，本仓库未使用） | `f5bf9f6` |
+| [ezvtuber-rt](https://github.com/zpeng11/ezvtuber-rt) | `integrations/easyvtuber/runtime`（当时在 `tha-runtime/`） | 源码的上游 commit 未记录；THA 模型取自 release `0.0.1/20241220.zip`（见 `build/scripts/fetch-tha-models.js`） | `5539447` |
+
+三处"未记录"在导入时就没留下，事后无法从仓库内还原。P1c 改写为 UPSTREAM.md 时，需要拿本地代码和上游历史比对，定出最接近的 commit。
+
 ## 如何区分「上游原有」与「我们加的」
 
 本仓库的 git 历史把两者干净地分开了：
 
 - **`f5bf9f6 feat: init项目`** —— 上游导入基线（一次性引入整个上游后端）。这个 commit 引入、之后未被改动的
   即上游原有。
-- 其后所有触及 `backend/` 的 commit 都是 any-lover 扩展：`745c7ee`/`d031705`（中枢对话 F-1/F-2）、
-  `263b619`（流式 partial-text + TTS 容错）、`43ff30f`（对话稳定性 + 图片回退 + 打包）、`7639cdd`（ffmpeg/单例等）。
+- 其后所有触及 `backend/` 的 commit 都是 any-lover 扩展：
+
+| 提交 | 内容 |
+|---|---|
+| `fe03ec1` | 新增 Live2D 模型资源 `live2d-models/mao_pro`、`shizuku`（35 个文件，不涉及代码） |
+| `43ff30f` | 对话稳定性：图片回退、安全 send、打断异常处理 |
+| `263b619` | 流式 partial-text 旁路 + 单句 TTS 容错 |
+| `7639cdd` | 随包 ffmpeg 定位 |
+| `745c7ee` / `d031705` | 中枢对话 F-1 / F-2（hub-speak-* 与 asr-only） |
+| `0a7a916` | 新增本清单 |
+| `9724519` | 新增 hub-tool-list / hub-tool-call（已被 `7be0add` 删除） |
+| `daa20f1` | sherpa-onnx 可选路径 None 兜底 |
+| `33a9cb3` | claude / letta / template LLM 懒加载 |
+| `609b496` | sherpa-onnx 支持 Kokoro 模型类型 |
+| `7be0add` | 删除 hub-tool-*（中枢改用 McpHub 直连） |
 
 查看我们对某文件的完整改动（等价于「上游原版 vs 现状」的 diff）：
 
@@ -23,7 +46,9 @@ git diff f5bf9f6 HEAD -- backend/src/open_llm_vtuber/<file>
 同步上游时：先 `git diff f5bf9f6 HEAD -- backend/src` 导出我们的改动集，用新上游覆盖 `backend/` 后，
 对照本清单逐处回贴 / 解决冲突。
 
-## 扩展文件清单（相对 `f5bf9f6`，共 9 文件 / +306 −17 行）
+## 扩展文件清单（相对 `f5bf9f6`，共 13 个 .py 文件 / +395 −38 行，4 个新增消息类型）
+
+> 统计不含本文件和 Live2D 模型资源。复核命令：`git diff --numstat f5bf9f6 HEAD -- 'backend/*.py'`。
 
 > 行号为撰写时的近似位置，随上游变动会漂移；**以中文注释和 git diff 为准**。所有扩展处均带成段中文注释。
 

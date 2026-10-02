@@ -111,7 +111,7 @@ any-lover/
   - 相对导入基线 `f5bf9f6`，改了 13 个上游文件（+452/−38 行）。
   - 仅 `websocket_handler.py` 一个文件就 +150 行，而且正好落在上游最常改的消息调度和对话主循环上。
   - 只有 `stream_hooks.py` 是物理上独立的扩展。
-  - `ANYLOVER_EXTENSIONS.md` 已过期：写的是 9 个文件、4 个消息类型，实际是 14 个 .py 文件、6 个消息类型。
+  - `ANYLOVER_EXTENSIONS.md` 已过期：写的是 9 个文件、4 个消息类型，实际是 14 个 .py 文件、6 个消息类型。（P0 删除 hub-tool-* 后为 13 个文件、4 个消息类型，清单已在 P0 任务 8 中更正。）
   - 没有记录上游 commit。
 - **依赖事实源分裂**：
   - uv.lock（开发用）和根目录 requirements-pet.txt（打包和 CI 用）之间只靠注释手工对齐。
@@ -597,7 +597,7 @@ ANYLOVER_FFMPEG_DIR 这类由主进程注入给 sidecar 的变量，两端会一
 | `site/` | `apps/website/` | P1b |
 | `frontend/src/proto/` | `packages/protocol/src/`（`ws-backend.ts` 改名为 `ws/open-llm-vtuber.ts`，`ws-tha.ts` 改名为 `ws/tha.ts`） | P1c |
 | `backend/` | `sidecars/open-llm-vtuber/upstream/` | P1c |
-| `backend/ANYLOVER_EXTENSIONS.md` | `sidecars/open-llm-vtuber/UPSTREAM.md`（重写，补全 14 个文件和 6 个消息类型） | P1c |
+| `backend/ANYLOVER_EXTENSIONS.md` | `sidecars/open-llm-vtuber/UPSTREAM.md`（重写；文件数和消息类型数已在 P0 更正） | P1c |
 | `requirements-pet.txt`、`.venv-pack/` | `sidecars/open-llm-vtuber/requirements-pet.txt`、`.venv/` | P1c |
 | `build/scripts/prepare-runtime.js` | `sidecars/open-llm-vtuber/scripts/stage.js`（P2 时把模板拆出到 `config/conf.pet.yaml`） | P1c / P2 |
 | `build/scripts/build-backend.js`、`fetch-ffmpeg.js` | `sidecars/open-llm-vtuber/scripts/freeze.js`、`fetch-ffmpeg.js` | P1c |
