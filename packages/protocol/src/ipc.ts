@@ -5,8 +5,7 @@
 //   容易漏，也没有编译期保护。这里把所有 Electron IPC 通道名收成常量，两侧统一 import。
 //
 // 使用：
-//   - main（无路径别名）：  import { IPC } from '../proto/ipc'  （按文件深度调整相对层级）
-//   - renderer（有 @ 别名）：import { IPC } from '@/proto/ipc'  或相对路径
+//   - main / preload / renderer 统一：import { IPC } from '@proto/ipc'（别名配置见 packages/protocol/README.md）
 //   - 通道字符串保持与历史完全一致（值不变），因此不影响任何运行时行为，也不影响 preload 已暴露的 API。
 //
 // 命名：IPC.<域>.<动作>，值即 wire 上的通道字符串。分域仅为可读，wire 名保持原样（如 'settings:get'）。

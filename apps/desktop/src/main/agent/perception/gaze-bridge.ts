@@ -10,7 +10,7 @@
 import { BrowserWindow } from 'electron';
 import { eventBus, EventBus, Unsubscribe } from '../event-bus';
 import { GazePipeline, GazePipelineConfig } from './gaze-pipeline';
-import { IPC } from '../../../proto/ipc';
+import { IPC } from '@proto/ipc';
 
 /** 广播给 renderer 的 IPC 通道名（renderer 侧订阅此通道驱动 THA 方向级 gaze）。
  *  单一事实源见 proto/ipc.ts；此处 re-export 保持既有消费方 import 不变。 */

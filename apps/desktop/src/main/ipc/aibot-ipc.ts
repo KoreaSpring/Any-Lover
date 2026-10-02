@@ -16,7 +16,7 @@ import {
   OLLAMA_MIRRORS,
 } from '../sidecar/ollama-installer';
 import { recommendModel, MODEL_OPTIONS } from '../sidecar/model-recommender';
-import { IPC } from '../../proto/ipc';
+import { IPC } from '@proto/ipc';
 
 interface Deps {
   backend: BackendManager;

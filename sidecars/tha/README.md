@@ -29,7 +29,7 @@ sidecars/tha/
 ## 与主程序的边界（松耦合）
 
 - **通信**：WebSocket，端口 **12395**，JSON 文本控制消息 + 二进制帧流。协议的 TS 侧单一事实源在
-  `apps/desktop/src/proto/ws-tha.ts`（出站 `mouth/expression/setImage/setPreset/gaze/gazeTarget`，
+  `packages/protocol/src/ws-tha.ts`（出站 `mouth/expression/setImage/setPreset/gaze/gazeTarget`，
   入站 `setImageProgress`）。改协议需两端对齐（本运行时的 `tha_server.py` 的 `on_message`）。
 - **生命周期**：主进程 `apps/desktop/src/main/sidecar/tha-manager.ts` 负责 spawn/就绪探测/清理，并已通过
   `sidecar/plugins/tha-plugin.ts` 纳入 `SidecarRegistry` 的统一退出清理。

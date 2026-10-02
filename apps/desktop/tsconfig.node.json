@@ -29,7 +29,13 @@
     // "exactOptionalPropertyTypes": false,
     // "noImplicitOverride": false
     /* node 全局类型 + electron-vite 的 `?asset` 等导入声明 */
-    "types": ["node", "electron-vite/node"]
+    "types": ["node", "electron-vite/node"],
+    /* 协议层在仓库根 packages/protocol，与 electron.vite.config 的 @proto 别名一致 */
+    "paths": {
+      "@proto/*": ["../../packages/protocol/src/*"],
+      // packages/protocol 下的测试向上找不到 apps/desktop/node_modules，显式指过去
+      "vitest": ["./node_modules/vitest"]
+    }
   },
   // 主进程、preload、协议层都跑在 Node/Electron 侧，必须纳入类型检查
   //（此前只 include 了 vite.config.ts，main/preload 实际从未被 tsc 检查过）。
@@ -38,6 +44,6 @@
     "vite.config.ts",
     "src/main/**/*.ts",
     "src/preload/**/*.ts",
-    "src/proto/**/*.ts"
+    "../../packages/protocol/src/**/*.ts"
   ]
 }

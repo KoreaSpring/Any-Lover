@@ -2,7 +2,7 @@ import electron from 'electron';
 const { contextBridge, ipcRenderer, desktopCapturer } = electron;
 import { electronAPI } from '@electron-toolkit/preload';
 import 'electron-log/preload';
-import { IPC, type ConfigFile } from '../proto/ipc';
+import { IPC, type ConfigFile } from '@proto/ipc';
 
 // electron-log/preload 在 window 上桥接一个 IPC 通道，renderer 侧经 `electron-log/renderer`
 // 写的日志会转发到主进程落盘，与主进程日志汇总到同一份文件，方便按时间线排查问题。

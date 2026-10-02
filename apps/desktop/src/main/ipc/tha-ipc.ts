@@ -2,7 +2,7 @@
 import { ipcMain, dialog, BrowserWindow } from 'electron';
 import { ThaManager } from '../sidecar/tha-manager';
 import { installedHqTiers, hqAllInstalled, ensureHqModels, ThaModelProgress } from '../sidecar/tha-model-installer';
-import { IPC } from '../../proto/ipc';
+import { IPC } from '@proto/ipc';
 
 function broadcastThaProgress(p: ThaModelProgress): void {
   for (const w of BrowserWindow.getAllWindows()) {

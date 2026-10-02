@@ -4,7 +4,7 @@ import {
 import { join } from 'path';
 import fs from 'fs';
 import { is } from '@electron-toolkit/utils';
-import { IPC } from '../../proto/ipc';
+import { IPC } from '@proto/ipc';
 
 const isMac = process.platform === 'darwin';
 

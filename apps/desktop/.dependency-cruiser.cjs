@@ -40,7 +40,7 @@ module.exports = {
     {
       name: 'preload-not-to-main',
       severity: 'error',
-      comment: 'preload 只能依赖协议层（src/proto）共享类型，不能 import 主进程代码。',
+      comment: 'preload 只能依赖协议层（packages/protocol）共享类型，不能 import 主进程代码。',
       from: { path: '^src/preload/' },
       to: { path: '^src/main/' },
     },
@@ -48,7 +48,7 @@ module.exports = {
       name: 'proto-is-leaf',
       severity: 'error',
       comment: '协议层是单一事实源，不能反向依赖任何进程的代码。',
-      from: { path: '^src/proto/' },
+      from: { path: '^\\.\\./\\.\\./packages/protocol/' },
       to: { path: '^src/(main|preload|renderer)/' },
     },
     {

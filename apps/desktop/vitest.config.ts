@@ -7,12 +7,12 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   resolve: {
     alias: {
-      '@proto': resolve(__dirname, 'src/proto'),
+      '@proto': resolve(__dirname, '../../packages/protocol/src'),
     },
   },
   test: {
     environment: 'node',
-    include: ['src/**/*.{test,spec}.ts'],
+    include: ['src/**/*.{test,spec}.ts', '../../packages/protocol/src/**/*.{test,spec}.ts'],
     // 不扫 vendored WebSDK / MotionSync / 构建产物
     exclude: ['node_modules/**', 'out/**', 'dist/**', 'src/renderer/WebSDK/**', 'src/renderer/MotionSync/**'],
   },

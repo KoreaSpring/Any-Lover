@@ -2,7 +2,7 @@ import {
   Tray, nativeImage, Menu, BrowserWindow, ipcMain, screen, MenuItemConstructorOptions, app,
 } from 'electron';
 import trayIcon from '../../../resources/icon.png?asset';
-import { IPC, type ConfigFile } from '../../proto/ipc';
+import { IPC, type ConfigFile } from '@proto/ipc';
 
 export class MenuManager {
   private tray: Tray | null = null;

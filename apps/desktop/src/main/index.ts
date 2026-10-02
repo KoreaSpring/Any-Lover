@@ -3,7 +3,7 @@ import { app, ipcMain, globalShortcut, desktopCapturer } from "electron";
 import { electronApp, optimizer, is } from "@electron-toolkit/utils";
 import { WindowManager } from "./window/window-manager";
 import { MenuManager } from "./window/menu-manager";
-import { IPC } from "../proto/ipc";
+import { IPC } from "@proto/ipc";
 
 let windowManager: WindowManager;
 let menuManager: MenuManager;

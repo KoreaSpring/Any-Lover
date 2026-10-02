@@ -116,7 +116,7 @@ screen-sampler 定时截屏 → screen-gate 黑名单/去重门控
 | `core/` | 基础设施：settings-store（设置持久化+API Key 加密）/ gpu-fix |
 | `agent/` | **Agent 中枢**（五层，见该目录 README） |
 
-> 另有 `apps/desktop/src/proto/`（与 main/ 平级）：跨边界通信协议的 TS 侧单一事实源。当前含 `ipc.ts`
+> 另有 `packages/protocol/src/`（与 main/ 平级）：跨边界通信协议的 TS 侧单一事实源。当前含 `ipc.ts`
 > （全部 Electron IPC 通道名常量），main/preload/renderer 三处统一引用。见该目录 README。
 
 > 详细分组见 `apps/desktop/src/main/README.md`。
@@ -164,7 +164,7 @@ screen-sampler 定时截屏 → screen-gate 黑名单/去重门控
   （rollup 对相对路径更严格），需逐文件手动改相对路径 + 跑 `npm run build` 验证。
   `main/` 根目录也已按功能物理分子目录（sidecar/ipc/window/core，入口 bootstrap/index 留根），
   import 全改毕、`npm run build` 通过。
-- **协议单一事实源（`apps/desktop/src/proto/`）**：Electron IPC（ipc.ts）、后端 WS（ws-backend.ts）、
+- **协议单一事实源（`packages/protocol/src/`）**：Electron IPC（ipc.ts）、后端 WS（ws-backend.ts）、
   THA WS（ws-tha.ts）的 TS 侧已常量化并全项目接入；`protocol.proto` 为 TS↔Python 契约文档（不做 codegen）。
 - **sidecar 插件化（已实施首期）**：`SidecarPlugin` 契约 + `SidecarRegistry` + 各 manager 薄适配器已落地，
   bootstrap 的退出清理（stopAll/killAll）已收敛到注册表；启动仍保留各自编排（见

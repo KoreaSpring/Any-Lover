@@ -1,4 +1,4 @@
-# proto/ — 跨边界通信协议（TS 侧单一事实源）
+# packages/protocol — 跨边界通信协议（TS 侧单一事实源）
 
 本目录收纳项目里**跨进程/跨边界通信协议**的 TypeScript 定义，作为前端（main / preload / renderer
 三处）共用的单一事实源。目标：通道名/消息类型只写一处，改名有编译期保护，杜绝两侧字符串各写各的、
@@ -15,11 +15,15 @@
 
 ## 如何 import
 
-- **main**（无路径别名，用相对路径）：`import { IPC } from '../proto/ipc'`（按文件深度调整层级；
-  `src/main/xxx.ts` 用 `../proto/ipc`，`src/main/ipc/xxx.ts` 用 `../../proto/ipc`，agent 深两级同理）。
-- **preload**：`import { IPC } from '../proto/ipc'`。
-- **renderer**（有别名）：`import { IPC } from '@proto/ipc'`。别名配置在 `electron.vite.config.ts`
-  的 renderer.resolve.alias 与 `tsconfig.web.json` 的 paths + include。
+main、preload、renderer 统一用别名：`import { IPC } from '@proto/ipc'`。
+
+别名在四处配置，改位置时要一起改：
+- `apps/desktop/electron.vite.config.ts`：main、preload、renderer 三段的 `resolve.alias`；renderer 还要把本目录加进 `server.fs.allow`（开发服务器默认不读 apps/desktop 以外的文件）
+- `apps/desktop/tsconfig.node.json`、`tsconfig.web.json`：`paths` 与 `include`
+- `apps/desktop/vitest.config.ts`：`alias` 与测试 `include`
+- `apps/desktop/package.json` 的 `check:deps`：把本目录加进扫描范围
+
+本目录没有自己的 package.json 和 node_modules，测试和类型检查都借用 apps/desktop 的依赖（P7 引入 workspace 后再独立）。
 
 ## 约定
 

@@ -10,7 +10,7 @@
 import { BrowserWindow } from 'electron';
 import { eventBus, EventBus, Unsubscribe } from '../event-bus';
 import { EmotionState } from './emotion-state';
-import { IPC } from '../../../proto/ipc';
+import { IPC } from '@proto/ipc';
 
 /** 单一事实源见 proto/ipc.ts；此处 re-export 保持既有消费方 import 不变。 */
 export const IPC_EXPRESS_EMOTION = IPC.agent.expressEmotion;

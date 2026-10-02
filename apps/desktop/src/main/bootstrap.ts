@@ -46,7 +46,7 @@ import { SidecarRegistry } from './sidecar/registry';
 import { BackendPlugin } from './sidecar/plugins/backend-plugin';
 import { OllamaPlugin } from './sidecar/plugins/ollama-plugin';
 import { ThaPlugin } from './sidecar/plugins/tha-plugin';
-import { IPC } from '../proto/ipc';
+import { IPC } from '@proto/ipc';
 
 // 单例锁：防止用户重复启动多个应用实例（会导致端口 12393/11434 冲突、
 // 多个后端/Ollama 进程互相抢占）。拿不到锁说明已有实例在运行，直接退出，

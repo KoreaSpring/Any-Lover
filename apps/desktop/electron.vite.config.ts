@@ -2,11 +2,15 @@ import { resolve } from 'path';
 import { defineConfig, externalizeDepsPlugin } from 'electron-vite';
 import react from '@vitejs/plugin-react';
 import { viteStaticCopy } from 'vite-plugin-static-copy'
-import { normalizePath } from 'vite';
+import { normalizePath, searchForWorkspaceRoot } from 'vite';
+
+// 协议层在仓库根 packages/protocol（P1c 从 src/proto 移出），三个进程统一用 @proto 引用
+const PROTOCOL_SRC = resolve(__dirname, '../../packages/protocol/src');
 
 export default defineConfig({
   main: {
     plugins: [externalizeDepsPlugin()],
+    resolve: { alias: { '@proto': PROTOCOL_SRC } },
     build: {
       rollupOptions: {
         // 入口改为融合引导 bootstrap.ts（内部再加载原版前端外壳 index.ts）
@@ -16,6 +20,7 @@ export default defineConfig({
   },
   preload: {
     plugins: [externalizeDepsPlugin()],
+    resolve: { alias: { '@proto': PROTOCOL_SRC } },
     build: {
       rollupOptions: {
         input: {
@@ -31,7 +36,7 @@ export default defineConfig({
     resolve: {
       alias: {
         '@': resolve('src/renderer/src'),
-        '@proto': resolve('src/proto'),
+        '@proto': PROTOCOL_SRC,
         "@framework": resolve("src/renderer/WebSDK/Framework/src"),
         "@cubismsdksamples": resolve("src/renderer/WebSDK/src"),
         "@motionsyncframework": resolve(
@@ -68,6 +73,10 @@ export default defineConfig({
       }),
       react(),
     ],
+    // 开发服务器默认只允许读取工作区内的文件，协议层在 apps/desktop 之外，需要显式放行
+    server: {
+      fs: { allow: [searchForWorkspaceRoot(process.cwd()), PROTOCOL_SRC] },
+    },
     build: {
       rollupOptions: {
         // 多渲染入口：主窗口 index.html + 独立设置窗口 settings.html。

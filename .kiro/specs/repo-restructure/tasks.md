@@ -66,7 +66,11 @@
 - [x] 13. P1b：`frontend` 移到 `apps/desktop`，`site` 移到 `apps/website`；开发态拼路径的 `getAppPath()/..` 逐处改成 `../..`；同步根 package.json、CI、electron-builder 的 `from`
   - 结果：纯移动提交 366 个文件全部是 R100。注意 `build/installer.nsh` 被 desktop 的 `.gitignore`（`build` 规则）忽略，`git add -A` 会把它当成删除，已用 `add -f` 加回。开发态 `getAppPath()` 回退共 6 处（bootstrap 和 4 个 sidecar manager），已全部改成两级；electron-builder 的 output / from、tooling/package.js、3 个 workflow、根 package.json 和文档已同步
   - 验证：desktop 五项检查、根目录 `site:build` / `frontend:build` 通过；用 node 解析 electron-builder 配置和 6 处开发态路径，都指回仓库根
-- [ ] 14. P1c：先把 `git diff f5bf9f6 HEAD -- backend` 导出存档；`backend` 移到 `sidecars/open-llm-vtuber/upstream`，`integrations/easyvtuber` 移到 `sidecars/tha`，相关脚本和 requirements 跟着归位；`proto` 移到 `packages/protocol`（配别名，并加进 `server.fs.allow`）；ANYLOVER_EXTENSIONS.md 重写为 UPSTREAM.md
+- [x] 14. P1c：先把 `git diff f5bf9f6 HEAD -- backend` 导出存档；`backend` 移到 `sidecars/open-llm-vtuber/upstream`，`integrations/easyvtuber` 移到 `sidecars/tha`，相关脚本和 requirements 跟着归位；`proto` 移到 `packages/protocol`（配别名，并加进 `server.fs.allow`）；ANYLOVER_EXTENSIONS.md 重写为 UPSTREAM.md
+  - 结果：存档在 `docs/roadmap/baselines/backend-vs-f5bf9f6.patch`（13 个文件，可反向应用）。脚本归位：prepare-runtime → `sidecars/open-llm-vtuber/scripts/stage.js`，build-backend → `freeze.js`，fetch-ffmpeg 同目录；THA 的 prepare.js → `sidecars/tha/scripts/stage.js`，fetch-tha-models → `fetch-models.js`；fetch-openseeface → `sidecars/openseeface/scripts/fetch.js`。main、preload 的 10 个文件从相对路径改为 `@proto` 别名，别名在 electron.vite（三段）、两个 tsconfig、vitest 里各配一次
+  - 上游基线（逐 blob 比对得出）：Open-LLM-VTuber `992309c`（175 个文件全部一致，letta_agent.py 只差行尾）；Open-LLM-VTuber-Web `d176e7d`（200 个中 197 个一致）；ezvtuber-rt `ea51225`（ezvtb_rt 15 个文件全部一致）。分别写进 `sidecars/open-llm-vtuber/UPSTREAM.md` 和新增的 `sidecars/tha/UPSTREAM.md`
+  - 验证：五项检查、site:build、py_compile 通过；protocol 的 2 个测试文件仍在跑；往 protocol 和 preload 各加一条违规 import，`proto-is-leaf`、`preload-not-to-main` 都能拦下（已撤销）；树对树 diff 命令和搬迁前统计一致（13 个文件，+395/−38）
+  - 未验证：renderer 开发服务器（`npm run dev`）读取 packages/protocol 的 `server.fs.allow`，需要本地起一次确认
 
 ## P2 统一构建链（需确认 D8）
 

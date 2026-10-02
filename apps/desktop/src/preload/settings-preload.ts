@@ -1,6 +1,6 @@
 // 设置窗口专用预加载：暴露受控的 window.aibot 给 React 设置面板。
 import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron';
-import { IPC } from '../proto/ipc';
+import { IPC } from '@proto/ipc';
 
 contextBridge.exposeInMainWorld('aibot', {
   getSettings: () => ipcRenderer.invoke(IPC.settings.get),

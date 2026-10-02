@@ -5,10 +5,12 @@ on:
     branches: [main]
     paths:
       - 'apps/desktop/**'
+      - 'packages/protocol/**'
       - '.github/workflows/frontend-ci.yml'
   pull_request:
     paths:
       - 'apps/desktop/**'
+      - 'packages/protocol/**'
       - '.github/workflows/frontend-ci.yml'
   workflow_dispatch:
 
