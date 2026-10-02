@@ -3,27 +3,37 @@
 /*
  * 组装 out/stage/open-llm-vtuber/：桌宠后端的可分发运行时（上游 open_llm_vtuber 作为黑盒整体引入）。
  *
- * 分层说明：
- *  - 我们自己的代码在 apps/（desktop 外壳、settings-ui 面板）与 build/（构建脚本）。
- *  - 上游后端与其资源作为整体运行时，输出到 out/stage/open-llm-vtuber/（保持 run_server.py 期望的扁平布局，
- *    不重排内部结构，以免破坏其相对路径假设）。
+ * 上游后端与其资源作为整体运行时输出到 out/stage/open-llm-vtuber/（保持 run_server.py 期望的扁平布局，
+ * 不重排内部结构，以免破坏其相对路径假设）。
  *
  * 步骤：
+ *  0. 清空 out/stage/open-llm-vtuber（只保留 freeze.js 的产物 python/），避免上一轮的残留进包。
+ *     P2 之前下载在 stage 里的模型先挪进 out/downloads/models 缓存。
  *  1. 从 sidecars/open-llm-vtuber/upstream 复制运行必需的后端源码与静态资源（排除 .git 等）。
- *  2. 写入桌宠专用配置模板 config_templates/conf.pet.yaml（含占位符）。
- *  3. 复用源项目已下载并验证的 SenseVoice 本地 ASR 模型（缺失时下载），只保留 int8 版本。
- *  4. 备齐离线 TTS 模型 vits-melo-tts-zh_en（缺失时下载），桌宠默认用它朗读回复。
+ *  2. 复制桌宠配置模板 sidecars/open-llm-vtuber/config/conf.pet.yaml 到 config_templates/（含 __OLVT_*__ 占位符）。
+ *  3. 在 out/downloads/models 备齐 SenseVoice ASR（只保留 int8）与 Kokoro 离线 TTS（缺失时下载），
+ *     再硬链接（跨盘时复制）进 stage 的 models/。缓存不随 stage 清空，不会重复下载。
+ *
+ * 用法：node sidecars/open-llm-vtuber/scripts/stage.js [--skip-models]
+ *   --skip-models  不准备模型（只用于验证组装逻辑，产物不能用来打包）
  */
 
 const fs = require('fs');
 const path = require('path');
-const { STAGE, SIDECARS, log, run, download, extractTarBz2, copyRecursive } = require('../../../tooling/lib');
+const { STAGE, DOWNLOADS, SIDECARS, rel, log, run, download, extractTarBz2, copyRecursive } = require('../../../tooling/lib');
 const { findDownload } = require('../../../tooling/lib/manifest');
 const manifest = require('../manifest.json');
 
 // 上游后端源码：sidecars/open-llm-vtuber/upstream
 const SRC = path.join(SIDECARS, 'open-llm-vtuber', 'upstream');
 const RUNTIME = path.join(STAGE, 'open-llm-vtuber');
+// 桌宠配置模板（含 __OLVT_*__ 占位符，由 open-llm-vtuber-manager.ts 启动时替换）
+const PET_CONFIG_TEMPLATE = path.join(SIDECARS, 'open-llm-vtuber', 'config', 'conf.pet.yaml');
+// 模型下载缓存：stage 每次清空重建，模型留在这里复用，再硬链接进 stage
+const MODEL_CACHE = path.join(DOWNLOADS, 'models');
+// 清空 stage 时保留的条目：freeze.js 的冻结产物（它自己负责整体替换）
+const KEEP_ON_CLEAN = ['python'];
+const skipModels = process.argv.includes('--skip-models');
 
 const SENSE_VOICE = {
   dirName: 'sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17',
@@ -42,8 +52,10 @@ const KOKORO_TTS = {
   // sherpa-onnx 1.12.15+ 中文不再需要 jieba dict；只用美式英文词典。
   unused: ['dict', 'lexicon-gb-en.txt']
 };
-// 旧版默认离线 TTS，已被 Kokoro 取代；out/stage/open-llm-vtuber 里残留的目录在组装时删除，避免被打包。
-const LEGACY_TTS_DIRS = ['vits-melo-tts-zh_en'];
+const MODELS = [
+  { label: 'SenseVoice ASR', spec: SENSE_VOICE, requiredFile: 'model.int8.onnx' },
+  { label: 'Kokoro 离线语音', spec: KOKORO_TTS, requiredFile: KOKORO_TTS.modelFile },
+];
 
 function ensureDir(p) {
   fs.mkdirSync(p, { recursive: true });
@@ -95,92 +107,16 @@ function assembleSource() {
   }
 }
 
-function writePetConfigTemplate() {
-  log('写入桌宠配置模板 config_templates/conf.pet.yaml ...');
-  const modelDir = `./models/${SENSE_VOICE.dirName}`;
-  const ttsDir = `./models/${KOKORO_TTS.dirName}`;
-  const ttsFsts = ['phone-zh.fst', 'date-zh.fst', 'number-zh.fst']
-    .map((f) => `${ttsDir}/${f}`)
-    .join(',');
-  const yaml = `# 桌宠专用配置（由 Any-Lover 生成）。占位符会在启动时由 Electron 主进程替换。
-system_config:
-  conf_version: 'v1.2.0'
-  host: '127.0.0.1'
-  port: 12393
-  config_alts_dir: 'characters'
-  tool_prompts:
-    live2d_expression_prompt: 'live2d_expression_prompt'
-
-character_config:
-  conf_name: 'charis'
-  conf_uid: 'charis_001'
-  live2d_model_name: 'mao_pro'
-  character_name: 'Charis'
-  avatar: 'mao.png'
-  human_name: 'Human'
-  persona_prompt: |
-    你是一只可爱的桌面伴侣宠物，性格温暖、俏皮、简洁。用自然口语回答，避免长篇大论。
-
-  agent_config:
-    conversation_agent_choice: 'basic_memory_agent'
-    agent_settings:
-      basic_memory_agent:
-        llm_provider: 'openai_compatible_llm'
-        faster_first_response: True
-        segment_method: 'pysbd'
-        use_mcpp: False
-        mcp_enabled_servers: []
-    llm_configs:
-      openai_compatible_llm:
-        base_url: '__OLVT_BASE_URL__'
-        llm_api_key: '\${OLVT_LLM_API_KEY}'
-        model: '__OLVT_MODEL__'
-        temperature: __OLVT_TEMPERATURE__
-
-  asr_config:
-    asr_model: 'sherpa_onnx_asr'
-    sherpa_onnx_asr:
-      model_type: 'sense_voice'
-      sense_voice: '${modelDir}/model.int8.onnx'
-      tokens: '${modelDir}/tokens.txt'
-      num_threads: 4
-      use_itn: True
-      provider: 'cpu'
-
-  tts_config:
-    # 离线 TTS：sherpa-onnx Kokoro（中英混读，103 音色），不依赖网络与 ffmpeg 转码（直接输出 wav）。
-    # sid 选音色（由设置里的「语音音色」替换，默认 3 = zf_001 中文女声；3-57 女声、58-102 男声）。
-    tts_model: 'sherpa_onnx_tts'
-    sherpa_onnx_tts:
-      model_type: 'kokoro'
-      kokoro_model: '${ttsDir}/${KOKORO_TTS.modelFile}'
-      kokoro_voices: '${ttsDir}/voices.bin'
-      kokoro_tokens: '${ttsDir}/tokens.txt'
-      kokoro_data_dir: '${ttsDir}/espeak-ng-data'
-      kokoro_lexicon: '${ttsDir}/lexicon-us-en.txt,${ttsDir}/lexicon-zh.txt'
-      tts_rule_fsts: '${ttsFsts}'
-      max_num_sentences: 1
-      sid: __OLVT_TTS_SID__
-      provider: 'cpu'
-      num_threads: 4
-      speed: 1.0
-    # 在线备选（需联网，mp3 经 ffmpeg 转 wav）：把 tts_model 改回 'edge_tts' 即可。
-    edge_tts:
-      voice: zh-CN-XiaoxiaoNeural
-
-  vad_config:
-    vad_model: null
-
-  tts_preprocessor_config:
-    remove_special_char: True
-    ignore_brackets: True
-    ignore_parentheses: True
-    ignore_asterisks: True
-    translator_config:
-      translate_audio: False
-      translate_provider: 'deeplx'
-`;
-  fs.writeFileSync(path.join(RUNTIME, 'config_templates', 'conf.pet.yaml'), yaml, 'utf-8');
+function copyPetConfigTemplate() {
+  log('复制桌宠配置模板 config/conf.pet.yaml -> config_templates/conf.pet.yaml ...');
+  const text = fs.readFileSync(PET_CONFIG_TEMPLATE, 'utf-8');
+  // 模板里写死了模型目录名，和下面的模型清单必须一致，否则后端启动时找不到模型
+  for (const spec of [SENSE_VOICE, KOKORO_TTS]) {
+    if (!text.includes(`./models/${spec.dirName}/`)) {
+      throw new Error(`config/conf.pet.yaml 没有引用 ./models/${spec.dirName}/，模板与模型清单不一致`);
+    }
+  }
+  fs.copyFileSync(PET_CONFIG_TEMPLATE, path.join(RUNTIME, 'config_templates', 'conf.pet.yaml'));
 }
 
 /** 删除模型目录中运行时不用的文件（如 fp32 冗余权重），避免被打进安装包。 */
@@ -197,56 +133,99 @@ function pruneUnused(dir, unused) {
 }
 
 /**
- * 备齐一个 sherpa-onnx 模型目录：out/stage/open-llm-vtuber 已有 → 源项目 upstream/models 复制 → 官方归档下载。
- * 复制时跳过 unused 文件；无论哪条路径，最后都清理 unused。
+ * 迁移旧布局：P2 之前模型直接下载在 out/stage/open-llm-vtuber/models 里。
+ * 清空 stage 之前把完整的模型目录挪进下载缓存，老机器不用重新下载约 600MB。
  */
-/** 删除已弃用的旧模型目录（如被 Kokoro 取代的 MeloTTS），避免被打进安装包。 */
-function removeLegacyModels() {
-  for (const name of LEGACY_TTS_DIRS) {
-    const p = path.join(RUNTIME, 'models', name);
-    if (fs.existsSync(p)) {
-      fs.rmSync(p, { recursive: true, force: true });
-      log(`  [prune] 旧模型目录 models/${name}`);
-    }
+function migrateLegacyModels() {
+  for (const { spec, requiredFile } of MODELS) {
+    const legacy = path.join(RUNTIME, 'models', spec.dirName);
+    const cached = path.join(MODEL_CACHE, spec.dirName);
+    if (fs.existsSync(path.join(cached, requiredFile)) || !fs.existsSync(path.join(legacy, requiredFile))) continue;
+    ensureDir(MODEL_CACHE);
+    fs.rmSync(cached, { recursive: true, force: true });
+    fs.renameSync(legacy, cached);
+    log(`  [move] 旧位置的 models/${spec.dirName} -> ${rel(cached)}`);
   }
 }
 
-async function ensureModel(label, spec, requiredFile) {
-  const modelsDir = path.join(RUNTIME, 'models');
-  ensureDir(modelsDir);
-  const finalDir = path.join(modelsDir, spec.dirName);
-  const modelFile = path.join(finalDir, requiredFile);
+/**
+ * 清空 out/stage/open-llm-vtuber，只保留 freeze.js 的产物 python/（由 freeze.js 自己整体替换）。
+ * 这样上一轮残留的 node/、webapps/、旧模型等不会再被带进安装包（附录 B）。
+ */
+function cleanRuntime() {
+  if (!fs.existsSync(RUNTIME)) return;
+  log('清空 out/stage/open-llm-vtuber（保留冻结产物 python/）...');
+  for (const entry of fs.readdirSync(RUNTIME)) {
+    if (KEEP_ON_CLEAN.includes(entry)) continue;
+    fs.rmSync(path.join(RUNTIME, entry), { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+  }
+}
+
+/**
+ * 在下载缓存 out/downloads/models 里备齐一个 sherpa-onnx 模型：
+ * 缓存已有 → 源项目 upstream/models 复制 → 官方归档下载。
+ * 归档解压到临时目录，确认完整后再改名进缓存，中断不会留下半个模型目录。
+ */
+async function ensureCachedModel(label, spec, requiredFile) {
+  ensureDir(MODEL_CACHE);
+  const cacheDir = path.join(MODEL_CACHE, spec.dirName);
+  const modelFile = path.join(cacheDir, requiredFile);
   if (fs.existsSync(modelFile)) {
-    log(`${label} 模型已存在于 out/stage/open-llm-vtuber/models，跳过下载。`);
+    log(`${label} 模型已在 ${rel(MODEL_CACHE)}，跳过下载。`);
   } else {
     const srcModelDir = path.join(SRC, 'models', spec.dirName);
     if (fs.existsSync(path.join(srcModelDir, requiredFile))) {
       log(`从源项目复制已下载的 ${label} 模型 ...`);
-      copyRecursive(srcModelDir, finalDir, { exclude: spec.unused });
+      copyRecursive(srcModelDir, cacheDir, { exclude: spec.unused });
     }
     if (!fs.existsSync(modelFile)) {
-      const archive = path.join(modelsDir, `${spec.dirName}.tar.bz2`);
+      const archive = path.join(MODEL_CACHE, `${spec.dirName}.tar.bz2`);
+      const extractDir = path.join(MODEL_CACHE, `.extract-${spec.dirName}`);
       log(`源项目未找到模型，改为下载 ${label} 归档 ...`);
       await download(spec.download.url, archive, { sha256: spec.download.sha256, progress: true });
       log('解压模型 ...');
-      extractTarBz2(archive, modelsDir);
+      fs.rmSync(extractDir, { recursive: true, force: true });
+      try {
+        extractTarBz2(archive, extractDir);
+        if (!fs.existsSync(path.join(extractDir, spec.dirName, requiredFile))) {
+          throw new Error(`解压后未找到 ${spec.dirName}/${requiredFile}`);
+        }
+        fs.rmSync(cacheDir, { recursive: true, force: true });
+        fs.renameSync(path.join(extractDir, spec.dirName), cacheDir);
+      } finally {
+        fs.rmSync(extractDir, { recursive: true, force: true });
+      }
       fs.rmSync(archive, { force: true });
-      if (!fs.existsSync(modelFile)) throw new Error(`解压后未找到 ${spec.dirName}/${requiredFile}`);
     }
   }
-  pruneUnused(finalDir, spec.unused);
+  pruneUnused(cacheDir, spec.unused);
   log(`${label} 模型就绪。`);
+  return cacheDir;
+}
+
+/** 把缓存里的模型放进 stage：同盘硬链接（不占额外空间），否则复制。 */
+function linkModelIntoRuntime(cacheDir, spec) {
+  const dest = path.join(RUNTIME, 'models', spec.dirName);
+  copyRecursive(cacheDir, dest, { exclude: spec.unused, link: true });
+  log(`  [link] ${rel(dest)}`);
 }
 
 async function main() {
   if (!fs.existsSync(SRC)) {
     throw new Error(`未找到后端源码目录：${SRC}\n应位于 sidecars/open-llm-vtuber/upstream。`);
   }
+  migrateLegacyModels();
+  cleanRuntime();
   assembleSource();
-  writePetConfigTemplate();
-  await ensureModel('SenseVoice ASR', SENSE_VOICE, 'model.int8.onnx');
-  await ensureModel('Kokoro 离线语音', KOKORO_TTS, KOKORO_TTS.modelFile);
-  removeLegacyModels();
+  copyPetConfigTemplate();
+  if (skipModels) {
+    log('--skip-models：不准备模型，out/stage/open-llm-vtuber/models 为空（只用于验证组装逻辑，不能用来打包）。');
+  } else {
+    for (const { label, spec, requiredFile } of MODELS) {
+      const cacheDir = await ensureCachedModel(label, spec, requiredFile);
+      linkModelIntoRuntime(cacheDir, spec);
+    }
+  }
   log('\nout/stage/open-llm-vtuber/ 组装完成。');
 }
 

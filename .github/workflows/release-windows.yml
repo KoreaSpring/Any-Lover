@@ -78,12 +78,13 @@ jobs:
       - name: Install backend build dependencies
         run: python -m pip install -r sidecars/open-llm-vtuber/requirements-pet.txt
 
-      # 模型体积大（SenseVoice int8 + Kokoro），按 stage.js 内容缓存
+      # 模型体积大（SenseVoice int8 + Kokoro）。stage.js 每次清空 out/stage，模型缓存在 out/downloads/models，
+      # 按 manifest（下载地址与 sha256）缓存
       - name: Cache models
         uses: actions/cache@v4
         with:
-          path: out/stage/open-llm-vtuber/models
-          key: models-${{ hashFiles('sidecars/open-llm-vtuber/scripts/stage.js') }}
+          path: out/downloads/models
+          key: models-${{ hashFiles('sidecars/open-llm-vtuber/manifest.json') }}
 
       - name: Fetch ffmpeg (pinned + SHA-256)
         run: node sidecars/open-llm-vtuber/scripts/fetch-ffmpeg.js

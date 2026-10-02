@@ -10,9 +10,11 @@
  * 从而完全自包含、用户无需自行安装 Python。
  *
  * 步骤：
+ *  0. 清空 out/stage/tha，避免上一轮的残留进包
  *  1. 从 sidecars/tha/runtime/ 复制 THA 源码与模型（排除 .venv / __pycache__ / 临时 _*.）
- *  2. 下载 Windows embeddable Python 到 out/stage/tha/python/
- *  3. 启用 pip：取消 python3xx._pth 中 `import site` 注释 + get-pip.py 装 pip
+ *  2. 在下载缓存 out/downloads/tha-python/<版本>/ 准备 Windows embeddable Python：
+ *     下载（校验 sha256）、解压、启用 site（取消 python3xx._pth 中 `import site` 注释）、get-pip.py 装 pip
+ *  3. 把缓存的 Python 硬链接（跨盘时复制）到 out/stage/tha/python/。缓存不随 stage 清空，不会重复下载
  *
  * 仅 Windows 需要 THA；本脚本产出仅在 Windows 打包时随包。
  */
@@ -20,7 +22,7 @@
 const fs = require('fs');
 const path = require('path');
 const { spawnSync } = require('child_process');
-const { STAGE, SIDECARS, log, run, download, extractZip, copyRecursive } = require('../../../tooling/lib');
+const { STAGE, DOWNLOADS, SIDECARS, rel, log, run, download, extractZip, copyRecursive } = require('../../../tooling/lib');
 const { findDownload } = require('../../../tooling/lib/manifest');
 const manifest = require('../manifest.json');
 
@@ -32,6 +34,8 @@ const PY_EMBED = findDownload(manifest, 'python-embed');
 const PY_VERSION = PY_EMBED.version;
 const PY_ZIP = path.basename(new URL(PY_EMBED.url).pathname);
 const GET_PIP = findDownload(manifest, 'get-pip');
+// 已装好 pip 的嵌入式 Python 缓存（按版本分目录）
+const PY_CACHE = path.join(DOWNLOADS, 'tha-python', PY_VERSION);
 // 组装时排除：默认规则（.git、__pycache__、.venv 等）之外，再跳过单下划线开头的临时验证文件（如 _probe.py）。
 // 注意不能用 startsWith('_')，否则会误删 __init__.py 等双下划线文件。
 const COPY_OPTS = { skipFile: (name) => /^_[^_]/.test(name) };
@@ -85,22 +89,22 @@ function enableSite(pyDir) {
   log(`  [pth ] 已启用 site: ${pth}`);
 }
 
-async function preparePython() {
-  const pyDir = path.join(OUT, 'python');
+/** 在缓存里准备好"已启用 site + 已装 pip"的嵌入式 Python。 */
+async function ensureCachedPython() {
+  const pyDir = PY_CACHE;
   if (fs.existsSync(path.join(pyDir, 'python.exe'))) {
-    log('嵌入式 Python 已存在，跳过下载。');
+    log(`嵌入式 Python 已在 ${rel(pyDir)}，跳过下载。`);
   } else {
+    fs.rmSync(pyDir, { recursive: true, force: true });
     fs.mkdirSync(pyDir, { recursive: true });
-    const zipPath = path.join(OUT, PY_ZIP);
+    const zipPath = path.join(DOWNLOADS, 'tha-python', PY_ZIP);
     log(`下载嵌入式 Python ${PY_VERSION} ...`);
     await download(PY_EMBED.url, zipPath, { sha256: PY_EMBED.sha256 });
     log('解压嵌入式 Python ...');
     extractZip(zipPath, pyDir);
     fs.rmSync(zipPath, { force: true });
   }
-
   enableSite(pyDir);
-
   // 装 pip（embeddable 默认不带）
   const pyExe = path.join(pyDir, 'python.exe');
   const getPip = path.join(pyDir, 'get-pip.py');
@@ -113,12 +117,23 @@ async function preparePython() {
   } else {
     log('pip 已安装，跳过。');
   }
+  return pyDir;
+}
+
+async function preparePython() {
+  const cached = await ensureCachedPython();
+  // 嵌入式 Python 是第三方发行物，原样放入（含 pip 自带的 __pycache__），不套默认排除规则
+  copyRecursive(cached, path.join(OUT, 'python'), { defaults: false, link: true });
   log('嵌入式 Python + pip 就绪（依赖将在首次运行时按 requirements.txt 安装）。');
 }
 
 async function main() {
   if (!fs.existsSync(SRC)) {
     throw new Error(`未找到 THA 源码目录：${SRC}`);
+  }
+  if (fs.existsSync(OUT)) {
+    log('清空 out/stage/tha ...');
+    fs.rmSync(OUT, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
   }
   assembleSource();
   await preparePython();
