@@ -41,7 +41,7 @@ export class ThaManager {
     return `ws://${HOST}:${this.port}/`;
   }
 
-  // 只读资源目录：打包态 resources/tha-runtime（pack.js 把 dist-tha-runtime 打到此处，名字不变）；
+  // 只读资源目录：打包态 resources/tha-runtime（tooling/package.js 把 out/stage/tha 打到此处，名字不变）；
   // 开发态用仓库内 EasyVtuber 源目录 integrations/easyvtuber/runtime。
   private resourceRoot(): string {
     if (app.isPackaged) {
@@ -97,7 +97,7 @@ export class ThaManager {
   private pythonExe(dir: string): string {
     const override = process.env.ANYLOVER_THA_PYTHON;
     if (override && override.trim()) return override.trim();
-    // 随包嵌入式 Python（prepare-tha-runtime.js 产出 dist-tha-runtime/python）
+    // 随包嵌入式 Python（integrations/easyvtuber/prepare.js 产出 out/stage/tha/python）
     const embedded = path.join(dir, 'python', 'python.exe');
     if (fs.existsSync(embedded)) return embedded;
     // 开发态自建 venv

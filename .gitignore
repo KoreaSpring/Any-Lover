@@ -1,11 +1,9 @@
 node_modules/
 
-# 后端组装与冻结（可复现，不入库）
-build/pyinstaller/
-dist-runtime/
-
-# 内置 Ollama、ffmpeg、OpenSeeFace（体积大，由脚本拉取或本地拷贝，不入库）
-vendor/
+# 全部构建产物和下载缓存（可删可重建）：
+#   out/stage/<id>  各 sidecar 组装好的运行时；out/downloads  ollama / ffmpeg / openseeface；
+#   out/pyinstaller 后端冻结中间产物；out/release  安装包与分片
+/out/
 
 # 后端 ASR/TTS 模型缓存（prepare-runtime 会复用或重新下载）
 backend/models/
@@ -19,14 +17,12 @@ __pycache__/
 # 打包用的 Python 虚拟环境（见 README「完整重建」）
 .venv-pack/
 
-# 临时脚本：任意目录下以 _ 开头的 .ps1；build/scripts 下以 _ 开头的 .js / .mjs
+# 临时脚本：任意目录下以 _ 开头的 .ps1；tooling 下以 _ 开头的 .js / .mjs
 _*.ps1
-build/scripts/_*.js
-build/scripts/_*.mjs
+tooling/**/_*.js
+tooling/**/_*.mjs
 
-# THA / EasyVtuber 渲染运行时（源在 integrations/easyvtuber/runtime/，产物在根 dist-tha-runtime/）
-# 打包组装产物（含嵌入式 Python，可由 integrations/easyvtuber/prepare.js 再生）
-dist-tha-runtime/
+# THA / EasyVtuber 渲染运行时：源在 integrations/easyvtuber/runtime/，组装产物在 out/stage/tha/
 # 开发/验证用的本地 venv 与首启依赖标记
 integrations/easyvtuber/runtime/.venv/
 integrations/easyvtuber/runtime/.deps-installed

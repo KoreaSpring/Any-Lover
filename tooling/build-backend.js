@@ -1,7 +1,7 @@
 'use strict';
 
 /*
- * 冻结 Python 后端为 onedir 可执行文件，输出到 dist-runtime/python/。
+ * 冻结 Python 后端为 onedir 可执行文件，输出到 out/stage/open-llm-vtuber/python/。
  *
  * 设计要点（依据源项目分析）：
  *  - 使用 PyInstaller onedir（不用 onefile）：源码大量依赖相对 cwd 与 __file__，
@@ -11,16 +11,16 @@
  *  - 冻结产物名 aibot-backend(.exe)，backend-manager.js 优先使用它。
  *
  * 前置：已准备一个含后端运行依赖 + pyinstaller 的 Python 环境；
- * 可用 AIBOT_PYTHON 指定其 python 可执行文件；并已执行 prepare-runtime 生成 dist-runtime/。
+ * 可用 AIBOT_PYTHON 指定其 python 可执行文件；并已执行 prepare-runtime 生成 out/stage/open-llm-vtuber/。
  */
 
 const fs = require('fs');
 const path = require('path');
 const { spawnSync } = require('child_process');
 
-const ROOT = path.join(__dirname, '..', '..');
-const RUNTIME = path.join(ROOT, 'dist-runtime');
-const BUILD = path.join(ROOT, 'build', 'pyinstaller');
+const ROOT = path.join(__dirname, '..');
+const RUNTIME = path.join(ROOT, 'out', 'stage', 'open-llm-vtuber');
+const BUILD = path.join(ROOT, 'out', 'pyinstaller');
 const ENTRY = path.join(RUNTIME, 'run_server.py');
 
 function log(msg) {

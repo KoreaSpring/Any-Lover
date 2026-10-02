@@ -56,9 +56,9 @@ export class OpenSeeFaceManager extends SidecarPerceptionSource {
     const packaged = path.join(process.resourcesPath || '', 'openseeface', 'facetracker.exe');
     if (app.isPackaged && fs.existsSync(packaged)) return packaged;
 
-    // 开发态约定目录：<repoRoot>/vendor/openseeface/facetracker.exe（若已放置）
+    // 开发态约定目录：<repoRoot>/out/downloads/openseeface/facetracker.exe（若已放置）
     try {
-      const devExe = path.join(app.getAppPath(), '..', 'vendor', 'openseeface', 'facetracker.exe');
+      const devExe = path.join(app.getAppPath(), '..', 'out', 'downloads', 'openseeface', 'facetracker.exe');
       if (fs.existsSync(devExe)) return devExe;
     } catch {
       /* ignore */

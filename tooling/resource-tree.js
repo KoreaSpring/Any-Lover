@@ -3,18 +3,18 @@
  * 打包资源树基线：列出 win-unpacked/resources 下所有文件的相对路径和字节数，供重构前后比对。
  *
  * 用法：
- *   node build/scripts/resource-tree.js [resources 目录] [--out 文件]
- *     未给目录时，在 frontend/release 下自动查找 win-unpacked/resources。
+ *   node tooling/resource-tree.js [resources 目录] [--out 文件]
+ *     未给目录时，在 out/release 下自动查找 win-unpacked/resources。
  *     未给 --out 时输出到 stdout。每行格式：<字节数>\t<相对路径>，按路径排序。
- *   node build/scripts/resource-tree.js --compare <基线文件> <新文件>
+ *   node tooling/resource-tree.js --compare <基线文件> <新文件>
  *     比对两份清单，列出新增、删除、大小变化的文件；有差异时退出码为 1。
  *
- * 注意：pack.js 会强制结束 Ollama 和后端进程，跑 `pack --dir` 前先确认它们没有在运行。
+ * 注意：tooling/package.js 会强制结束 Ollama 和后端进程，跑 `pack --dir` 前先确认它们没有在运行。
  */
 const fs = require('fs');
 const path = require('path');
 
-const RELEASE_ROOT = path.join(__dirname, '..', '..', 'frontend', 'release');
+const RELEASE_ROOT = path.join(__dirname, '..', 'out', 'release');
 
 function findResourcesDir() {
   if (!fs.existsSync(RELEASE_ROOT)) return null;

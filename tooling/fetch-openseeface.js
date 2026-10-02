@@ -1,20 +1,20 @@
 'use strict';
 
 /*
- * 拉取 OpenSeeFace facetracker（Windows binary）到 vendor/openseeface（体积大不入库，见 .gitignore vendor/）。
+ * 拉取 OpenSeeFace facetracker（Windows binary）到 out/downloads/openseeface（体积大不入库，见 .gitignore out/）。
  *
  * OpenSeeFace（BSD-2，emilianavt/OpenSeeFace）是轻量 MobileNetV3 面捕，onnxruntime CPU 30–60fps，
  * 不与 THA 抢 GPU。桌宠用它做「摄像头视线跟随」的感知源（只取头部朝向 euler），
  * 见 docs/roadmap/agent-core-and-camera.md §7。
  *
- * 从 release 下载 OpenSeeFace-v1.20.5.zip（~120MB），解压后把自包含运行时组织到 vendor/openseeface：
+ * 从 release 下载 OpenSeeFace-v1.20.5.zip（~120MB），解压后把自包含运行时组织到 out/downloads/openseeface：
  *   - Binary/ 下所有文件（facetracker.exe + python37.dll + onnxruntime + cv2/numpy/PIL 等）平铺到根
  *   - models/    （facetracker 需与 exe 同目录或父目录）
  *   - Licenses/  （BSD-2 及第三方库许可，随分发）
- * facetracker 与 models 处于同级，openseeface-manager.ts 的 resolveExe 找 vendor/openseeface/facetracker.exe。
+ * facetracker 与 models 处于同级，openseeface-manager.ts 的 resolveExe 找 out/downloads/openseeface/facetracker.exe。
  *
- * 用法：node build/scripts/fetch-openseeface.js
- * 幂等：已存在 facetracker.exe + models 则跳过（删除 vendor/openseeface 可强制重取）。
+ * 用法：node tooling/fetch-openseeface.js
+ * 幂等：已存在 facetracker.exe + models 则跳过（删除 out/downloads/openseeface 可强制重取）。
  */
 
 const fs = require('fs');
@@ -23,8 +23,8 @@ const path = require('path');
 const https = require('https');
 const { spawnSync } = require('child_process');
 
-const ROOT = path.join(__dirname, '..', '..');
-const DST = path.join(ROOT, 'vendor', 'openseeface');
+const ROOT = path.join(__dirname, '..');
+const DST = path.join(ROOT, 'out', 'downloads', 'openseeface');
 const VERSION = 'v1.20.5';
 const URL = `https://github.com/emilianavt/OpenSeeFace/releases/download/${VERSION}/OpenSeeFace-${VERSION}.zip`;
 
@@ -108,7 +108,7 @@ async function main() {
     return;
   }
   if (fs.existsSync(path.join(DST, 'facetracker.exe')) && fs.existsSync(path.join(DST, 'models', 'lm_model3_opt.onnx'))) {
-    log('OpenSeeFace 已存在（vendor/openseeface），跳过。删除该目录可强制重新拉取。');
+    log('OpenSeeFace 已存在（out/downloads/openseeface），跳过。删除该目录可强制重新拉取。');
     return;
   }
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'osf-fetch-'));
@@ -120,7 +120,7 @@ async function main() {
     log('解压…');
     unzip(zip, ex);
 
-    log('组织到 vendor/openseeface …');
+    log('组织到 out/downloads/openseeface …');
     ensureDir(DST);
     // Binary/ 下所有文件平铺到根（facetracker.exe + 自包含运行时依赖）
     copyDir(path.join(ex, 'Binary'), DST);
@@ -132,7 +132,7 @@ async function main() {
       fs.existsSync(path.join(DST, 'facetracker.exe')) &&
       fs.existsSync(path.join(DST, 'models', 'lm_model3_opt.onnx'));
     if (!ok) throw new Error('组装后校验失败：缺少 facetracker.exe 或 models');
-    log('\nOpenSeeFace 已就绪于 vendor/openseeface（facetracker.exe + models + Licenses）。');
+    log('\nOpenSeeFace 已就绪于 out/downloads/openseeface（facetracker.exe + models + Licenses）。');
   } finally {
     try {
       fs.rmSync(tmp, { recursive: true, force: true });

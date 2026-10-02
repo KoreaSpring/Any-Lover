@@ -1,9 +1,9 @@
 'use strict';
 
 /*
- * 组装 dist-tha-runtime/：Windows 端 THA(神经网络出图) 渲染运行时（源码 + 嵌入式 Python）。
+ * 组装 out/stage/tha/：Windows 端 THA(神经网络出图) 渲染运行时（源码 + 嵌入式 Python）。
  *
- * 与后端 dist-runtime 的区别：THA 运行时保持“源码分发”，不做 PyInstaller 冻结。
+ * 与后端 out/stage/open-llm-vtuber 的区别：THA 运行时保持“源码分发”，不做 PyInstaller 冻结。
  * 打包时准备好「可 pip 的嵌入式 Python」+ 源码 + requirements.txt；
  * 依赖（onnxruntime-directml / rembg / opencv 等，数百 MB）由 tha-manager 在
  * 首次运行时用嵌入式 Python 执行 `pip install -r requirements.txt` 装入运行时目录，
@@ -11,7 +11,7 @@
  *
  * 步骤：
  *  1. 从 integrations/easyvtuber/runtime/ 复制 THA 源码与模型（排除 .venv / __pycache__ / 临时 _*.）
- *  2. 下载 Windows embeddable Python 到 dist-tha-runtime/python/
+ *  2. 下载 Windows embeddable Python 到 out/stage/tha/python/
  *  3. 启用 pip：取消 python3xx._pth 中 `import site` 注释 + get-pip.py 装 pip
  *
  * 仅 Windows 需要 THA；本脚本产出仅在 Windows 打包时随包。
@@ -24,7 +24,7 @@ const { spawnSync } = require('child_process');
 
 const ROOT = path.join(__dirname, '..', '..'); // 仓库根（integrations/easyvtuber/ 向上两级）
 const SRC = path.join(__dirname, 'runtime'); // THA/EasyVtuber 源：与本脚本同目录的 runtime/
-const OUT = path.join(ROOT, 'dist-tha-runtime'); // 组装产物仍落在仓库根（pack/electron-builder 从此处打包）
+const OUT = path.join(ROOT, 'out', 'stage', 'tha'); // 组装产物（tooling/package.js、electron-builder 从此处打包）
 
 // 嵌入式 Python 版本（THA/onnxruntime 支持 3.10–3.12；用 3.12 补丁版）。
 const PY_VERSION = '3.12.10';
@@ -68,7 +68,7 @@ function copyRecursive(src, dest) {
 }
 
 function assembleSource() {
-  log('组装 THA 源码运行时到 dist-tha-runtime/ ...');
+  log('组装 THA 源码运行时到 out/stage/tha/ ...');
   ensureDir(OUT);
   for (const item of ['ezvtb_rt', 'src', 'tha_server.py', 'preprocess_image.py', 'requirements.txt']) {
     log(`  [copy] ${item}`);
@@ -188,7 +188,7 @@ async function main() {
   }
   assembleSource();
   await preparePython();
-  log('\ndist-tha-runtime/ 组装完成（源码 + 嵌入式 Python + pip；依赖首启安装）。');
+  log('\nout/stage/tha/ 组装完成（源码 + 嵌入式 Python + pip；依赖首启安装）。');
 }
 
 main().catch((err) => {

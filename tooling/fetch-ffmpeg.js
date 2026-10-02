@@ -1,7 +1,7 @@
 'use strict';
 
 /*
- * 拉取随包 ffmpeg 到 vendor/ffmpeg/bin（只保留 ffmpeg.exe / ffprobe.exe，不要 ffplay）。
+ * 拉取随包 ffmpeg 到 out/downloads/ffmpeg/bin（只保留 ffmpeg.exe / ffprobe.exe，不要 ffplay）。
  *
  * 用途：在线备选 TTS（edge_tts）输出 mp3，后端 pydub 需要 ffmpeg 解码；默认离线 Kokoro 直接出 wav，不依赖它。
  * 来源：GyanD/codexffmpeg（gyan.dev 官方 GitHub 发布）固定版本 essentials 构建。
@@ -21,8 +21,8 @@ const URL = `https://github.com/GyanD/codexffmpeg/releases/download/${VERSION}/f
 const SHA256 = '04861d3339c5ebe38b56c19a15cf2c0cc97f5de4fa8910e4d47e5e6404e4a2d4';
 const KEEP = ['ffmpeg.exe', 'ffprobe.exe'];
 
-const ROOT = path.join(__dirname, '..', '..');
-const BIN = path.join(ROOT, 'vendor', 'ffmpeg', 'bin');
+const ROOT = path.join(__dirname, '..');
+const BIN = path.join(ROOT, 'out', 'downloads', 'ffmpeg', 'bin');
 
 function log(msg) {
   process.stdout.write(msg + '\n');
@@ -56,7 +56,7 @@ function sha256(file) {
 
 async function main() {
   if (KEEP.every((f) => fs.existsSync(path.join(BIN, f)))) {
-    log('vendor/ffmpeg/bin 已存在 ffmpeg/ffprobe，跳过。');
+    log('out/downloads/ffmpeg/bin 已存在 ffmpeg/ffprobe，跳过。');
     return;
   }
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'anylover-ffmpeg-'));

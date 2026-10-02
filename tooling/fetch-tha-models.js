@@ -11,7 +11,7 @@
  *
  * rembg 抠图模型（data/rembg）不在此处：首次抠图时由 rembg 自动下载到 U2NET_HOME(=data/rembg)。
  *
- * 用法：node build/scripts/fetch-tha-models.js
+ * 用法：node tooling/fetch-tha-models.js
  */
 
 const fs = require('fs');
@@ -20,7 +20,7 @@ const path = require('path');
 const https = require('https');
 const { spawnSync } = require('child_process');
 
-const ROOT = path.join(__dirname, '..', '..');
+const ROOT = path.join(__dirname, '..');
 const MODELS = path.join(ROOT, 'integrations', 'easyvtuber', 'runtime', 'data', 'models');
 const URL = 'https://github.com/zpeng11/ezvtuber-rt/releases/download/0.0.1/20241220.zip';
 

@@ -7,7 +7,7 @@
  * - 其它浏览器：分片转成 Blob（浏览器会把大 Blob 放到磁盘缓存），全部下完后拼接并触发保存。
  * 任何一步失败都提供「改用 GitHub Releases 直接下载完整安装包」的兜底链接。
  *
- * 分片由 build/scripts/split-release.js 生成，manifest 结构见该脚本。
+ * 分片由 tooling/release/split-release.js 生成，manifest 结构见该脚本。
  */
 
 export const PARTS_BASE_URL = 'https://raw.githubusercontent.com/KoreaSpring/Any-Lover/downloads/';

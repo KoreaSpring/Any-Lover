@@ -1,18 +1,18 @@
 {
   "name": "any-lover-workspace",
   "version": "0.1.0",
-  "description": "Any-Lover（角色 Charis）桌宠版 AI 伴侣工作区：frontend（Electron 外壳 + Live2D 前端 + 设置窗口）、backend（上游 Python，黑盒）、site（React 官网）、build/scripts（后端组装与冻结）。",
+  "description": "Any-Lover（角色 Charis）桌宠版 AI 伴侣工作区：frontend（Electron 外壳 + Live2D 前端 + 设置窗口）、backend（上游 Python，黑盒）、site（React 官网）、tooling（构建、打包、发布脚本；产物统一在 out/）。",
   "author": "ai-bot",
   "license": "MIT",
   "private": true,
   "scripts": {
-    "prepare-runtime": "node build/scripts/prepare-runtime.js",
+    "prepare-runtime": "node tooling/prepare-runtime.js",
     "prepare-tha-runtime": "node integrations/easyvtuber/prepare.js",
-    "fetch-tha-models": "node build/scripts/fetch-tha-models.js",
-    "fetch-openseeface": "node build/scripts/fetch-openseeface.js",
+    "fetch-tha-models": "node tooling/fetch-tha-models.js",
+    "fetch-openseeface": "node tooling/fetch-openseeface.js",
     "setup:win": "npm run install:app && npm run prepare-runtime && npm run fetch-tha-models && npm run fetch-openseeface",
     "setup:mac": "npm run install:app && npm run prepare-runtime",
-    "build:backend": "node build/scripts/build-backend.js",
+    "build:backend": "node tooling/build-backend.js",
     "install:app": "npm --prefix frontend install",
     "install:all": "npm run install:app && npm --prefix site install",
     "python:deps": "python -m pip install -r requirements-pet.txt",
@@ -22,11 +22,11 @@
     "frontend:build": "npm --prefix frontend run build",
     "site:dev": "npm --prefix site run dev",
     "site:build": "npm --prefix site run build",
-    "pack": "node build/scripts/pack.js",
-    "pack:full": "node build/scripts/pack.js --with-model",
-    "pack:tree": "node build/scripts/resource-tree.js",
+    "pack": "node tooling/package.js",
+    "pack:full": "node tooling/package.js --with-model",
+    "pack:tree": "node tooling/resource-tree.js",
     "dist": "npm run prepare-runtime && npm run build:backend && npm run pack",
     "dist:full": "npm run prepare-runtime && npm run build:backend && npm run pack:full",
-    "dist:win": "npm run prepare-runtime && npm run build:backend && npm run prepare-tha-runtime && node build/scripts/pack.js --no-ollama"
+    "dist:win": "npm run prepare-runtime && npm run build:backend && npm run prepare-tha-runtime && node tooling/package.js --no-ollama"
   }
 }

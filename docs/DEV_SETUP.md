@@ -24,7 +24,7 @@ npm run dist:win
 
 `setup:win` 依次做：
 - `install:app`：`npm --prefix frontend install`
-- `prepare-runtime`：组装 Python 后端运行时到 `dist-runtime/`
+- `prepare-runtime`：组装 Python 后端运行时到 `out/stage/open-llm-vtuber/`
 - `fetch-tha-models`：下载 THA 模型整包并组织到 `tha-runtime/data/models/`（模型体积大、不入库）
 
 说明：
@@ -57,8 +57,8 @@ Mac 上渲染模式恒为 Live2D。THA 相关（`tha-runtime`、嵌入式 Python
 | `setup:win` / `setup:mac` | 新机一次性准备 |
 | `dev` | 组装后端运行时 + 启动 electron-vite dev |
 | `fetch-tha-models` | 拉取 THA 模型到 tha-runtime/data/models（仅 Windows 需要） |
-| `prepare-runtime` | 组装 Python 后端运行时 dist-runtime/ |
-| `prepare-tha-runtime` | 组装 THA 源码运行时 + 嵌入式 Python 到 dist-tha-runtime/（打包用，仅 Windows） |
+| `prepare-runtime` | 组装 Python 后端运行时 out/stage/open-llm-vtuber/ |
+| `prepare-tha-runtime` | 组装 THA 源码运行时 + 嵌入式 Python 到 out/stage/tha/（打包用，仅 Windows） |
 | `build:backend` | 可选：PyInstaller 冻结后端为 exe |
 | `dist` | Windows 打包（不含 THA） |
 | `dist:win` | Windows 打包（含 THA：prepare-runtime + build:backend + prepare-tha-runtime + pack） |

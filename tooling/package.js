@@ -2,16 +2,16 @@
 
 /*
  * 打包编排：三种产物形态
- *   - 标准版（默认）：内置 Ollama「二进制」(vendor/ollama/bin，约数十 MB，不含大模型)。
+ *   - 标准版（默认）：内置 Ollama「二进制」(out/downloads/ollama/bin，约数十 MB，不含大模型)。
  *     首次启动按硬件推荐并静默 `ollama pull` 模型（对齐 AnythingLLM 桌面版）。
  *   - 纯轻量版（--no-ollama）：连 Ollama 二进制都不打。用户自备 Ollama 或用云端 API。
- *   - 整合版（--with-model）：把 vendor/ollama 整个（二进制 + minicpm-v:8b 模型）打入，
+ *   - 整合版（--with-model）：把 out/downloads/ollama 整个（二进制 + minicpm-v:8b 模型）打入，
  *     安装后完全离线开箱即用、无需任何下载。
  *
  * 用法（在 ai-bot/ 下）：
- *   node build/scripts/pack.js                 # 标准版：内置 ollama 二进制，模型运行时下载
- *   node build/scripts/pack.js --no-ollama     # 纯轻量版：不含 ollama
- *   node build/scripts/pack.js --with-model    # 整合版：连模型一起打（完全离线）
+ *   node tooling/package.js                 # 标准版：内置 ollama 二进制，模型运行时下载
+ *   node tooling/package.js --no-ollama     # 纯轻量版：不含 ollama
+ *   node tooling/package.js --with-model    # 整合版：连模型一起打（完全离线）
  *   追加 --dir                                 # 只产出免安装目录（不压缩、不打 NSIS，最快，供测试）
  *
  * 实现：electron-builder 从 frontend/electron-builder.yml 读取基础配置；
@@ -23,14 +23,17 @@ const fs = require('fs');
 const os = require('os');
 const { spawnSync } = require('child_process');
 
-const ROOT = path.join(__dirname, '..', '..');
+const ROOT = path.join(__dirname, '..');
 const DESKTOP = path.join(ROOT, 'frontend');
-const VENDOR_OLLAMA = path.join(ROOT, 'vendor', 'ollama');
+// 安装包产物统一放在仓库根 out/release（electron-builder 的 output 相对 frontend/ 解析）
+const RELEASE_ROOT = path.join(ROOT, 'out', 'release');
+const RELEASE_REL = path.relative(DESKTOP, RELEASE_ROOT).split(path.sep).join('/');
+const VENDOR_OLLAMA = path.join(ROOT, 'out', 'downloads', 'ollama');
 
 // 形态开关：
 //   默认           = 标准版：内置 ollama 二进制（bin，不含模型）
 //   --no-ollama    = 纯轻量版：不打 ollama
-//   --with-model   = 整合版：连模型一起打（vendor/ollama 整个目录）
+//   --with-model   = 整合版：连模型一起打（out/downloads/ollama 整个目录）
 const noOllama = process.argv.includes('--no-ollama');
 const withModel = process.argv.includes('--with-model');
 const dirOnly = process.argv.includes('--dir');
@@ -63,7 +66,7 @@ function preparePackaging() {
   }
 
   // 整体删除 release/，保证每次打包都是全新产物，不堆积历史目录
-  const releaseRoot = path.join(DESKTOP, 'release');
+  const releaseRoot = RELEASE_ROOT;
   if (fs.existsSync(releaseRoot)) {
     try {
       fs.rmSync(releaseRoot, { recursive: true, force: true, maxRetries: 10, retryDelay: 400 });
@@ -85,8 +88,8 @@ function preparePackaging() {
  * 若该目录仍存在且无法清空（被占用），回退到带时间戳的新目录，保证打包不中断。
  */
 function makeOutputDir() {
-  const fixedRel = path.posix.join('release', 'dist');
-  const fixedAbs = path.join(DESKTOP, 'release', 'dist');
+  const fixedRel = path.posix.join(RELEASE_REL, 'dist');
+  const fixedAbs = path.join(RELEASE_ROOT, 'dist');
 
   if (!fs.existsSync(fixedAbs)) {
     return { rel: fixedRel, abs: fixedAbs };
@@ -98,8 +101,8 @@ function makeOutputDir() {
     const ts = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14);
     log(`固定输出目录被占用，回退到 build-${ts}`);
     return {
-      rel: path.posix.join('release', `build-${ts}`),
-      abs: path.join(DESKTOP, 'release', `build-${ts}`),
+      rel: path.posix.join(RELEASE_REL, `build-${ts}`),
+      abs: path.join(RELEASE_ROOT, `build-${ts}`),
     };
   }
 }
@@ -110,14 +113,14 @@ function buildDesktop() {
   if (res.status !== 0) throw new Error('desktop 构建失败');
 }
 
-const VENDOR_FFMPEG = path.join(ROOT, 'vendor', 'ffmpeg');
+const VENDOR_FFMPEG = path.join(ROOT, 'out', 'downloads', 'ffmpeg');
 
 function runBuilder() {
-  // 基础 extraResources：dist-runtime -> runtime（相对 frontend/ 即 projectDir）
+  // 基础 extraResources：out/stage/open-llm-vtuber -> runtime（相对 frontend/ 即 projectDir）
   // 排除本机开发/调试产生的运行期数据（日志、TTS 缓存、聊天记录），以及冗余的 fp32 ASR 权重。
   const extra = [
     {
-      from: '../dist-runtime',
+      from: '../out/stage/open-llm-vtuber',
       to: 'runtime',
       filter: [
         '**/*',
@@ -135,31 +138,31 @@ function runBuilder() {
   // 随包提供 ffmpeg：edge_tts（在线备选）输出 mp3，后端用 pydub 转 wav 需要 ffmpeg 解码。
   // 只打 ffmpeg/ffprobe；ffplay 是独立播放器，项目由前端播放音频，用不到（省约 100MB）。
   if (fs.existsSync(path.join(VENDOR_FFMPEG, 'bin', 'ffmpeg.exe'))) {
-    extra.push({ from: '../vendor/ffmpeg', to: 'ffmpeg', filter: ['**/*', '!**/ffplay*'] });
-    log('打入 vendor/ffmpeg（用于 TTS 音频转码）');
+    extra.push({ from: '../out/downloads/ffmpeg', to: 'ffmpeg', filter: ['**/*', '!**/ffplay*'] });
+    log('打入 out/downloads/ffmpeg（用于 TTS 音频转码）');
   } else {
-    log('提示：未找到 vendor/ffmpeg/bin/ffmpeg.exe，产物将不含 ffmpeg，缺 ffmpeg 的机器语音会静音');
+    log('提示：未找到 out/downloads/ffmpeg/bin/ffmpeg.exe，产物将不含 ffmpeg，缺 ffmpeg 的机器语音会静音');
   }
 
-  // Windows THA 渲染运行时（源码 + 嵌入式 Python）：由 prepare-tha-runtime.js 组装到 dist-tha-runtime。
+  // Windows THA 渲染运行时（源码 + 嵌入式 Python）：由 prepare-tha-runtime.js 组装到 out/stage/tha。
   // 存在则打入 resources/tha-runtime；不存在（未跑 prepare-tha-runtime）则跳过，应用回退 Live2D。
-  const thaRuntime = path.join(ROOT, 'dist-tha-runtime');
+  const thaRuntime = path.join(ROOT, 'out', 'stage', 'tha');
   if (fs.existsSync(path.join(thaRuntime, 'tha_server.py'))) {
-    extra.push({ from: '../dist-tha-runtime', to: 'tha-runtime', filter: ['**/*'] });
-    log('打入 dist-tha-runtime（THA 源码 + 嵌入式 Python；依赖首启安装）');
+    extra.push({ from: '../out/stage/tha', to: 'tha-runtime', filter: ['**/*'] });
+    log('打入 out/stage/tha（THA 源码 + 嵌入式 Python；依赖首启安装）');
   } else {
-    log('提示：未找到 dist-tha-runtime（未运行 prepare-tha-runtime），产物将不含 THA，Windows 回退 Live2D');
+    log('提示：未找到 out/stage/tha（未运行 prepare-tha-runtime），产物将不含 THA，Windows 回退 Live2D');
   }
 
-  // OpenSeeFace 摄像头面捕（可选，仅 Windows）：由 fetch-openseeface.js 拉到 vendor/openseeface。
+  // OpenSeeFace 摄像头面捕（可选，仅 Windows）：由 fetch-openseeface.js 拉到 out/downloads/openseeface。
   // 存在则打入 resources/openseeface（openseeface-manager.ts resolveExe 找此路径）；
   // 缺失则跳过——摄像头视线跟随不可用，canStart 返 false 优雅降级，不影响其它功能。
-  const osfDir = path.join(ROOT, 'vendor', 'openseeface');
+  const osfDir = path.join(ROOT, 'out', 'downloads', 'openseeface');
   if (fs.existsSync(path.join(osfDir, 'facetracker.exe'))) {
-    extra.push({ from: '../vendor/openseeface', to: 'openseeface', filter: ['**/*'] });
-    log('打入 vendor/openseeface（facetracker + models，用于摄像头视线跟随，约 200MB）');
+    extra.push({ from: '../out/downloads/openseeface', to: 'openseeface', filter: ['**/*'] });
+    log('打入 out/downloads/openseeface（facetracker + models，用于摄像头视线跟随，约 200MB）');
   } else {
-    log('提示：未找到 vendor/openseeface（未运行 fetch-openseeface），产物将不含摄像头视线跟随');
+    log('提示：未找到 out/downloads/openseeface（未运行 fetch-openseeface），产物将不含摄像头视线跟随');
   }
 
   // Ollama 打包形态
@@ -174,8 +177,8 @@ function runBuilder() {
   } else if (withModel) {
     if (!hasOllamaBin) throw new Error(`未找到内置 Ollama 二进制：${ollamaBin}`);
     // 整合版：二进制 + 模型 全部打入 -> resources/ollama（含 models 子目录）
-    extra.push({ from: '../vendor/ollama', to: 'ollama', filter: ['**/*'] });
-    log('整合版：将打入 vendor/ollama（二进制 + 模型，完全离线）');
+    extra.push({ from: '../out/downloads/ollama', to: 'ollama', filter: ['**/*'] });
+    log('整合版：将打入 out/downloads/ollama（二进制 + 模型，完全离线）');
   } else {
     // 标准版（默认）：打二进制（bin），排除大模型；模型运行时 `ollama pull`。
     // 方案 Z1：仅保留 CPU 后端 + CUDA v13，排除 cuda_v12(1.16GB) 与 rocm_v7_1(1GB)，
@@ -183,7 +186,7 @@ function runBuilder() {
     // 触发 NSIS 的 "failed creating mmap" 失败）。
     if (!hasOllamaBin) throw new Error(`未找到内置 Ollama 二进制：${ollamaBin}`);
     extra.push({
-      from: '../vendor/ollama/bin',
+      from: '../out/downloads/ollama/bin',
       to: 'ollama/bin',
       filter: ['**/*', '!lib/ollama/cuda_v12/**', '!lib/ollama/rocm_v7_1/**'],
     });
@@ -248,7 +251,7 @@ try {
         ['split-release.js', [exe, '--out', splitDir]],
         ['verify-split.js', [splitDir]],
       ]) {
-        const res = spawnSync(process.execPath, [path.join(__dirname, script), ...args], { stdio: 'inherit' });
+        const res = spawnSync(process.execPath, [path.join(__dirname, 'release', script), ...args], { stdio: 'inherit' });
         if (res.status !== 0) throw new Error(`${script} 失败`);
       }
     }

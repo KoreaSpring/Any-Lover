@@ -44,7 +44,7 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 120
     env:
-      # 让 pack.js 保留 github publish 配置，生成 latest.yml / app-update.yml
+      # 让 tooling/package.js 保留 github publish 配置，生成 latest.yml / app-update.yml
       ANYLOVER_UPDATE_INFO: '1'
     steps:
       - name: Checkout
@@ -78,38 +78,38 @@ jobs:
       - name: Install backend build dependencies
         run: python -m pip install -r requirements-pet.txt
 
-      # 模型体积大（SenseVoice int8 + Kokoro），按 prepare-runtime.js 内容缓存
+      # 模型体积大（SenseVoice int8 + Kokoro），按 tooling/prepare-runtime.js 内容缓存
       - name: Cache models
         uses: actions/cache@v4
         with:
-          path: dist-runtime/models
-          key: models-${{ hashFiles('build/scripts/prepare-runtime.js') }}
+          path: out/stage/open-llm-vtuber/models
+          key: models-${{ hashFiles('tooling/prepare-runtime.js') }}
 
       - name: Fetch ffmpeg (pinned + SHA-256)
-        run: node build/scripts/fetch-ffmpeg.js
+        run: node tooling/fetch-ffmpeg.js
 
       - name: Prepare runtime
         env:
           AIBOT_PYTHON: ${{ steps.py.outputs.python-path }}
-        run: node build/scripts/prepare-runtime.js
+        run: node tooling/prepare-runtime.js
 
       - name: Freeze backend (PyInstaller)
         env:
           AIBOT_PYTHON: ${{ steps.py.outputs.python-path }}
-        run: node build/scripts/build-backend.js
+        run: node tooling/build-backend.js
 
       - name: Unit tests
         working-directory: frontend
         run: npm test
 
       - name: Package (NSIS, no Ollama)
-        run: node build/scripts/pack.js --no-ollama
+        run: node tooling/package.js --no-ollama
 
       - name: Collect artifacts
         id: art
         shell: pwsh
         run: |
-          $dir = Get-ChildItem frontend/release -Directory | Sort-Object LastWriteTime | Select-Object -Last 1
+          $dir = Get-ChildItem out/release -Directory | Sort-Object LastWriteTime | Select-Object -Last 1
           $files = Get-ChildItem $dir.FullName -File | Where-Object { $_.Name -match '\.(exe|blockmap)$' -or $_.Name -eq 'latest.yml' }
           if (-not ($files | Where-Object Name -eq 'latest.yml')) { throw 'latest.yml 未生成' }
           $files | ForEach-Object { "{0}  {1:N1} MB" -f $_.Name, ($_.Length / 1MB) }
@@ -140,7 +140,7 @@ jobs:
             gh release upload '${{ github.ref_name }}' $assets --clobber
           }
 
-      # 官网分片下载：pack.js 已把安装包切成 < 100MB 的分片（split/ + manifest.json）并校验。
+      # 官网分片下载：tooling/package.js 已把安装包切成 < 100MB 的分片（split/ + manifest.json）并校验。
       # 推到专用孤儿分支 downloads，经 raw.githubusercontent.com 提供（带 CORS，官网可在浏览器里下载并拼接）。
       # 该分支只放当前版本的分片：每次发布用单个新提交强推覆盖，不在仓库里累积历史大文件。
       # 注意：只强推 downloads 这一个分支，不影响 main 等其它分支。

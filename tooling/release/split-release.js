@@ -9,8 +9,8 @@
  * 为什么要 < 100MB：分片托管在仓库的 downloads 分支、经 raw.githubusercontent.com 提供（带 CORS，
  * 官网可以跨域 fetch）；git 单文件上限 100MB。GitHub Release 资产不带 CORS 头，浏览器无法跨域拼接。
  *
- * 用法：node build/scripts/split-release.js [安装包路径] [--out 输出目录] [--part-mb 95]
- *   默认安装包：frontend/release/dist 下最新的 *-setup.exe；默认输出：frontend/release/dist/split
+ * 用法：node tooling/release/split-release.js [安装包路径] [--out 输出目录] [--part-mb 95]
+ *   默认安装包：out/release/dist 下最新的 *-setup.exe；默认输出：out/release/dist/split
  * 产物：<file>.part001 … + manifest.json
  *   { version, file, size, sha256, partSize, createdAt, parts: [{ name, size, sha256 }] }
  */
@@ -20,7 +20,7 @@ const path = require('path');
 const crypto = require('crypto');
 
 const ROOT = path.join(__dirname, '..', '..');
-const DIST = path.join(ROOT, 'frontend', 'release', 'dist');
+const DIST = path.join(ROOT, 'out', 'release', 'dist');
 
 function arg(name, fallback) {
   const i = process.argv.indexOf(name);

@@ -102,7 +102,7 @@ message AudioPayload {
 
 // ============================================================================
 // THA 渲染控制 WebSocket（renderer/tha-driver ↔ tha_server.py，端口 12395）
-//   TS: proto/ws-tha.ts   Python: dist-tha-runtime/tha_server.py（on_message）
+//   TS: proto/ws-tha.ts   Python: out/stage/tha/tha_server.py（on_message）
 // ============================================================================
 
 // ---- 出站 type（renderer → tha_server）。见 ws-tha.ts THA_OUT ----
@@ -135,7 +135,7 @@ message ThaSetImageProgress {
 //   - backend/src/open_llm_vtuber/websocket_handler.py
 //       _init_message_handlers()  ← 入站 type → handler 映射（对应 WsOut，从后端看是入站）
 //       json.dumps({"type": ...}) ← 出站消息（对应 WsIn，从后端看是出站）
-//   - dist-tha-runtime/tha_server.py
+//   - out/stage/tha/tha_server.py
 //       on_message()              ← 分发 ThaOut 各 type
 //       setImageProgress 回发     ← 对应 ThaSetImageProgress
 // ============================================================================

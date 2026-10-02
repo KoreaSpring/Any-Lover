@@ -17,12 +17,12 @@ integrations/easyvtuber/
     requirements.txt
     data/           models/(gitignore，脚本下载) + images/
     .venv/          开发态本地 venv（gitignore）
-  prepare.js        构建脚本：组装 runtime/ + 嵌入式 Python → 仓库根 dist-tha-runtime/
+  prepare.js        构建脚本：组装 runtime/ + 嵌入式 Python → 仓库根 out/stage/tha/
   README.md         本文件
 ```
 
-> 产物 `dist-tha-runtime/`（在仓库根，gitignore）由 `prepare.js` 生成；`frontend/electron-builder.yml`
-> 和 `build/scripts/pack.js` 从它打包到 `resources/tha-runtime`。
+> 产物 `out/stage/tha/`（在仓库根，gitignore）由 `prepare.js` 生成；`frontend/electron-builder.yml`
+> 和 `tooling/package.js` 从它打包到 `resources/tha-runtime`。
 
 ## 与主程序的边界（松耦合）
 
@@ -37,7 +37,7 @@ integrations/easyvtuber/
 ## 构建与模型
 
 - **组装运行时**：`npm run prepare-tha-runtime`（= `node integrations/easyvtuber/prepare.js`）。
-  从 `runtime/` 复制源码 + 下载 Windows 嵌入式 Python → `dist-tha-runtime/`。依赖
+  从 `runtime/` 复制源码 + 下载 Windows 嵌入式 Python → `out/stage/tha/`。依赖
   （onnxruntime-directml / rembg / opencv 等，数百 MB）**不随包**，由 tha-manager 首次运行时
   用嵌入式 Python `pip install -r requirements.txt` 装入运行目录。
 - **拉取模型**：`npm run fetch-tha-models`（从 ezvtuber-rt release 下载整包，重排到
@@ -53,4 +53,4 @@ integrations/easyvtuber/
 
 因为边界是 WebSocket 协议（见 `proto/ws-tha.ts`）+ SidecarPlugin 生命周期契约，理论上可用实现同一
 WS 协议的其它渲染引擎替换本目录，而不改主程序 renderer/中枢。实际替换时需同时提供：等价的
-`tha_server.py`（或兼容 WS 服务）、组装脚本产出 `dist-tha-runtime/`、以及匹配的模型。
+`tha_server.py`（或兼容 WS 服务）、组装脚本产出 `out/stage/tha/`、以及匹配的模型。

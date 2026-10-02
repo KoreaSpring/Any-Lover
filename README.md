@@ -82,9 +82,9 @@ Electron 会自动拉起并管理 Python 后端（`127.0.0.1:12393`）和 Ollama
 - **轻量版** `npm run dist` — 内置 Ollama 程序（不含模型）。
 - **整合版** `npm run dist:full` — 内置 Ollama + 模型，安装后免下载。
 
-产物输出到 `frontend/release/dist/`。打完安装包会自动切成 < 100MB 的分片放到 `split/`（附 `manifest.json`，含整包和每片的 SHA-256），并校验拼接后与原安装包一致；加 `--no-split` 可跳过。
+产物输出到 `out/release/dist/`。打完安装包会自动切成 < 100MB 的分片放到 `split/`（附 `manifest.json`，含整包和每片的 SHA-256），并校验拼接后与原安装包一致；加 `--no-split` 可跳过。
 
-打包前先拉取 ffmpeg（固定版本，SHA-256 校验，只保留 ffmpeg / ffprobe）：`node build/scripts/fetch-ffmpeg.js`。
+打包前先拉取 ffmpeg（固定版本，SHA-256 校验，只保留 ffmpeg / ffprobe）：`node tooling/fetch-ffmpeg.js`。
 
 ### 发布新版本
 
@@ -107,7 +107,7 @@ $env:ANYLOVER_UPDATE_INFO = '1'
 npm run dist:win    # 组装运行时 → 冻结后端 → 打安装包 → 切 <100MB 分片并校验
 ```
 
-打包日志最后会打印「产物目录」。通常是 `frontend/release/dist/`，目录被占用时会改用 `frontend/release/build-<时间戳>/`，以日志为准。目录里应有 `any-lover-<版本>-setup.exe`、`latest.yml` 和 `split/`。
+打包日志最后会打印「产物目录」。通常是 `out/release/dist/`，目录被占用时会改用 `out/release/build-<时间戳>/`，以日志为准。目录里应有 `any-lover-<版本>-setup.exe`、`latest.yml` 和 `split/`。
 
 ```powershell
 $out = "D:\friends\any-lover\frontend\release\dist"   # 换成日志里的产物目录
@@ -178,7 +178,7 @@ npm run pack:full -- --dir    # 整合版免安装目录
 npm run pack -- --dir         # 轻量版免安装目录
 ```
 
-> `pack` / `pack:full` 只封装现有的 `dist-runtime/python`，**不会**重新冻结后端。改过后端代码后请用 `dist` / `dist:full`。
+> `pack` / `pack:full` 只封装现有的 `out/stage/open-llm-vtuber/python`，**不会**重新冻结后端。改过后端代码后请用 `dist` / `dist:full`。
 
 </details>
 
@@ -193,7 +193,7 @@ npm run pack -- --dir         # 轻量版免安装目录
 | `No module named PyInstaller` | 当前 Python 没装冻结依赖 | 激活 `.venv-pack` 后 `npm run python:deps` |
 | `python --version` 显示 `3.14.x` | 用了不支持的系统 Python | 用 3.10–3.12 建 `.venv-pack`，设 `$env:AIBOT_PYTHON` |
 | `未找到入口 ... run_server.py` | 尚未组装后端运行时 | `npm run prepare-runtime`，或直接 `npm run dist:full` |
-| `未找到内置 Ollama` | `vendor/ollama` 不完整 | 补齐 Ollama 程序与模型，或改打轻量版 `npm run dist` |
+| `未找到内置 Ollama` | `out/downloads/ollama` 不完整 | 补齐 Ollama 程序与模型，或改打轻量版 `npm run dist` |
 | 打包成功但后端不是最新 | `pack:full` 封装了旧冻结后端 | 改用 `npm run dist:full` 重新冻结 |
 | `Error calling the chat endpoint`（含图片） | 用纯文本模型时收到了屏幕/摄像头图片 | 换成带「多模态」标记的模型（Qwen3-VL、Gemma 3 4B），或关闭摄像头/屏幕；新版会自动忽略图片重试 |
 | 模型下载中断 | 网络波动（日志里 `ECONNRESET`） | 会自动重试 3 次且断点续传；仍失败时重启应用，在启动页点「继续下载」 |
@@ -213,15 +213,15 @@ npm run pack -- --dir         # 轻量版免安装目录
 
 | 命令 | 作用 |
 | --- | --- |
-| `npm run dev:setup` | 首次准备：装前端依赖 + 组装 `dist-runtime` |
+| `npm run dev:setup` | 首次准备：装前端依赖 + 组装 `out/stage/open-llm-vtuber` |
 | `npm run dev` | 日常启动：准备运行时并启动 Electron（自动托管后端 / Ollama） |
 | `npm run frontend:dev` | 仅启动 `electron-vite dev`（依赖与运行时已就绪时更快） |
 | `npm run frontend:build` | 生产构建 Electron（含主窗口与设置窗口两个 renderer 入口），不打安装包 |
 | `npm run install:app` | 安装 `frontend` 依赖（含设置窗口，已并入前端） |
 | `npm run install:all` | 在 `install:app` 基础上再装 `site` 依赖 |
 | `npm run python:deps` | 用当前 Python 安装 `requirements-pet.txt`（建议在 3.10–3.12 venv 中） |
-| `npm run prepare-runtime` | 从 `backend/` 组装可分发运行时到 `dist-runtime`（首次下载 SenseVoice int8 + Kokoro，约 600MB） |
-| `npm run build:backend` | PyInstaller 冻结后端到 `dist-runtime/python`（需 `prepare-runtime` + `AIBOT_PYTHON`） |
+| `npm run prepare-runtime` | 从 `backend/` 组装可分发运行时到 `out/stage/open-llm-vtuber`（首次下载 SenseVoice int8 + Kokoro，约 600MB） |
+| `npm run build:backend` | PyInstaller 冻结后端到 `out/stage/open-llm-vtuber/python`（需 `prepare-runtime` + `AIBOT_PYTHON`） |
 | `npm run pack` / `pack:full` | 打**轻量版** / **整合版** 安装包（只封装现有后端），并自动切分片 |
 | `npm run dist` / `dist:full` / `dist:win` | 完整发布：`prepare-runtime` → `build:backend` → 打包 → 切分片 |
 | `npm run site:dev` / `site:build` | 官网本地预览 / 生产构建 |
@@ -243,18 +243,23 @@ Any-Lover/
 ├─ backend/             # 上游 Open-LLM-VTuber 后端（vendored，改动登记在 ANYLOVER_EXTENSIONS.md）
 ├─ site/                # React + Vite 官网（GitHub Pages 部署，分片下载安装包）
 ├─ integrations/        # EasyVTuber / THA 2D 形象渲染
-├─ build/scripts/       # prepare-runtime / build-backend / pack / split-release / verify-split / fetch-ffmpeg
+├─ tooling/             # 构建、打包、发布脚本：prepare-runtime / build-backend / package / release/ 分片
 ├─ .github/workflows/   # 官网部署、前端 CI、Windows 发布（Release + downloads 分片分支）
-├─ dist-runtime/        # 组装出的可分发运行时（含冻结后端与语音模型），构建产物
-└─ vendor/              # 本机构建资源：ffmpeg、Ollama、OpenSeeFace（不入 Git）
+└─ out/                 # 全部产物和下载缓存（不入 Git，可删可重建）
+   ├─ stage/            #   组装好的运行时：open-llm-vtuber（冻结后端 + 语音模型）、tha
+   ├─ downloads/        #   ffmpeg、Ollama、OpenSeeFace
+   ├─ pyinstaller/      #   后端冻结中间产物
+   └─ release/          #   安装包与分片
 ```
 
 **设计要点**：Electron 主进程是「中枢」——对话引擎、记忆（向量近邻 + LLM 判定的增改删合并）、情绪、桌面感知、MCP 工具客户端（官方 TS SDK）都在主进程里；Python 后端主要负责本地语音识别 / 合成和 Live2D 表情，作为 sidecar 在 `127.0.0.1:12393` 运行。
 
-`dist-runtime/` 与 `vendor/` 是本机构建资源，默认不入 Git：
-- `dist-runtime/python/aibot-backend.exe` — 由 `npm run build:backend` 生成；
-- `vendor/ffmpeg/bin/` — 由 `node build/scripts/fetch-ffmpeg.js` 拉取；
-- `vendor/ollama/bin/ollama.exe` + `vendor/ollama/models/` — 整合版打包所需的 Ollama 与模型。
+`out/stage/open-llm-vtuber/` 与 `out/downloads/` 是本机构建资源，默认不入 Git：
+- `out/stage/open-llm-vtuber/python/aibot-backend.exe` — 由 `npm run build:backend` 生成；
+- `out/downloads/ffmpeg/bin/` — 由 `node tooling/fetch-ffmpeg.js` 拉取；
+- `out/downloads/ollama/bin/ollama.exe` + `out/downloads/ollama/models/` — 整合版打包所需的 Ollama 与模型。
+
+从旧目录布局升级的本机（仓库根还有 `dist-runtime/`、`dist-tha-runtime/`、`vendor/`、`build/pyinstaller/`）：把它们分别移到 `out/stage/open-llm-vtuber/`、`out/stage/tha/`、`out/downloads/`、`out/pyinstaller/` 即可继续使用，不必重新下载；`frontend/release/` 可直接删除。
 
 </details>
 
@@ -285,6 +290,6 @@ README 首屏与功能图来自上游项目，版权归原作者所有。
 
 - 本项目代码遵循 **MIT License**（见 [`LICENSE`](./LICENSE)）。
 - 后端与 Live2D 示例模型（Mao / Shizuku）等第三方资源遵循各自许可（见 `backend/LICENSE`、`backend/LICENSE-Live2D.md`）。Live2D 示例模型版权归 Live2D Inc.，分发与商用请遵循其条款。
-- Ollama 与各模型权重（Qwen3、Gemma 3、Llama 3.2、SenseVoice、Kokoro 等）遵循各自上游许可；ffmpeg 为 GPL 构建（gyan.dev essentials），许可见 `vendor/ffmpeg/LICENSE`。
+- Ollama 与各模型权重（Qwen3、Gemma 3、Llama 3.2、SenseVoice、Kokoro 等）遵循各自上游许可；ffmpeg 为 GPL 构建（gyan.dev essentials），许可见 `out/downloads/ffmpeg/LICENSE`。
 
 <div align="center"><sub>Built on top of <a href="https://docs.llmvtuber.com">Open-LLM-VTuber</a> · MIT License</sub></div>

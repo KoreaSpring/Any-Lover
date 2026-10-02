@@ -1,11 +1,11 @@
 'use strict';
 
 /*
- * 组装 dist-runtime/：桌宠后端的可分发运行时（上游 open_llm_vtuber 作为黑盒整体引入）。
+ * 组装 out/stage/open-llm-vtuber/：桌宠后端的可分发运行时（上游 open_llm_vtuber 作为黑盒整体引入）。
  *
  * 分层说明：
  *  - 我们自己的代码在 apps/（desktop 外壳、settings-ui 面板）与 build/（构建脚本）。
- *  - 上游后端与其资源作为整体运行时，输出到 dist-runtime/（保持 run_server.py 期望的扁平布局，
+ *  - 上游后端与其资源作为整体运行时，输出到 out/stage/open-llm-vtuber/（保持 run_server.py 期望的扁平布局，
  *    不重排内部结构，以免破坏其相对路径假设）。
  *
  * 步骤：
@@ -20,11 +20,11 @@ const path = require('path');
 const https = require('https');
 const { spawnSync } = require('child_process');
 
-// build/scripts -> 仓库根
-const ROOT = path.join(__dirname, '..', '..');
+// tooling -> 仓库根
+const ROOT = path.join(__dirname, '..');
 // 后端源码已自包含在 ai-bot/backend（不再依赖外部 Open-LLM-VTuber-main）
 const SRC = path.join(ROOT, 'backend');
-const RUNTIME = path.join(ROOT, 'dist-runtime');
+const RUNTIME = path.join(ROOT, 'out', 'stage', 'open-llm-vtuber');
 
 const SENSE_VOICE = {
   dirName: 'sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17',
@@ -44,7 +44,7 @@ const KOKORO_TTS = {
   // sherpa-onnx 1.12.15+ 中文不再需要 jieba dict；只用美式英文词典。
   unused: ['dict', 'lexicon-gb-en.txt']
 };
-// 旧版默认离线 TTS，已被 Kokoro 取代；dist-runtime 里残留的目录在组装时删除，避免被打包。
+// 旧版默认离线 TTS，已被 Kokoro 取代；out/stage/open-llm-vtuber 里残留的目录在组装时删除，避免被打包。
 const LEGACY_TTS_DIRS = ['vits-melo-tts-zh_en'];
 
 const GLOBAL_EXCLUDE = ['.git', '.gitignore', '.gitattributes', '__pycache__', '.DS_Store'];
@@ -93,7 +93,7 @@ function copyDir(rel, exclude) {
 }
 
 function assembleSource() {
-  log('组装后端运行时到 dist-runtime/ ...');
+  log('组装后端运行时到 out/stage/open-llm-vtuber/ ...');
   ensureDir(RUNTIME);
 
   copyFile('run_server.py');
@@ -260,7 +260,7 @@ function pruneUnused(dir, unused) {
 }
 
 /**
- * 备齐一个 sherpa-onnx 模型目录：dist-runtime 已有 → 源项目 backend/models 复制 → 官方归档下载。
+ * 备齐一个 sherpa-onnx 模型目录：out/stage/open-llm-vtuber 已有 → 源项目 backend/models 复制 → 官方归档下载。
  * 复制时跳过 unused 文件；无论哪条路径，最后都清理 unused。
  */
 /** 删除已弃用的旧模型目录（如被 Kokoro 取代的 MeloTTS），避免被打进安装包。 */
@@ -280,7 +280,7 @@ async function ensureModel(label, spec, requiredFile) {
   const finalDir = path.join(modelsDir, spec.dirName);
   const modelFile = path.join(finalDir, requiredFile);
   if (fs.existsSync(modelFile)) {
-    log(`${label} 模型已存在于 dist-runtime/models，跳过下载。`);
+    log(`${label} 模型已存在于 out/stage/open-llm-vtuber/models，跳过下载。`);
   } else {
     const srcModelDir = path.join(SRC, 'models', spec.dirName);
     if (fs.existsSync(path.join(srcModelDir, requiredFile))) {
@@ -310,7 +310,7 @@ async function main() {
   await ensureModel('SenseVoice ASR', SENSE_VOICE, 'model.int8.onnx');
   await ensureModel('Kokoro 离线语音', KOKORO_TTS, KOKORO_TTS.modelFile);
   removeLegacyModels();
-  log('\ndist-runtime/ 组装完成。');
+  log('\nout/stage/open-llm-vtuber/ 组装完成。');
 }
 
 main().catch((err) => {

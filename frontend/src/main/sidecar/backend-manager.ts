@@ -1,6 +1,6 @@
 /* eslint-disable no-empty */
 // 后端管理器：准备可写运行目录、生成 conf.yaml、以子进程方式启动内置桌宠后端，
-// 做就绪探测与优雅关闭。上游 open_llm_vtuber 作为黑盒运行时（dist-runtime）。
+// 做就绪探测与优雅关闭。上游 open_llm_vtuber 作为黑盒运行时（out/stage/open-llm-vtuber）。
 
 import fs from 'fs';
 import path from 'path';
@@ -35,13 +35,13 @@ export class BackendManager {
     return `http://${HOST}:${PORT}/`;
   }
 
-  // 只读运行时根目录：打包态 resources/runtime；开发态仓库根 dist-runtime
+  // 只读运行时根目录：打包态 resources/runtime；开发态仓库根 out/stage/open-llm-vtuber
   private resourceRoot(): string {
     if (app.isPackaged) {
       return path.join(process.resourcesPath, 'runtime');
     }
-    // 开发态：app 路径为 frontend/，回退一级到仓库根，再取 dist-runtime
-    return path.join(app.getAppPath(), '..', 'dist-runtime');
+    // 开发态：app 路径为 frontend/，回退一级到仓库根，再取 out/stage/open-llm-vtuber
+    return path.join(app.getAppPath(), '..', 'out', 'stage', 'open-llm-vtuber');
   }
 
   // 可写运行目录：用户在启动页选了安装位置则放到 <安装位置>/runtime，否则 userData/runtime；
@@ -50,11 +50,11 @@ export class BackendManager {
     return largeDataDir('runtime', this.log);
   }
 
-  // 随包 ffmpeg 的 bin 目录：打包态 resources/ffmpeg/bin；开发态 vendor/ffmpeg/bin
+  // 随包 ffmpeg 的 bin 目录：打包态 resources/ffmpeg/bin；开发态 out/downloads/ffmpeg/bin
   private ffmpegDir(): string | null {
     const candidates = app.isPackaged
       ? [path.join(process.resourcesPath, 'ffmpeg', 'bin')]
-      : [path.join(app.getAppPath(), '..', 'vendor', 'ffmpeg', 'bin')];
+      : [path.join(app.getAppPath(), '..', 'out', 'downloads', 'ffmpeg', 'bin')];
     for (const dir of candidates) {
       if (fs.existsSync(path.join(dir, 'ffmpeg.exe'))) return dir;
     }

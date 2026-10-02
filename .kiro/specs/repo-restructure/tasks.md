@@ -60,7 +60,9 @@
 
 ## P1 顶层搬迁（需确认 D1；只移动不改逻辑，打包资源树要和 P0 基线一致）
 
-- [ ] 12. P1a：所有产物移到 `out/`，`build/scripts` 移到 `tooling/`，同步 CI 的缓存路径
+- [x] 12. P1a：所有产物移到 `out/`，`build/scripts` 移到 `tooling/`，同步 CI 的缓存路径
+  - 结果：dist-runtime → out/stage/open-llm-vtuber，dist-tha-runtime → out/stage/tha，vendor → out/downloads，build/pyinstaller → out/pyinstaller，frontend/release → out/release；pack.js 改名 tooling/package.js，分片脚本进 tooling/release/。主进程 3 个 sidecar 的开发态路径、electron-builder.yml、release-windows.yml、根 .gitignore（收敛为一条 `/out/`）和文档已同步；README 写了旧布局本机的迁移方法
+  - 验证：前端五项检查和 site:build 通过；split-release / verify-split / resource-tree 用伪造产物按默认路径实跑通过。prepare-runtime、build-backend、package.js 依赖 Windows 和 Python 环境，本机没跑，等 Windows 可用时随任务 10 一起验证
 - [ ] 13. P1b：`frontend` 移到 `apps/desktop`，`site` 移到 `apps/website`；开发态拼路径的 `getAppPath()/..` 逐处改成 `../..`；同步根 package.json、CI、electron-builder 的 `from`
 - [ ] 14. P1c：先把 `git diff f5bf9f6 HEAD -- backend` 导出存档；`backend` 移到 `sidecars/open-llm-vtuber/upstream`，`integrations/easyvtuber` 移到 `sidecars/tha`，相关脚本和 requirements 跟着归位；`proto` 移到 `packages/protocol`（配别名，并加进 `server.fs.allow`）；ANYLOVER_EXTENSIONS.md 重写为 UPSTREAM.md
 

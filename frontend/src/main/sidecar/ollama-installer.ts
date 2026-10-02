@@ -95,7 +95,7 @@ export function resolveInstalledOllama(
 
 /**
  * 带进度的下载。处理 http/https、重定向（最多 5 次），按 Content-Length 上报百分比。
- * 复用 build/scripts/prepare-runtime.js 的 download() 思路并增加进度回调。
+ * 复用 tooling/prepare-runtime.js 的 download() 思路并增加进度回调。
  */
 export function downloadWithProgress(
   url: string,

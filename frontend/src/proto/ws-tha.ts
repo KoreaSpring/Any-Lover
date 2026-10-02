@@ -3,7 +3,7 @@
 // 端点：ws://127.0.0.1:12395/（tha_server 双向：向所有连接推 RGBA 帧，同时收文本控制消息）。
 // 载荷：JSON 文本消息。二进制帧（推流）不在本协议内，由 ThaStage 直接解码绘制。
 //
-// ⚠️ 对端是 Python（dist-tha-runtime/tha_server.py），无法 import 本文件。改动 type/字段时，
+// ⚠️ 对端是 Python（out/stage/tha/tha_server.py），无法 import 本文件。改动 type/字段时，
 //    必须同步改 tha_server.py 的 on_message 分发（见本目录 protocol.proto 契约文档）。
 
 /** THA 控制 WS 地址（与主进程 tha-manager 默认端口一致）。 */

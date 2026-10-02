@@ -2,7 +2,7 @@ appId: com.anylover.charis
 productName: Any-Lover
 directories:
   buildResources: resources
-  output: release/${version}
+  output: ../out/release/${version}
 files:
   - 'dist/**/*'
   - 'out/**/*'
@@ -24,11 +24,11 @@ files:
   - '!node_modules/@ricky0123/**'
   - '!node_modules/eslint/**'
 extraResources:
-  # 冻结的 Python 后端 + 前端静态资源 + 模型（组装在 <root>/dist-runtime）。
-  # 路径相对 frontend/（projectDir）。注意：pack.js 会用 --config 覆盖 extraResources。
-  # 这里只保留 runtime、tha-runtime 两项，过滤规则与 pack.js 一致，供直接用 electron-builder 构建时使用；
-  # ffmpeg、openseeface、ollama 只由 pack.js 按需追加。
-  - from: '../dist-runtime'
+  # 冻结的 Python 后端 + 前端静态资源 + 模型（组装在 <root>/out/stage/open-llm-vtuber）。
+  # 路径相对 frontend/（projectDir）。注意：tooling/package.js 会用 --config 覆盖 extraResources。
+  # 这里只保留 runtime、tha-runtime 两项，过滤规则与 tooling/package.js 一致，供直接用 electron-builder 构建时使用；
+  # ffmpeg、openseeface、ollama 只由 tooling/package.js 按需追加。
+  - from: '../out/stage/open-llm-vtuber'
     to: 'runtime'
     filter:
       - '**/*'
@@ -41,9 +41,9 @@ extraResources:
       - '!models/sherpa-onnx-sense-voice-*/model.onnx'
       # 历史遗留的独立 node.exe，没有代码引用
       - '!node/**'
-  # Windows THA 渲染运行时（源码 + 嵌入式 Python；由 prepare-tha-runtime.js 组装）。
+  # Windows THA 渲染运行时（源码 + 嵌入式 Python；由 integrations/easyvtuber/prepare.js 组装到 out/stage/tha）。
   # 仅 Windows 打包需要；其它平台该目录不存在时 electron-builder 会跳过。
-  - from: '../dist-tha-runtime'
+  - from: '../out/stage/tha'
     to: 'tha-runtime'
     filter:
       - '**/*'

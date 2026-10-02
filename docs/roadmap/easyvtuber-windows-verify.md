@@ -345,20 +345,20 @@ mao_pro 的 emotionMap 多情绪共享索引（anger/disgust=2、joy/smirk/surpr
 
 按用户要求走「源码分发 + 打包时自动构建运行时」，不做 PyInstaller 冻结：
 
-- **`build/scripts/prepare-tha-runtime.js`（新增）**：组装 `tha-runtime` 源码 + 模型 → `dist-tha-runtime/`；下载 Windows embeddable Python 3.12.10 → `python/`，改 `python312._pth` 启用 `import site`，`get-pip.py` 装 pip。依赖**不在打包时装**（首启装，包体小）。
+- **`tooling/prepare-tha-runtime.js`（新增）**：组装 `tha-runtime` 源码 + 模型 → `out/stage/tha/`；下载 Windows embeddable Python 3.12.10 → `python/`，改 `python312._pth` 启用 `import site`，`get-pip.py` 装 pip。依赖**不在打包时装**（首启装，包体小）。
   - 关键坑（已修）：排除临时文件的规则必须用 `/^_[^_]/`（单下划线开头），不能用 `startsWith('_')` —— 否则会误删 `__init__.py`，导致 `import ezvtb_rt` 残缺报 `no attribute 'init_model_path'`。
 - **`tha-manager.ts`**：
   - `pythonExe()`：优先随包嵌入式 `python/python.exe` → 开发 `.venv` → 系统 `python`。
   - `ensureDeps()`：首启用嵌入式 Python `pip install -r requirements.txt`，成功写 `.deps-installed` 标记；非嵌入式（venv/系统）假定依赖已备。
   - `resourceRoot()`（只读：打包 resources/tha-runtime，开发 repo/tha-runtime）+ `thaDir()`（可写运行目录：打包 userData/tha-runtime，开发直接用 repo）+ `ensureDataDir()`（打包态把资源复制到 userData 再运行）—— 解决 resources 只读、无法在原地 pip 装依赖的权限问题（对标 backend-manager）。
 - **`package.json`**：加 `prepare-tha-runtime` 与 `dist:win`（prepare-runtime + build:backend + prepare-tha-runtime + pack）。
-- **`electron-builder.yml` + `pack.js`**：extraResources 追加 `dist-tha-runtime → tha-runtime`（存在才打，否则回退 Live2D）。
-- **`.gitignore`**：忽略 `dist-tha-runtime/`、`tha-runtime/.venv/`、`.deps-installed`、`*_512.png` 等再生/运行期产物。
+- **`electron-builder.yml` + `tooling/package.js`**：extraResources 追加 `out/stage/tha → tha-runtime`（存在才打，否则回退 Live2D）。
+- **`.gitignore`**：忽略 `out/stage/tha/`、`tha-runtime/.venv/`、`.deps-installed`、`*_512.png` 等再生/运行期产物。
 
-**验证**：`prepare-tha-runtime` 跑通（源码 + 嵌入式 Python + pip 就绪）；用嵌入式 Python `pip install -r requirements.txt` 全部依赖装成功（均有 cp312 wheel，无需编译）；用嵌入式 Python 跑 `dist-tha-runtime/tha_server.py`，模型从包内加载、WS 就绪 ~29.5fps，**完全不依赖外部 Python / EasyVtuber**。`frontend` 构建通过。
+**验证**：`prepare-tha-runtime` 跑通（源码 + 嵌入式 Python + pip 就绪）；用嵌入式 Python `pip install -r requirements.txt` 全部依赖装成功（均有 cp312 wheel，无需编译）；用嵌入式 Python 跑 `out/stage/tha/tha_server.py`，模型从包内加载、WS 就绪 ~29.5fps，**完全不依赖外部 Python / EasyVtuber**。`frontend` 构建通过。
 
 ### 说明与后续
 
 - 完整 `dist:win`（跑到 electron-builder 出安装包）耗时长，本轮只逐环节验证，未整跑一次出 NSIS。
-- 模型分发：`dist-tha-runtime/data/models`（THA/RIFE/超分 ONNX，几百 MB）+ 嵌入式 Python 已随包；首启 pip 依赖（数百 MB）+ rembg 的 isnet-anime 模型（176MB，首次抠图时下载）。
+- 模型分发：`out/stage/tha/data/models`（THA/RIFE/超分 ONNX，几百 MB）+ 嵌入式 Python 已随包；首启 pip 依赖（数百 MB）+ rembg 的 isnet-anime 模型（176MB，首次抠图时下载）。
 - 至此 any-lover **完全自包含 THA 能力**，`d:\friends\EasyVtuber` 仅作为最初的验证/来源，可弃用。

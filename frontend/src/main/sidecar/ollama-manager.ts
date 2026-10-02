@@ -17,12 +17,12 @@ import {
 const DEFAULT_HOST = 'http://127.0.0.1:11434';
 
 // 解析随包内置的 Ollama（整合版打包时存在）。
-// 打包态：resources/ollama/{bin,models}；开发态：仓库根 vendor/ollama/{bin,models}
+// 打包态：resources/ollama/{bin,models}；开发态：仓库根 out/downloads/ollama/{bin,models}
 export function resolveBundledOllama(): { exe: string; modelsDir: string } | null {
   const exeName = ollamaExeName();
   const roots = app.isPackaged
     ? [path.join(process.resourcesPath, 'ollama')]
-    : [path.join(app.getAppPath(), '..', 'vendor', 'ollama')];
+    : [path.join(app.getAppPath(), '..', 'out', 'downloads', 'ollama')];
   for (const root of roots) {
     const exe = path.join(root, 'bin', exeName);
     const modelsDir = path.join(root, 'models');
