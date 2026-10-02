@@ -39,3 +39,21 @@ export function rebuildProvidersFromSettings(logger?: (msg: string) => void): LL
   log(`[llm] provider 就绪，激活：${activeId}`);
   return llmProviderRegistry.active();
 }
+
+/** 订阅 settings.changed 的函数形状（由 app/ 层传入 platform/settings-store 的 onSettingsChanged）。 */
+export type SubscribeSettingsChanged = (listener: () => void) => () => void;
+
+/**
+ * 立即按当前设置建一次 provider，之后每次 settings.changed 自动重建。
+ * 取代原先在各 IPC 入口手动调用 rebuildProvidersFromSettings：任何时刻读到的都是最新设置对应的 provider。
+ * 返回取消订阅函数。
+ */
+export function keepProvidersInSync(
+  onSettingsChanged: SubscribeSettingsChanged,
+  logger?: (msg: string) => void,
+): () => void {
+  rebuildProvidersFromSettings(logger);
+  return onSettingsChanged(() => {
+    rebuildProvidersFromSettings(logger);
+  });
+}

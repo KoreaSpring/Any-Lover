@@ -79,10 +79,41 @@ export function writeSettings(patch: Partial<AppSettings> & { apiKey?: string })
   const next = { ...current, ...safePatch };
   fs.mkdirSync(configDir(), { recursive: true });
   fs.writeFileSync(settingsPath(), JSON.stringify(next, null, 2), 'utf-8');
+  emitSettingsChanged();
   return next;
 }
 
+// settings.changed：设置或 apiKey 写入后通知订阅者（例如 provider 重建）。事件放在 platform 自己这里，
+// 不走 agent/event-bus，避免 platform 反向依赖 agent；由 app/ 层把它接到需要的模块上。
+type SettingsChangedListener = () => void;
+const settingsChangedListeners = new Set<SettingsChangedListener>();
+
+/** 订阅 settings.changed。返回取消订阅函数。 */
+export function onSettingsChanged(listener: SettingsChangedListener): () => void {
+  settingsChangedListeners.add(listener);
+  return () => {
+    settingsChangedListeners.delete(listener);
+  };
+}
+
+function emitSettingsChanged(): void {
+  for (const listener of settingsChangedListeners) {
+    // 订阅者异常隔离：不影响写入方和其它订阅者。
+    try {
+      listener();
+    } catch (e) {
+      console.error('[settings] settings.changed 订阅者异常：', e);
+    }
+  }
+}
+
 export function saveApiKey(apiKey: string): { stored: boolean; encrypted: boolean } {
+  const result = writeApiKeyFile(apiKey);
+  emitSettingsChanged();
+  return result;
+}
+
+function writeApiKeyFile(apiKey: string): { stored: boolean; encrypted: boolean } {
   fs.mkdirSync(configDir(), { recursive: true });
   if (!apiKey) {
     try {

@@ -4,7 +4,8 @@ import { app, globalShortcut, BrowserWindow, ipcMain } from 'electron';
 import { registerThaIpc } from '../ipc/tha-ipc';
 import { eventBus } from '../agent/event-bus';
 import { llmProviderRegistry } from '../agent/llm/llm-provider';
-import { rebuildProvidersFromSettings } from '../agent/llm/providers/provider-factory';
+import { keepProvidersInSync } from '../agent/llm/providers/provider-factory';
+import { onSettingsChanged } from '../platform/settings-store';
 import { resolveAnyOllama } from '../sidecars/ollama/ollama-manager';
 import { registerAibotIpc } from '../ipc/aibot-ipc';
 import { openSettingsWindow, getSettingsWindow } from '../window/settings-window';
@@ -173,7 +174,6 @@ export function registerLifecycle(container: Container, gotSingleInstanceLock: b
     ipcMain.handle(IPC.agent.dialogue, async (_evt, payload: { text?: string; enableTools?: boolean }) => {
       const text = String(payload?.text || '').trim();
       if (!text) return { ok: false, message: '空消息' };
-      rebuildProvidersFromSettings(logToFile);
       if (!dialogueEngine.canRun()) {
         return { ok: false, message: '未配置可用的主模型，无法使用中枢对话' };
       }
@@ -210,12 +210,12 @@ export function registerLifecycle(container: Container, gotSingleInstanceLock: b
 
     // LLM Provider（中枢直连）：按当前设置组装 provider 注册表。过渡期不接管现有对话
     // （对话仍走 Python 后端），仅让中枢能独立发起在线 LLM 调用，为将来编排上移铺路。
-    rebuildProvidersFromSettings(logToFile);
+    // 之后每次 settings.changed（设置或 apiKey 写入）自动重建，IPC 入口不再手动重建。
+    keepProvidersInSync(onSettingsChanged, logToFile);
 
     // 探测当前激活 provider 连通性。
     ipcMain.handle(IPC.agent.llmProbe, async () => {
       try {
-        rebuildProvidersFromSettings(logToFile); // 反映最新设置
         const p = llmProviderRegistry.active();
         if (!p) return { ok: false, message: '未配置可用的主模型 provider' };
         if (!p.probe) return { ok: true, message: `provider ${p.id} 已就绪（无探测）` };
@@ -282,7 +282,6 @@ export function registerLifecycle(container: Container, gotSingleInstanceLock: b
       try {
         if (enabled) {
           // 需要有可用主模型才有意义。
-          rebuildProvidersFromSettings(logToFile);
           if (!llmProviderRegistry.active()) {
             return { ok: false, message: '未配置可用的主模型，无法开启主动搭话' };
           }
@@ -328,7 +327,6 @@ export function registerLifecycle(container: Container, gotSingleInstanceLock: b
       const enabled = !!(payload && payload.enabled);
       try {
         if (enabled) {
-          rebuildProvidersFromSettings(logToFile);
           if (!llmProviderRegistry.active()) {
             return { ok: false, message: '未配置可用的主模型，无法开启情绪识别' };
           }
