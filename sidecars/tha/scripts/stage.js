@@ -10,7 +10,7 @@
  * 从而完全自包含、用户无需自行安装 Python。
  *
  * 步骤：
- *  1. 从 integrations/easyvtuber/runtime/ 复制 THA 源码与模型（排除 .venv / __pycache__ / 临时 _*.）
+ *  1. 从 sidecars/tha/runtime/ 复制 THA 源码与模型（排除 .venv / __pycache__ / 临时 _*.）
  *  2. 下载 Windows embeddable Python 到 out/stage/tha/python/
  *  3. 启用 pip：取消 python3xx._pth 中 `import site` 注释 + get-pip.py 装 pip
  *
@@ -22,8 +22,8 @@ const path = require('path');
 const https = require('https');
 const { spawnSync } = require('child_process');
 
-const ROOT = path.join(__dirname, '..', '..'); // 仓库根（integrations/easyvtuber/ 向上两级）
-const SRC = path.join(__dirname, 'runtime'); // THA/EasyVtuber 源：与本脚本同目录的 runtime/
+const ROOT = path.join(__dirname, '..', '..', '..'); // 仓库根（sidecars/tha/scripts/ 向上三级）
+const SRC = path.join(__dirname, '..', 'runtime'); // THA/EasyVtuber 源：sidecars/tha/runtime/
 const OUT = path.join(ROOT, 'out', 'stage', 'tha'); // 组装产物（tooling/package.js、electron-builder 从此处打包）
 
 // 嵌入式 Python 版本（THA/onnxruntime 支持 3.10–3.12；用 3.12 补丁版）。

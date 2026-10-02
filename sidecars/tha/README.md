@@ -8,7 +8,7 @@ Any-Lover 的**可选渲染后端**：基于 [EasyVtuber / ezvtuber-rt](https://
 ## 目录结构
 
 ```
-integrations/easyvtuber/
+sidecars/tha/
   runtime/          源：THA/EasyVtuber 运行时（git 追踪的源码，本地产物 gitignore）
     ezvtb_rt/       神经渲染核心（tha3/tha4，纯 ONNX Runtime，不依赖 torch）
     src/            预处理工具
@@ -17,11 +17,13 @@ integrations/easyvtuber/
     requirements.txt
     data/           models/(gitignore，脚本下载) + images/
     .venv/          开发态本地 venv（gitignore）
-  prepare.js        构建脚本：组装 runtime/ + 嵌入式 Python → 仓库根 out/stage/tha/
+  scripts/
+    stage.js        组装 runtime/ + 嵌入式 Python → 仓库根 out/stage/tha/
+    fetch-models.js 下载 THA 模型到 runtime/data/models/
   README.md         本文件
 ```
 
-> 产物 `out/stage/tha/`（在仓库根，gitignore）由 `prepare.js` 生成；`apps/desktop/electron-builder.yml`
+> 产物 `out/stage/tha/`（在仓库根，gitignore）由 `scripts/stage.js` 生成；`apps/desktop/electron-builder.yml`
 > 和 `tooling/package.js` 从它打包到 `resources/tha-runtime`。
 
 ## 与主程序的边界（松耦合）
@@ -36,7 +38,7 @@ integrations/easyvtuber/
 
 ## 构建与模型
 
-- **组装运行时**：`npm run prepare-tha-runtime`（= `node integrations/easyvtuber/prepare.js`）。
+- **组装运行时**：`npm run prepare-tha-runtime`（= `node sidecars/tha/scripts/stage.js`）。
   从 `runtime/` 复制源码 + 下载 Windows 嵌入式 Python → `out/stage/tha/`。依赖
   （onnxruntime-directml / rembg / opencv 等，数百 MB）**不随包**，由 tha-manager 首次运行时
   用嵌入式 Python `pip install -r requirements.txt` 装入运行目录。

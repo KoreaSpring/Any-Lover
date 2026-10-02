@@ -22,13 +22,13 @@ _*.ps1
 tooling/**/_*.js
 tooling/**/_*.mjs
 
-# THA / EasyVtuber 渲染运行时：源在 integrations/easyvtuber/runtime/，组装产物在 out/stage/tha/
+# THA / EasyVtuber 渲染运行时：源在 sidecars/tha/runtime/，组装产物在 out/stage/tha/
 # 开发/验证用的本地 venv 与首启依赖标记
-integrations/easyvtuber/runtime/.venv/
-integrations/easyvtuber/runtime/.deps-installed
-integrations/easyvtuber/runtime/_pip_tha.log
+sidecars/tha/runtime/.venv/
+sidecars/tha/runtime/.deps-installed
+sidecars/tha/runtime/_pip_tha.log
 # 立绘预处理产物（用户上传抠图后生成，运行期数据）
-integrations/easyvtuber/runtime/data/images/*_512.png
+sidecars/tha/runtime/data/images/*_512.png
 # THA 模型（体积大；由 fetch-tha-models 下载或本地准备）
-integrations/easyvtuber/runtime/data/models/
-integrations/easyvtuber/runtime/data/rembg/
+sidecars/tha/runtime/data/models/
+sidecars/tha/runtime/data/rembg/

@@ -64,7 +64,7 @@ release/dist/ (NSIS 安装包 或 win-unpacked 免安装目录)
 - `ROOT = __dirname/..`（`tooling/release/` 下为 `../..`），`DESKTOP = ROOT/apps/desktop`，`SRC = ROOT/backend`，`RUNTIME = ROOT/out/stage/open-llm-vtuber`，`VENDOR_OLLAMA = ROOT/out/downloads/ollama`，`VENDOR_FFMPEG = ROOT/out/downloads/ffmpeg`。
 - **移动 `apps/desktop/` 或 `backend/` 会断掉这些脚本**，必须同步更新。
 - electron-builder 的 `extraResources`（`apps/desktop/electron-builder.yml` 与 tooling/package.js 里的覆盖）用 `../../out/stage/open-llm-vtuber` 这类相对路径（相对 `apps/desktop/`，回退两级到仓库根），对目录布局敏感。
-- 主进程运行时也有基于 `app.getAppPath()` 的开发态回退路径（bootstrap、backend-manager、ollama-manager、openseeface-manager、tha-manager 里回退两级到仓库根，取 out/、backend/、integrations/），移动 `apps/desktop/` 层级需同步。P3 计划收口到 `platform/paths.ts`。
+- 主进程运行时也有基于 `app.getAppPath()` 的开发态回退路径（bootstrap、backend-manager、ollama-manager、openseeface-manager、tha-manager 里回退两级到仓库根，取 out/、backend/、sidecars/），移动 `apps/desktop/` 层级需同步。P3 计划收口到 `platform/paths.ts`。
 
 ## 运行时缓存版本感知
 

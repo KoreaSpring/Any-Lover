@@ -1,9 +1,9 @@
 'use strict';
 
 /*
- * 拉取 THA 模型到 integrations/easyvtuber/runtime/data/models（新机首次准备用；模型体积大不入库）。
+ * 拉取 THA 模型到 sidecars/tha/runtime/data/models（新机首次准备用；模型体积大不入库）。
  * 从 ezvtuber-rt release 下载整包 20241220.zip（~1.53GB，含全部档位），解压并按当前代码
- * 期望的命名重排到 integrations/easyvtuber/runtime/data/models：
+ * 期望的命名重排到 sidecars/tha/runtime/data/models：
  *   - tha3/{seperable,standard}/{fp16,fp32}/*.onnx  （直接，命名一致）
  *   - rife/rife_x{2,3,4}_{fp16,fp32}.onnx           （由 rife_512/x{n}/{dt}.onnx 重映射）
  *   - waifu2x/noise0_scale2x_{fp16,fp32}.onnx        （由 waifu2x_upconv/{dt}/upconv_7/art 重映射）
@@ -11,7 +11,7 @@
  *
  * rembg 抠图模型（data/rembg）不在此处：首次抠图时由 rembg 自动下载到 U2NET_HOME(=data/rembg)。
  *
- * 用法：node tooling/fetch-tha-models.js
+ * 用法：node sidecars/tha/scripts/fetch-models.js
  */
 
 const fs = require('fs');
@@ -20,8 +20,8 @@ const path = require('path');
 const https = require('https');
 const { spawnSync } = require('child_process');
 
-const ROOT = path.join(__dirname, '..');
-const MODELS = path.join(ROOT, 'integrations', 'easyvtuber', 'runtime', 'data', 'models');
+const ROOT = path.join(__dirname, '..', '..', '..');
+const MODELS = path.join(ROOT, 'sidecars', 'tha', 'runtime', 'data', 'models');
 const URL = 'https://github.com/zpeng11/ezvtuber-rt/releases/download/0.0.1/20241220.zip';
 
 function log(m) {
@@ -105,7 +105,7 @@ function copyFile(src, dst) {
 
 async function main() {
   if (fs.existsSync(path.join(MODELS, 'tha3', 'seperable', 'fp16', 'merge.onnx'))) {
-    log('THA 模型已存在（integrations/easyvtuber/runtime/data/models），跳过。删除该目录可强制重新拉取。');
+    log('THA 模型已存在（sidecars/tha/runtime/data/models），跳过。删除该目录可强制重新拉取。');
     return;
   }
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'tha-fetch-'));
@@ -118,7 +118,7 @@ async function main() {
     unzip(zip, ex);
     const src = path.join(ex, '20241220');
 
-    log('组织到 integrations/easyvtuber/runtime/data/models …');
+    log('组织到 sidecars/tha/runtime/data/models …');
     // tha3 全档位直接拷
     copyDir(path.join(src, 'tha3'), path.join(MODELS, 'tha3'));
     // rife 重映射
@@ -137,7 +137,7 @@ async function main() {
     // Real-ESRGAN 直接
     copyDir(path.join(src, 'Real-ESRGAN'), path.join(MODELS, 'Real-ESRGAN'));
 
-    log('\nTHA 模型已就绪于 integrations/easyvtuber/runtime/data/models。');
+    log('\nTHA 模型已就绪于 sidecars/tha/runtime/data/models。');
   } finally {
     try {
       fs.rmSync(tmp, { recursive: true, force: true });

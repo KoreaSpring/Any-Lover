@@ -41,7 +41,7 @@ extraResources:
       - '!models/sherpa-onnx-sense-voice-*/model.onnx'
       # 历史遗留的独立 node.exe，没有代码引用
       - '!node/**'
-  # Windows THA 渲染运行时（源码 + 嵌入式 Python；由 integrations/easyvtuber/prepare.js 组装到 out/stage/tha）。
+  # Windows THA 渲染运行时（源码 + 嵌入式 Python；由 sidecars/tha/scripts/stage.js 组装到 out/stage/tha）。
   # 仅 Windows 打包需要；其它平台该目录不存在时 electron-builder 会跳过。
   - from: '../../out/stage/tha'
     to: 'tha-runtime'

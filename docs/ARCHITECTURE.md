@@ -129,8 +129,8 @@ screen-sampler 定时截屏 → screen-gate 黑名单/去重门控
   （PyInstaller 冻结后端到 out/stage/open-llm-vtuber/python）→ prepare-tha-runtime（组装 out/stage/tha）
   → tooling/package.js（electron-builder 出 NSIS）。
 - **改了 `backend/` 源码，必须重新 `build:backend`**，否则冻结产物仍是旧后端。
-- **改了 `integrations/easyvtuber/runtime/` 源码（如 tha_server.py），必须重新 `prepare-tha-runtime`**
-  （THA/EasyVtuber 渲染后端已归拢为可插拔集成目录，见 `integrations/easyvtuber/README.md`）。
+- **改了 `sidecars/tha/runtime/` 源码（如 tha_server.py），必须重新 `prepare-tha-runtime`**
+  （THA/EasyVtuber 渲染后端已归拢为可插拔集成目录，见 `sidecars/tha/README.md`）。
 - 大模型/运行时（out/downloads/、out/stage/open-llm-vtuber/、out/stage/tha/）均 gitignore，不入库；由脚本下载/组装。
 - 本地小模型（moondream / nomic-embed-text）首启自动 pull 到本地 Ollama（bootstrap 的 ensureLocalHelperModels）。
 

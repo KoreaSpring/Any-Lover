@@ -243,7 +243,7 @@ Any-Lover/
 │  │     └─ renderer/   #   前端渲染：主窗口(React+Live2D) + settings/（设置窗口第二入口）
 │  └─ website/          # React + Vite 官网（GitHub Pages 部署，分片下载安装包）
 ├─ backend/             # 上游 Open-LLM-VTuber 后端（vendored，改动登记在 ANYLOVER_EXTENSIONS.md）
-├─ integrations/        # EasyVTuber / THA 2D 形象渲染
+├─ sidecars/            # 主进程托管的外部进程：tha（EasyVTuber / THA 2D 形象渲染）
 ├─ tooling/             # 构建、打包、发布脚本：prepare-runtime / build-backend / package / release/ 分片
 ├─ .github/workflows/   # 官网部署、前端 CI、Windows 发布（Release + downloads 分片分支）
 └─ out/                 # 全部产物和下载缓存（不入 Git，可删可重建）
