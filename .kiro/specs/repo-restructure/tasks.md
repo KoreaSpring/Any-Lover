@@ -74,7 +74,12 @@
 
 ## P2 统一构建链（需确认 D8）
 
-- [ ] 15. 抽出 `tooling/lib`（下载时校验 sha256、解压、复制、路径），各脚本改为调用它
+- [x] 15. 抽出 `tooling/lib`（下载时校验 sha256、解压、复制、路径），各脚本改为调用它
+  - 结果：新增 `tooling/lib/`（CommonJS，无新依赖）：`download`（跟随重定向，相对 Location 按当前 URL 解析，拒绝降级到 http；边下载边算 sha256，给了期望值就校验；先写 `.part`，校验和 content-length 都通过才改名，失败删 `.part`）、`extract`（zip：Windows 用 Expand-Archive、失败回退 tar，其它平台用 tar；tar.bz2：系统 tar 失败回退 Python tarfile，逻辑照旧）、`copy`（默认排除 .git/.gitignore/.gitattributes/__pycache__/.DS_Store/.venv，可追加名字、按文件名过滤、关闭默认规则、硬链接）、`paths`、`log`（含统一的失败退出 `run`）、`python`（AIBOT_PYTHON 解析）。6 个 sidecar 脚本和 resource-tree、split-release 改为调用它，各自的 download/unzip/copyDir/ROOT 实现全部删除
+  - sha256：ffmpeg 保持原值；嵌入式 Python 3.12.10 新增校验，值取自 python.org 随文件发布的 `.sigstore` 签名包里的 messageDigest（与其 Rekor 记录一致）。get-pip.py（滚动地址）、SenseVoice、Kokoro、THA 模型包、OpenSeeFace 官方都没有公布校验和（这些 release 早于 GitHub 资产 digest），留空不校验，任务 16 的 check-sidecars 会以 warning 列出
+  - 与原来的差别：THA 的复制规则从"排除 .venv/__pycache__/.git"扩为统一默认规则（多排除 .gitignore/.gitattributes/.DS_Store，sidecars/tha/runtime 里现在没有这些文件）；第三方 release 解压结果用 `defaults: false` 原样复制；ffmpeg 在 Windows 上改用 Expand-Archive 解 zip（失败回退 tar，原来直接用 tar）
+  - 验证：所有脚本 `node --check`；`npm run test:tooling`（node:test，12 个用例：sha 规范化与比对、重定向解析、失败不留 .part、排除规则、硬链接、PowerShell 转义、tar.bz2 解压、Python 解析、路径）；用 lib 实际下载 Ollama 的 sha256sum.txt，校验通过与故意给错 sha 两种情况都符合预期（错时目标文件和 .part 都不存在）；fetch-openseeface 在 macOS 上按原逻辑跳过
+  - 未验证：Windows 上 Expand-Archive 解压、实际下载大文件（嵌入式 Python、模型）
 - [ ] 16. 给每个 sidecar 写 manifest；`tooling/package.js` 改为由 profile 和 manifest 驱动；`check-sidecars.js` 加进 CI
 - [ ] 17. stage 前先清空目标目录；conf.pet.yaml 挪成独立的模板文件；Ollama 改为脚本获取；THA 端口从 manifest 和环境变量读取
 - [ ] 18. 根脚本收敛为 setup / dev / dist:&lt;profile&gt; / check 四类，同步 README 和 CI

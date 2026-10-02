@@ -17,89 +17,21 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const https = require('https');
-const { spawnSync } = require('child_process');
+const { SIDECARS, log, run, download, extractZip, copyRecursive } = require('../../../tooling/lib');
 
-const ROOT = path.join(__dirname, '..', '..', '..');
-const MODELS = path.join(ROOT, 'sidecars', 'tha', 'runtime', 'data', 'models');
+const MODELS = path.join(SIDECARS, 'tha', 'runtime', 'data', 'models');
 const URL = 'https://github.com/zpeng11/ezvtuber-rt/releases/download/0.0.1/20241220.zip';
-
-function log(m) {
-  process.stdout.write(m + '\n');
-}
-function ensureDir(p) {
-  fs.mkdirSync(p, { recursive: true });
-}
-
-function download(url, dest, redirectsLeft = 5) {
-  return new Promise((resolve, reject) => {
-    const file = fs.createWriteStream(dest);
-    https
-      .get(url, (res) => {
-        if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
-          file.close();
-          fs.rmSync(dest, { force: true });
-          if (redirectsLeft <= 0) return reject(new Error('重定向次数过多'));
-          return resolve(download(res.headers.location, dest, redirectsLeft - 1));
-        }
-        if (res.statusCode !== 200) {
-          file.close();
-          fs.rmSync(dest, { force: true });
-          return reject(new Error(`下载失败 HTTP ${res.statusCode}`));
-        }
-        const total = Number(res.headers['content-length'] || 0);
-        let recv = 0;
-        let last = -1;
-        res.on('data', (c) => {
-          recv += c.length;
-          if (total > 0) {
-            const pct = Math.floor((recv / total) * 100);
-            if (pct !== last && pct % 5 === 0) {
-              last = pct;
-              process.stdout.write(`\r  下载 ${pct}% (${(recv / 1048576).toFixed(0)}/${(total / 1048576).toFixed(0)} MB)`);
-            }
-          }
-        });
-        res.pipe(file);
-        file.on('finish', () => {
-          process.stdout.write('\n');
-          file.close(() => resolve());
-        });
-      })
-      .on('error', (e) => {
-        file.close();
-        fs.rmSync(dest, { force: true });
-        reject(e);
-      });
-  });
-}
-
-function unzip(zip, out) {
-  ensureDir(out);
-  const res = spawnSync('powershell', ['-NoProfile', '-Command', `Expand-Archive -Path '${zip}' -DestinationPath '${out}' -Force`], { stdio: 'inherit' });
-  if (res.status !== 0) throw new Error('解压失败（需 Windows PowerShell Expand-Archive）');
-}
-
-function copyDir(src, dst) {
-  if (!fs.existsSync(src)) {
-    log(`  [skip] 缺少 ${src}`);
-    return;
-  }
-  ensureDir(dst);
-  for (const e of fs.readdirSync(src)) {
-    const s = path.join(src, e);
-    const d = path.join(dst, e);
-    if (fs.statSync(s).isDirectory()) copyDir(s, d);
-    else fs.copyFileSync(s, d);
-  }
-}
+// 官方 release 未公布校验和（发布早于 GitHub 资产 digest），暂不校验，见 sidecars/tha/manifest.json
+const SHA256 = '';
+// 第三方 release 原样复制，不套默认排除规则
+const AS_IS = { defaults: false };
 
 function copyFile(src, dst) {
   if (!fs.existsSync(src)) {
     log(`  [miss] ${src}`);
     return;
   }
-  ensureDir(path.dirname(dst));
+  fs.mkdirSync(path.dirname(dst), { recursive: true });
   fs.copyFileSync(src, dst);
 }
 
@@ -113,14 +45,14 @@ async function main() {
   const ex = path.join(tmp, 'ex');
   try {
     log('下载 THA 模型整包（~1.53GB）…');
-    await download(URL, zip);
+    await download(URL, zip, { sha256: SHA256, progress: true });
     log('解压…');
-    unzip(zip, ex);
+    extractZip(zip, ex);
     const src = path.join(ex, '20241220');
 
     log('组织到 sidecars/tha/runtime/data/models …');
     // tha3 全档位直接拷
-    copyDir(path.join(src, 'tha3'), path.join(MODELS, 'tha3'));
+    copyRecursive(path.join(src, 'tha3'), path.join(MODELS, 'tha3'), AS_IS);
     // rife 重映射
     for (const scale of ['x2', 'x3', 'x4']) {
       for (const dt of ['fp16', 'fp32']) {
@@ -135,7 +67,7 @@ async function main() {
       );
     }
     // Real-ESRGAN 直接
-    copyDir(path.join(src, 'Real-ESRGAN'), path.join(MODELS, 'Real-ESRGAN'));
+    copyRecursive(path.join(src, 'Real-ESRGAN'), path.join(MODELS, 'Real-ESRGAN'), AS_IS);
 
     log('\nTHA 模型已就绪于 sidecars/tha/runtime/data/models。');
   } finally {
@@ -147,7 +79,4 @@ async function main() {
   }
 }
 
-main().catch((e) => {
-  console.error('[fetch-tha-models] 失败：', e.message);
-  process.exit(1);
-});
+run('fetch-tha-models', main);

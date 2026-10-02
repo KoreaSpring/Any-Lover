@@ -19,60 +19,30 @@
 
 const fs = require('fs');
 const path = require('path');
-const https = require('https');
 const { spawnSync } = require('child_process');
+const { STAGE, SIDECARS, log, run, download, extractZip, copyRecursive } = require('../../../tooling/lib');
 
-const ROOT = path.join(__dirname, '..', '..', '..'); // 仓库根（sidecars/tha/scripts/ 向上三级）
-const SRC = path.join(__dirname, '..', 'runtime'); // THA/EasyVtuber 源：sidecars/tha/runtime/
-const OUT = path.join(ROOT, 'out', 'stage', 'tha'); // 组装产物（tooling/package.js、electron-builder 从此处打包）
-
+const SRC = path.join(SIDECARS, 'tha', 'runtime'); // THA/EasyVtuber 源：sidecars/tha/runtime/
+const OUT = path.join(STAGE, 'tha'); // 组装产物（tooling/package.js、electron-builder 从此处打包）
 // 嵌入式 Python 版本（THA/onnxruntime 支持 3.10–3.12；用 3.12 补丁版）。
 const PY_VERSION = '3.12.10';
 const PY_ZIP = `python-${PY_VERSION}-embed-amd64.zip`;
 const PY_URL = `https://www.python.org/ftp/python/${PY_VERSION}/${PY_ZIP}`;
+// 来源：python.org 随文件发布的 sigstore 签名包（${PY_URL}.sigstore）里的 messageDigest（SHA2_256）。
+const PY_SHA256 = '4acbed6dd1c744b0376e3b1cf57ce906f9dc9e95e68824584c8099a63025a3c3';
+// get-pip.py 是不带版本的滚动地址，官方不公布固定校验和，暂不校验。
 const GET_PIP_URL = 'https://bootstrap.pypa.io/get-pip.py';
-
-// 组装时排除项（源目录里的开发/验证残留不进分发包）
-const EXCLUDE_DIRS = ['.venv', '__pycache__', '.git'];
-// 跳过临时验证文件用正则 /^_[^_]/（单下划线开头，如 _probe.py），
-// 注意不能用简单的 startsWith('_')，否则会误删 __init__.py 等双下划线文件。
-
-function log(msg) {
-  process.stdout.write(msg + '\n');
-}
-function ensureDir(p) {
-  fs.mkdirSync(p, { recursive: true });
-}
-
-function copyRecursive(src, dest) {
-  if (!fs.existsSync(src)) {
-    log(`  [skip] 源不存在: ${src}`);
-    return;
-  }
-  const stat = fs.statSync(src);
-  if (stat.isDirectory()) {
-    const base = path.basename(src);
-    if (EXCLUDE_DIRS.includes(base)) return;
-    ensureDir(dest);
-    for (const entry of fs.readdirSync(src)) {
-      if (EXCLUDE_DIRS.includes(entry)) continue;
-      copyRecursive(path.join(src, entry), path.join(dest, entry));
-    }
-  } else {
-    const name = path.basename(src);
-    // 跳过临时验证文件 _foo.*（单下划线开头），但不能误伤 __init__.py 等双下划线文件
-    if (/^_[^_]/.test(name)) return;
-    ensureDir(path.dirname(dest));
-    fs.copyFileSync(src, dest);
-  }
-}
+// 组装时排除：默认规则（.git、__pycache__、.venv 等）之外，再跳过单下划线开头的临时验证文件（如 _probe.py）。
+// 注意不能用 startsWith('_')，否则会误删 __init__.py 等双下划线文件。
+const COPY_OPTS = { skipFile: (name) => /^_[^_]/.test(name) };
+const copy = (src, dest) => copyRecursive(src, dest, COPY_OPTS);
 
 function assembleSource() {
   log('组装 THA 源码运行时到 out/stage/tha/ ...');
-  ensureDir(OUT);
+  fs.mkdirSync(OUT, { recursive: true });
   for (const item of ['ezvtb_rt', 'src', 'tha_server.py', 'preprocess_image.py', 'requirements.txt']) {
     log(`  [copy] ${item}`);
-    copyRecursive(path.join(SRC, item), path.join(OUT, item));
+    copy(path.join(SRC, item), path.join(OUT, item));
   }
   // 模型（选择性）：随包只带 THA v3 seperable/fp16（~131MB）+ rife + 超分；
   // standard 与 fp32（~1.7GB）体积大，改为用户选「高/极高」预设时按需在线下载。
@@ -81,59 +51,23 @@ function assembleSource() {
   const modelsOut = path.join(OUT, 'data', 'models');
   // 随包只带默认画质 THA v3 seperable/fp16 + 超分(小) + RIFE x2(插帧默认开)。
   // rembg 抠图模型(352MB) 改为首次使用时下载，不随包。
-  copyRecursive(path.join(modelsSrc, 'tha3', 'seperable', 'fp16'), path.join(modelsOut, 'tha3', 'seperable', 'fp16'));
+  copy(path.join(modelsSrc, 'tha3', 'seperable', 'fp16'), path.join(modelsOut, 'tha3', 'seperable', 'fp16'));
   for (const d of ['Real-ESRGAN', 'waifu2x']) {
-    copyRecursive(path.join(modelsSrc, d), path.join(modelsOut, d));
+    copy(path.join(modelsSrc, d), path.join(modelsOut, d));
   }
   // 项1 RIFE：服务层只用 x2，随包 x2 的 fp16+fp32（约数十 MB），让「插帧省显卡」开箱即用。
   // x3/x4（更大）不随包，桌宠不需要；缺失时 tha_server 自动降级为不插帧。
   const rifeSrc = path.join(modelsSrc, 'rife');
   const rifeOut = path.join(modelsOut, 'rife');
   for (const f of ['rife_x2_fp16.onnx', 'rife_x2_fp32.onnx']) {
-    copyRecursive(path.join(rifeSrc, f), path.join(rifeOut, f));
+    copy(path.join(rifeSrc, f), path.join(rifeOut, f));
   }
   log('  [copy] data/images');
-  copyRecursive(path.join(SRC, 'data', 'images'), path.join(OUT, 'data', 'images'));
+  copy(path.join(SRC, 'data', 'images'), path.join(OUT, 'data', 'images'));
   // rembg 抠图模型不随包：首次上传立绘时由 rembg 自动下载到 U2NET_HOME(=运行目录 data/rembg)。
 }
 
-function download(url, dest, redirectsLeft = 5) {
-  return new Promise((resolve, reject) => {
-    const file = fs.createWriteStream(dest);
-    https
-      .get(url, (res) => {
-        if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
-          file.close();
-          fs.rmSync(dest, { force: true });
-          if (redirectsLeft <= 0) return reject(new Error('重定向次数过多'));
-          return resolve(download(res.headers.location, dest, redirectsLeft - 1));
-        }
-        if (res.statusCode !== 200) {
-          file.close();
-          fs.rmSync(dest, { force: true });
-          return reject(new Error(`下载失败 HTTP ${res.statusCode}: ${url}`));
-        }
-        res.pipe(file);
-        file.on('finish', () => file.close(() => resolve()));
-      })
-      .on('error', (e) => {
-        file.close();
-        fs.rmSync(dest, { force: true });
-        reject(e);
-      });
-  });
-}
 
-function unzip(zipPath, outDir) {
-  ensureDir(outDir);
-  // 用 PowerShell Expand-Archive（Windows 自带），比 tar 解 zip 更稳。
-  const res = spawnSync(
-    'powershell',
-    ['-NoProfile', '-Command', `Expand-Archive -Path '${zipPath}' -DestinationPath '${outDir}' -Force`],
-    { stdio: 'inherit' },
-  );
-  if (res.status !== 0) throw new Error('解压嵌入式 Python 失败');
-}
 
 // 启用嵌入式 Python 的 site 机制（否则 pip 装的包不在 sys.path）。
 function enableSite(pyDir) {
@@ -156,12 +90,12 @@ async function preparePython() {
   if (fs.existsSync(path.join(pyDir, 'python.exe'))) {
     log('嵌入式 Python 已存在，跳过下载。');
   } else {
-    ensureDir(pyDir);
+    fs.mkdirSync(pyDir, { recursive: true });
     const zipPath = path.join(OUT, PY_ZIP);
     log(`下载嵌入式 Python ${PY_VERSION} ...`);
-    await download(PY_URL, zipPath);
+    await download(PY_URL, zipPath, { sha256: PY_SHA256 });
     log('解压嵌入式 Python ...');
-    unzip(zipPath, pyDir);
+    extractZip(zipPath, pyDir);
     fs.rmSync(zipPath, { force: true });
   }
 
@@ -191,7 +125,4 @@ async function main() {
   log('\nout/stage/tha/ 组装完成（源码 + 嵌入式 Python + pip；依赖首启安装）。');
 }
 
-main().catch((err) => {
-  console.error('\n[prepare-tha-runtime] 失败：', err.message);
-  process.exit(1);
-});
+run('prepare-tha-runtime', main);

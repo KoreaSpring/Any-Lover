@@ -17,20 +17,19 @@
 
 const fs = require('fs');
 const path = require('path');
-const https = require('https');
-const { spawnSync } = require('child_process');
+const { STAGE, SIDECARS, log, run, download, extractTarBz2, copyRecursive } = require('../../../tooling/lib');
 
-// sidecars/open-llm-vtuber/scripts -> 仓库根
-const ROOT = path.join(__dirname, '..', '..', '..');
 // 上游后端源码：sidecars/open-llm-vtuber/upstream
-const SRC = path.join(__dirname, '..', 'upstream');
-const RUNTIME = path.join(ROOT, 'out', 'stage', 'open-llm-vtuber');
+const SRC = path.join(SIDECARS, 'open-llm-vtuber', 'upstream');
+const RUNTIME = path.join(STAGE, 'open-llm-vtuber');
 
 const SENSE_VOICE = {
   dirName: 'sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17',
   url:
     'https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17.tar.bz2',
   // 运行时只用 int8；官方归档里的 fp32 版 model.onnx（约 938MB）效果相近但体积大 4 倍，不分发。
+  // 官方 release 未公布校验和（发布早于 GitHub 资产 digest），暂不校验
+  sha256: '',
   unused: ['model.onnx']
 };
 
@@ -41,38 +40,16 @@ const KOKORO_TTS = {
   url:
     'https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/kokoro-multi-lang-v1_1.tar.bz2',
   modelFile: 'model.onnx',
+  // 官方 release 未公布校验和（发布早于 GitHub 资产 digest），暂不校验
+  sha256: '',
   // sherpa-onnx 1.12.15+ 中文不再需要 jieba dict；只用美式英文词典。
   unused: ['dict', 'lexicon-gb-en.txt']
 };
 // 旧版默认离线 TTS，已被 Kokoro 取代；out/stage/open-llm-vtuber 里残留的目录在组装时删除，避免被打包。
 const LEGACY_TTS_DIRS = ['vits-melo-tts-zh_en'];
 
-const GLOBAL_EXCLUDE = ['.git', '.gitignore', '.gitattributes', '__pycache__', '.DS_Store'];
-
-function log(msg) {
-  process.stdout.write(msg + '\n');
-}
 function ensureDir(p) {
   fs.mkdirSync(p, { recursive: true });
-}
-
-function copyRecursive(src, dest, opts = {}) {
-  const { exclude = [] } = opts;
-  if (!fs.existsSync(src)) {
-    log(`  [skip] 源不存在: ${src}`);
-    return;
-  }
-  const stat = fs.statSync(src);
-  if (stat.isDirectory()) {
-    ensureDir(dest);
-    for (const entry of fs.readdirSync(src)) {
-      if (exclude.includes(entry) || GLOBAL_EXCLUDE.includes(entry)) continue;
-      copyRecursive(path.join(src, entry), path.join(dest, entry), opts);
-    }
-  } else {
-    ensureDir(path.dirname(dest));
-    fs.copyFileSync(src, dest);
-  }
 }
 
 function copyFile(rel) {
@@ -209,43 +186,6 @@ character_config:
   fs.writeFileSync(path.join(RUNTIME, 'config_templates', 'conf.pet.yaml'), yaml, 'utf-8');
 }
 
-function download(url, dest, redirectsLeft = 5) {
-  return new Promise((resolve, reject) => {
-    const file = fs.createWriteStream(dest);
-    https.get(url, (res) => {
-      if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
-        file.close();
-        fs.rmSync(dest, { force: true });
-        if (redirectsLeft <= 0) return reject(new Error('重定向次数过多'));
-        return resolve(download(res.headers.location, dest, redirectsLeft - 1));
-      }
-      if (res.statusCode !== 200) {
-        file.close();
-        fs.rmSync(dest, { force: true });
-        return reject(new Error(`下载失败 HTTP ${res.statusCode}`));
-      }
-      res.pipe(file);
-      file.on('finish', () => file.close(() => resolve()));
-    }).on('error', (e) => {
-      file.close();
-      fs.rmSync(dest, { force: true });
-      reject(e);
-    });
-  });
-}
-
-function extractTarBz2(archive, outDir) {
-  const res = spawnSync('tar', ['xf', archive, '-C', outDir], { stdio: 'inherit' });
-  if (res.status === 0) return;
-  // 部分 Windows 自带 bsdtar 缺 bzip2 过滤器（报 "unable to run program bzip2 -d"），
-  // 回退到 Python 标准库 tarfile（构建环境本就需要 Python，见 AIBOT_PYTHON）。
-  log('  系统 tar 无法解压 bz2，改用 Python tarfile ...');
-  const py = process.env.AIBOT_PYTHON && fs.existsSync(process.env.AIBOT_PYTHON) ? process.env.AIBOT_PYTHON : 'python';
-  const code = 'import sys,tarfile; tarfile.open(sys.argv[1], "r:bz2").extractall(sys.argv[2], filter="data")';
-  const res2 = spawnSync(py, ['-c', code, archive, outDir], { stdio: 'inherit' });
-  if (res2.status !== 0) throw new Error('解压失败：系统 tar 与 Python tarfile 均不可用');
-}
-
 /** 删除模型目录中运行时不用的文件（如 fp32 冗余权重），避免被打进安装包。 */
 function pruneUnused(dir, unused) {
   for (const name of unused) {
@@ -290,7 +230,7 @@ async function ensureModel(label, spec, requiredFile) {
     if (!fs.existsSync(modelFile)) {
       const archive = path.join(modelsDir, `${spec.dirName}.tar.bz2`);
       log(`源项目未找到模型，改为下载 ${label} 归档 ...`);
-      await download(spec.url, archive);
+      await download(spec.url, archive, { sha256: spec.sha256, progress: true });
       log('解压模型 ...');
       extractTarBz2(archive, modelsDir);
       fs.rmSync(archive, { force: true });
@@ -313,7 +253,4 @@ async function main() {
   log('\nout/stage/open-llm-vtuber/ 组装完成。');
 }
 
-main().catch((err) => {
-  console.error('\n[prepare-runtime] 失败：', err.message);
-  process.exit(1);
-});
+run('prepare-runtime', main);

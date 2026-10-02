@@ -19,8 +19,8 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
-const ROOT = path.join(__dirname, '..', '..');
-const DIST = path.join(ROOT, 'out', 'release', 'dist');
+const { ROOT, RELEASE } = require('../lib/paths');
+const DIST = path.join(RELEASE, 'dist');
 
 function arg(name, fallback) {
   const i = process.argv.indexOf(name);

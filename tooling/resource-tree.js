@@ -14,7 +14,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const RELEASE_ROOT = path.join(__dirname, '..', 'out', 'release');
+const { RELEASE: RELEASE_ROOT } = require('./lib/paths');
 
 function findResourcesDir() {
   if (!fs.existsSync(RELEASE_ROOT)) return null;

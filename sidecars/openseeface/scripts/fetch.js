@@ -20,87 +20,15 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const https = require('https');
-const { spawnSync } = require('child_process');
+const { DOWNLOADS, log, run, download, extractZip, copyRecursive } = require('../../../tooling/lib');
 
-const ROOT = path.join(__dirname, '..', '..', '..');
-const DST = path.join(ROOT, 'out', 'downloads', 'openseeface');
+const DST = path.join(DOWNLOADS, 'openseeface');
 const VERSION = 'v1.20.5';
 const URL = `https://github.com/emilianavt/OpenSeeFace/releases/download/${VERSION}/OpenSeeFace-${VERSION}.zip`;
-
-function log(m) {
-  process.stdout.write(m + '\n');
-}
-function ensureDir(p) {
-  fs.mkdirSync(p, { recursive: true });
-}
-
-function download(url, dest, redirectsLeft = 5) {
-  return new Promise((resolve, reject) => {
-    const file = fs.createWriteStream(dest);
-    https
-      .get(url, (res) => {
-        if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
-          file.close();
-          fs.rmSync(dest, { force: true });
-          if (redirectsLeft <= 0) return reject(new Error('重定向次数过多'));
-          return resolve(download(res.headers.location, dest, redirectsLeft - 1));
-        }
-        if (res.statusCode !== 200) {
-          file.close();
-          fs.rmSync(dest, { force: true });
-          return reject(new Error(`下载失败 HTTP ${res.statusCode}`));
-        }
-        const total = Number(res.headers['content-length'] || 0);
-        let recv = 0;
-        let last = -1;
-        res.on('data', (c) => {
-          recv += c.length;
-          if (total > 0) {
-            const pct = Math.floor((recv / total) * 100);
-            if (pct !== last && pct % 5 === 0) {
-              last = pct;
-              process.stdout.write(`\r  下载 ${pct}% (${(recv / 1048576).toFixed(0)}/${(total / 1048576).toFixed(0)} MB)`);
-            }
-          }
-        });
-        res.pipe(file);
-        file.on('finish', () => {
-          process.stdout.write('\n');
-          file.close(() => resolve());
-        });
-      })
-      .on('error', (e) => {
-        file.close();
-        fs.rmSync(dest, { force: true });
-        reject(e);
-      });
-  });
-}
-
-function unzip(zip, out) {
-  ensureDir(out);
-  const res = spawnSync(
-    'powershell',
-    ['-NoProfile', '-Command', `Expand-Archive -Path '${zip}' -DestinationPath '${out}' -Force`],
-    { stdio: 'inherit' },
-  );
-  if (res.status !== 0) throw new Error('解压失败（需 Windows PowerShell Expand-Archive）');
-}
-
-function copyDir(src, dst) {
-  if (!fs.existsSync(src)) {
-    log(`  [skip] 缺少 ${src}`);
-    return;
-  }
-  ensureDir(dst);
-  for (const e of fs.readdirSync(src)) {
-    const s = path.join(src, e);
-    const d = path.join(dst, e);
-    if (fs.statSync(s).isDirectory()) copyDir(s, d);
-    else fs.copyFileSync(s, d);
-  }
-}
+// 官方 release 未公布校验和（发布早于 GitHub 资产 digest），暂不校验，见 sidecars/openseeface/manifest.json
+const SHA256 = '';
+// 第三方 release 原样复制，不套默认排除规则
+const AS_IS = { defaults: false };
 
 async function main() {
   if (process.platform !== 'win32') {
@@ -116,17 +44,17 @@ async function main() {
   const ex = path.join(tmp, 'ex');
   try {
     log(`下载 OpenSeeFace ${VERSION}（~120MB）…`);
-    await download(URL, zip);
+    await download(URL, zip, { sha256: SHA256, progress: true });
     log('解压…');
-    unzip(zip, ex);
+    extractZip(zip, ex);
 
     log('组织到 out/downloads/openseeface …');
-    ensureDir(DST);
+    fs.mkdirSync(DST, { recursive: true });
     // Binary/ 下所有文件平铺到根（facetracker.exe + 自包含运行时依赖）
-    copyDir(path.join(ex, 'Binary'), DST);
+    copyRecursive(path.join(ex, 'Binary'), DST, AS_IS);
     // models/ 与 Licenses/ 放到同级
-    copyDir(path.join(ex, 'models'), path.join(DST, 'models'));
-    copyDir(path.join(ex, 'Licenses'), path.join(DST, 'Licenses'));
+    copyRecursive(path.join(ex, 'models'), path.join(DST, 'models'), AS_IS);
+    copyRecursive(path.join(ex, 'Licenses'), path.join(DST, 'Licenses'), AS_IS);
 
     const ok =
       fs.existsSync(path.join(DST, 'facetracker.exe')) &&
@@ -142,7 +70,4 @@ async function main() {
   }
 }
 
-main().catch((e) => {
-  console.error('[fetch-openseeface] 失败：', e.message);
-  process.exit(1);
-});
+run('fetch-openseeface', main);

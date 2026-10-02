@@ -44,7 +44,7 @@ function main() {
   if (!fs.existsSync(ENTRY)) {
     throw new Error(`未找到入口 ${ENTRY}，请先运行 prepare-runtime`);
   }
-  const py = resolvePython();
+  const py = resolveBuildPython();
   fs.mkdirSync(BUILD, { recursive: true });
 
   // __file__ 锚定的资源需作为数据打进 _internal（Windows 分隔符为分号）
@@ -81,9 +81,4 @@ function main() {
   log(`后端已冻结到 ${target}`);
 }
 
-try {
-  main();
-} catch (err) {
-  console.error('[build-backend] 失败：', err.message);
-  process.exit(1);
-}
+run('build-backend', main);

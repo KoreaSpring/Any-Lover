@@ -25,6 +25,7 @@
     "pack": "node tooling/package.js",
     "pack:full": "node tooling/package.js --with-model",
     "pack:tree": "node tooling/resource-tree.js",
+    "test:tooling": "node tooling/test/run.js",
     "dist": "npm run prepare-runtime && npm run build:backend && npm run pack",
     "dist:full": "npm run prepare-runtime && npm run build:backend && npm run pack:full",
     "dist:win": "npm run prepare-runtime && npm run build:backend && npm run prepare-tha-runtime && node tooling/package.js --no-ollama"
