@@ -82,6 +82,8 @@
 ## P3 主进程模块化
 
 - [ ] 19. 用 `platform/paths.ts` 统一管理路径；拆出 `app/container`、`lifecycle`、`first-run`；入口合并为 `index.ts`
+  - 进度（分支 `refactor/p3-main-modular`）：`core/` 已改名 `platform/`；`platform/paths.ts` 已接管 5 个随包资源和窗口图标的路径（附单测），顺带修复开发态 mcp_servers.json 读错目录（附录 B）。剩下的 `isPackaged` 只用于日志级别、自动更新、THA 是否复制到可写目录，属于行为分支，不是路径
+  - 待做：拆分 bootstrap.ts（873 行）为 app/container、lifecycle、first-run，入口合并为 index.ts
 - [ ] 20. 按 sidecar 拆目录，顺序为 ollama、tha、openseeface、open-llm-vtuber，每个一个提交
 - [ ] 21. 用 `agent/ports` 让 agent 不再依赖 Electron；新增 `settings.changed` 事件；由 registry 统一负责 start / stop
 - [ ] 22. IPC 控制器按域拆分；main 部分的 dependency-cruiser baseline 清零

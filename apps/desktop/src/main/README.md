@@ -52,6 +52,9 @@ Electron 主进程：应用大脑。管理所有 sidecar（Python 后端 / Ollam
 | --- | --- |
 | `settings-store.ts` | 设置持久化（userData/settings.json）+ API Key 加密存取 |
 | `gpu-fix.ts` | GPU 兼容性修正（启动早期应用） |
+| `paths.ts` | 随包资源路径（开发态 / 打包态差异只在这里处理）：后端运行时、ffmpeg、Ollama、OpenSeeFace、THA、mcp_servers.json、窗口图标。新增随包资源时在 `BUNDLED` 里登记 |
+| `data-dir.ts` | 大体积可写数据目录（runtime、tha-runtime 等）的位置选择与跨盘迁移 |
+| `auto-updater.ts` | electron-updater 检查更新（仅打包且有 app-update.yml 时生效） |
 
 ## agent/ — Agent 中枢（子目录）
 见 `agent/README.md`：事件总线 + 感知/记忆/决策/表达/资源协调五层。
