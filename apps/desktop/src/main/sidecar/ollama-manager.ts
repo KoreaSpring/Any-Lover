@@ -13,6 +13,7 @@ import {
   findOllamaOnPath,
   defaultInstallDir,
 } from './ollama-installer';
+import { BUNDLED, bundledDir } from '../platform/paths';
 
 const DEFAULT_HOST = 'http://127.0.0.1:11434';
 
@@ -20,17 +21,11 @@ const DEFAULT_HOST = 'http://127.0.0.1:11434';
 // 打包态：resources/ollama/{bin,models}；开发态：仓库根 out/downloads/ollama/{bin,models}
 export function resolveBundledOllama(): { exe: string; modelsDir: string } | null {
   const exeName = ollamaExeName();
-  const roots = app.isPackaged
-    ? [path.join(process.resourcesPath, 'ollama')]
-    : [path.join(app.getAppPath(), '..', '..', 'out', 'downloads', 'ollama')];
-  for (const root of roots) {
-    const exe = path.join(root, 'bin', exeName);
-    const modelsDir = path.join(root, 'models');
-    if (fs.existsSync(exe)) {
-      return { exe, modelsDir: fs.existsSync(modelsDir) ? modelsDir : '' };
-    }
-  }
-  return null;
+  const root = bundledDir(BUNDLED.ollama);
+  const exe = path.join(root, 'bin', exeName);
+  if (!fs.existsSync(exe)) return null;
+  const modelsDir = path.join(root, 'models');
+  return { exe, modelsDir: fs.existsSync(modelsDir) ? modelsDir : '' };
 }
 
 /**

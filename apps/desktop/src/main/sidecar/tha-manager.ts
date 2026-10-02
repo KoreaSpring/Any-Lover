@@ -19,6 +19,7 @@ import path from 'path';
 import { spawn, spawnSync, ChildProcess } from 'child_process';
 import { app } from 'electron';
 import { largeDataDir, cleanupLegacy } from '../platform/data-dir';
+import { BUNDLED, bundledDir } from '../platform/paths';
 import { installedHqTiers } from './tha-model-installer';
 
 const HOST = '127.0.0.1';
@@ -44,10 +45,7 @@ export class ThaManager {
   // 只读资源目录：打包态 resources/tha-runtime（tooling/package.js 把 out/stage/tha 打到此处，名字不变）；
   // 开发态用仓库内 EasyVtuber 源目录 sidecars/tha/runtime。
   private resourceRoot(): string {
-    if (app.isPackaged) {
-      return path.join(process.resourcesPath, 'tha-runtime');
-    }
-    return path.join(app.getAppPath(), '..', '..', 'sidecars', 'tha', 'runtime');
+    return bundledDir(BUNDLED.thaRuntime);
   }
 
   // 实际运行目录（需可写：首启要在此 pip 装依赖）。

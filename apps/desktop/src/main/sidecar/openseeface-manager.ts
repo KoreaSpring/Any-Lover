@@ -16,7 +16,7 @@
 import fs from 'fs';
 import path from 'path';
 import dgram from 'dgram';
-import { app } from 'electron';
+import { BUNDLED, bundledDir } from '../platform/paths';
 import { SidecarPerceptionSource, SidecarSpawnSpec } from '../agent/perception/perception-source';
 import { eventBus, EventBus } from '../agent/event-bus';
 import { parseOpenSeeFacePacket, OPENSEEFACE_DEFAULT_PORT } from '../agent/perception/openseeface-protocol';
@@ -52,18 +52,9 @@ export class OpenSeeFaceManager extends SidecarPerceptionSource {
     const override = process.env.ANYLOVER_OSF_EXE;
     if (override && override.trim() && fs.existsSync(override.trim())) return override.trim();
 
-    // 打包态：resources/openseeface/facetracker.exe（后续 prepare 脚本组装，本阶段可能缺失）
-    const packaged = path.join(process.resourcesPath || '', 'openseeface', 'facetracker.exe');
-    if (app.isPackaged && fs.existsSync(packaged)) return packaged;
-
-    // 开发态约定目录：<repoRoot>/out/downloads/openseeface/facetracker.exe（若已放置）
-    try {
-      const devExe = path.join(app.getAppPath(), '..', '..', 'out', 'downloads', 'openseeface', 'facetracker.exe');
-      if (fs.existsSync(devExe)) return devExe;
-    } catch {
-      /* ignore */
-    }
-    return null;
+    // 打包态 resources/openseeface；开发态 <repoRoot>/out/downloads/openseeface（由 fetch 脚本放置，可能缺失）
+    const exe = path.join(bundledDir(BUNDLED.openSeeFace), 'facetracker.exe');
+    return fs.existsSync(exe) ? exe : null;
   }
 
   canStart(): boolean {

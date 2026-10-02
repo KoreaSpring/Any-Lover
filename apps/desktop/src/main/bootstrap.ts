@@ -40,6 +40,7 @@ import { registerAibotIpc } from './ipc/aibot-ipc';
 import { openSettingsWindow, getSettingsWindow } from './window/settings-window';
 import { readSettings, writeSettings, hasApiKey } from './platform/settings-store';
 import { checkForUpdates, scheduleStartupCheck } from './platform/auto-updater';
+import { mcpServersConfigPath } from './platform/paths';
 import { recommendModel } from './sidecar/model-recommender';
 import { pullModel } from './sidecar/ollama-installer';
 import { SidecarRegistry } from './sidecar/registry';
@@ -146,15 +147,8 @@ const profileExtractor = new ProfileExtractor(profileStore, memoryStore, llmProv
 // 记忆写入走 mem0 式语义合并：本地 embedding 找近邻，中等相似度交 LLM 判 ADD/UPDATE/DELETE/NOOP。
 screenMemoryBridge.setConsolidation(embeddingClient, new LlmMemoryJudge(llmProviderRegistry, logToFile));
 
-// 中枢 MCP 客户端：与后端同一份 mcp_servers.json（打包：resources/runtime；开发：sidecars/open-llm-vtuber/upstream/）。
-const mcpHub = new McpHub(
-  {
-    configPath: app.isPackaged
-      ? path.join(process.resourcesPath, 'runtime', 'mcp_servers.json')
-      : path.join(app.getAppPath(), '..', '..', 'sidecars', 'open-llm-vtuber', 'upstream', 'mcp_servers.json'),
-  },
-  logToFile,
-);
+// 中枢 MCP 客户端：与后端同一份 mcp_servers.json（后端运行时里的那份，见 platform/paths）。
+const mcpHub = new McpHub({ configPath: mcpServersConfigPath() }, logToFile);
 proactiveEngine.setRelationship(relationshipState);
 proactiveEngine.setProfile(profileStore);
 // 每次写入屏幕记忆后，尝试低频提炼画像（内部有冷却与 provider 守卫）。

@@ -9,6 +9,7 @@ import { spawn, spawnSync, ChildProcess } from 'child_process';
 import { app } from 'electron';
 import { readSettings, loadApiKey, clampTtsSid } from '../platform/settings-store';
 import { largeDataDir, cleanupLegacy } from '../platform/data-dir';
+import { BUNDLED, bundledDir } from '../platform/paths';
 
 const HOST = '127.0.0.1';
 const PORT = 12393;
@@ -37,11 +38,7 @@ export class BackendManager {
 
   // 只读运行时根目录：打包态 resources/runtime；开发态仓库根 out/stage/open-llm-vtuber
   private resourceRoot(): string {
-    if (app.isPackaged) {
-      return path.join(process.resourcesPath, 'runtime');
-    }
-    // 开发态：app 路径为 apps/desktop/，回退两级到仓库根，再取 out/stage/open-llm-vtuber
-    return path.join(app.getAppPath(), '..', '..', 'out', 'stage', 'open-llm-vtuber');
+    return bundledDir(BUNDLED.backendRuntime);
   }
 
   // 可写运行目录：用户在启动页选了安装位置则放到 <安装位置>/runtime，否则 userData/runtime；
@@ -52,13 +49,8 @@ export class BackendManager {
 
   // 随包 ffmpeg 的 bin 目录：打包态 resources/ffmpeg/bin；开发态 out/downloads/ffmpeg/bin
   private ffmpegDir(): string | null {
-    const candidates = app.isPackaged
-      ? [path.join(process.resourcesPath, 'ffmpeg', 'bin')]
-      : [path.join(app.getAppPath(), '..', '..', 'out', 'downloads', 'ffmpeg', 'bin')];
-    for (const dir of candidates) {
-      if (fs.existsSync(path.join(dir, 'ffmpeg.exe'))) return dir;
-    }
-    return null;
+    const dir = path.join(bundledDir(BUNDLED.ffmpeg), 'bin');
+    return fs.existsSync(path.join(dir, 'ffmpeg.exe')) ? dir : null;
   }
 
   private pythonExe(): { exe: string; useScript: boolean } {
