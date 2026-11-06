@@ -15,6 +15,7 @@ import SiteFooter from './components/SiteFooter';
 import { useRevealObserver } from './useReveal';
 import LegacyApp from './legacy/App';
 import { ThemeContext, useThemeController } from './useThemeSchedule';
+import PromoIntro from './PromoIntro';
 
 /** 白天（cream）版官网：当前亮色 cream 主题整套页面。 */
 function CreamSite() {
@@ -57,6 +58,7 @@ export default function App() {
 
   return (
     <ThemeContext.Provider value={controller}>
+      <PromoIntro />
       {theme === 'legacy' ? <LegacyApp /> : <CreamSite />}
     </ThemeContext.Provider>
   );
